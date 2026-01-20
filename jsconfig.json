@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./*"],
+    }
+  },
+  "include":["src", "components/tooltip.jsx", "components/skeleton.jsx", "components/ui/sidebar.jsx", "components/sheet.jsx", "components/separator.jsx", "components/label.jsx", "components/input.jsx", "components/card.jsx", "components/button.jsx", "app/hooks", "lib/utils.js","components/ui/button.jsx", "components/ui/card.jsx", "components/ui/input.jsx", "components/ui/label.jsx", "components/ui/separator.jsx", "components/ui/sheet.jsx", "components/ui/skeleton.jsx", "components/ui/tooltip.jsx"]
+}
