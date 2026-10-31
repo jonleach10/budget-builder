@@ -1,9 +1,10 @@
 'use client';
-import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
+import type { ReactNode } from "react";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import "./globals.css";
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="dark">
       <body className="flex min-h-screen">
@@ -14,7 +15,7 @@ export default function RootLayout({ children }) {
               {children}
             </main>
           </SidebarInset>
-        </SidebarProvider> 
+        </SidebarProvider>
       </body>
     </html>
   );

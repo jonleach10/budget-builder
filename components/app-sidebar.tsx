@@ -1,6 +1,5 @@
 'use client';
-import React from "react";
-import { Home, Landmark, LayoutTemplate, Settings, LogOut, Wallpaper } from "lucide-react"
+import { Home, Landmark, LayoutTemplate, Settings, Wallpaper } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -15,7 +14,7 @@ import {
   SidebarFooter
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabaseClient.js"
+import { supabase } from "@/lib/supabaseClient"
 
 const items = [
   {
@@ -48,7 +47,11 @@ const items = [
 export function AppSidebar() {
   const handleSignOut = async function() {
     const { error } = await supabase.auth.signOut();
-    error ? console.error('Error signing out:', error) : console.log("User successfully signed out");
+    if (error) {
+      console.error('Error signing out:', error)
+    } else {
+      console.log("User successfully signed out")
+    }
   }
   return (
     <Sidebar collapsible="icon" variant="inset">
