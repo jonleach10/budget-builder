@@ -6,8 +6,12 @@ const TEN = BigInt(10);
 const TWO = BigInt(2);
 const MAX_SIZE = BigInt(Number.MAX_SAFE_INTEGER);
 
+export function isCurrencyCode(text: string): boolean {
+  return /^[A-Z]{3}$/.test(text);
+}
+
 function assertCurrency(currency: string): void {
-  if (!/^[A-Z]{3}$/.test(currency)) throw new MoneyError("bad-currency");
+  if (!isCurrencyCode(currency)) throw new MoneyError("bad-currency");
 }
 
 // BigInt's own errors print the value, so a bad value stops here first.
