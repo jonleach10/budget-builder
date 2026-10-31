@@ -1,0 +1,9 @@
+Booking date;Value date;Transaction type;Booking text;Amount;Currency;Account IBAN;Category;Sender;Recipient;Transfer purpose
+;;Card payment;EXAMPLE KIOSK BERLIN;-4,2;EUR;DE00123456789012343333;Shopping;;Example Kiosk;
+;;Direct debit;EXAMPLE TELECOM;-19,99;EUR;DE00123456789012343333;Utilities;;Example Telecom;Monthly plan
+05.11.2030;05.11.2030;Standing order;Rent Novem ber End-To-End Reference: NOTPROVIDED;-900;EUR;DE00123456789012343333;Housing;;Example Landlord;Rent November
+15.10.2026;16.10.2026;Direct debit;EXAMPLE INSURANCE Mandate Reference: M-123 ID Of Orde ring Party: DE00ZZZ000 01234567 End-To-End Reference: X-1;-42,5;EUR;DE00123456789012343333;Insurance;;Example Insurance;Policy 88
+12.10.2026;12.10.2026;Card payment;12.10.2026 14:30 Originalbetrag: 50,75 USD Kurs: 1,1102 USD               /EUR Entgelt Auslandseinsatz: 0,68 EUR;-46,38;EUR;DE00123456789012343333;Foreign currencies & precious metals;;Example Shop;
+10.10.2026;10.10.2026;Incoming transfer;Salary End-To-End Reference: NOTPROVIDED Customer Reference: C-1;2.500,00;EUR;DE00123456789012343333;Income;Example Employer;;October salary
+08.10.2026;08.10.2026;Transfer;Text part one;;-9,5;EUR;DE00123456789012343333;Other;;Example Friend;
+07.10.2026;07.10.2026;Account fee;Fee for October;-3,5;EUR;DE00123456789012343333;Fees;;;
