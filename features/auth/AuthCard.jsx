@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import supabase from "lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 
 
 export default function AuthCard() {

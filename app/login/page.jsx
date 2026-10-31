@@ -1,6 +1,5 @@
 'use client';
-import { useState } from "react";
-import AuthCard from "../components/authCard";
+import AuthCard from "@/features/auth/AuthCard";
 
 
 export default function Page() {
