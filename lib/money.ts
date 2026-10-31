@@ -58,6 +58,10 @@ const EXPONENTS: Record<string, number> = {
   UYW: 4,
 };
 
+export function currencyExponent(currency: string): number {
+  return EXPONENTS[currency] ?? DEFAULT_EXPONENT;
+}
+
 const STYLES: Record<
   DecimalStyle,
   { shape: RegExp; decimal: string; group: string }

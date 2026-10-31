@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { isDecimalShaped, MoneyError, parseMoney, sumMinor } from "./money";
+import {
+  currencyExponent,
+  isDecimalShaped,
+  MoneyError,
+  parseMoney,
+  sumMinor,
+} from "./money";
+
+describe("currencyExponent", () => {
+  it.each([
+    ["JPY", 0],
+    ["USD", 2],
+    ["EUR", 2],
+    ["KWD", 3],
+    ["CLF", 4],
+  ])("gives %s an exponent of %i", (currency, exponent) => {
+    expect(currencyExponent(currency)).toBe(exponent);
+  });
+
+  it("defaults a currency that isn't in the table to 2", () => {
+    expect(currencyExponent("ZZZ")).toBe(2);
+  });
+});
 
 describe("parseMoney", () => {
   it.each([
