@@ -152,6 +152,70 @@ describe("categories on transactions", () => {
   });
 });
 
+describe("category names", () => {
+  it("are refused when repeated by one user", async () => {
+    await refused(insertCategory("Groceries"), /unique constraint/);
+  });
+
+  it("can repeat across users", async () => {
+    const { rows } = await db.query(
+      "select user_id from public.categories where name = 'Groceries'",
+    );
+    expect(rows).toHaveLength(2);
+  });
+});
+
+describe("category sources", () => {
+  it("are refused on an update with no category", async () => {
+    await refused(
+      "update public.transactions set category_source = 'manual'",
+      /source_needs_a_category/,
+    );
+  });
+
+  it("are refused on an insert with no category", async () => {
+    await refused(
+      insertTransaction(OWNER, "sourced", { category_source: "'manual'" }),
+      /source_needs_a_category/,
+    );
+  });
+
+  it("are allowed with a category", async () => {
+    const { affectedRows } = await asOwner((tx) =>
+      tx.query(
+        `update public.transactions
+         set type = 'spending',
+             category_id = '${OWNER.categoryId}',
+             category_source = 'manual'`,
+      ),
+    );
+    expect(affectedRows).toBe(1);
+  });
+
+  it("clear when the category is cleared", async () => {
+    const { rows } = await asOwner(async (tx) => {
+      await tx.exec(`
+        update public.transactions
+        set type = 'spending',
+            category_id = '${OWNER.categoryId}',
+            category_source = 'rule';
+        update public.transactions set category_id = null;
+      `);
+      return tx.query(
+        "select category_id, category_source from public.transactions",
+      );
+    });
+    expect(rows).toEqual([{ category_id: null, category_source: null }]);
+  });
+
+  it("can't be cleared by calling the trigger function directly", async () => {
+    await refused(
+      "select public.clear_category_source()",
+      /permission denied for function/,
+    );
+  });
+});
+
 describe("blank text", () => {
   it.each(["", " ", "   ", "\t", "\n"])(
     "is refused as a category name: %j",
@@ -162,6 +226,69 @@ describe("blank text", () => {
 
   it.each(["", " ", "\t"])("is refused as a rule value: %j", async (value) => {
     await refused(insertRule(value), /check constraint/);
+  });
+});
+
+describe("text the app treats as blank", () => {
+  // Every character trim() removes, taken from JavaScript so the check in the
+  // migration can't drift from what the app calls blank.
+  const BLANK_CHARACTERS = Array.from({ length: 0x10000 }, (_, code) =>
+    String.fromCharCode(code),
+  ).filter((character) => character.trim() === "");
+
+  const labelled = BLANK_CHARACTERS.map(
+    (character) =>
+      [
+        `U+${character.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}`,
+        character,
+      ] as const,
+  );
+
+  const COLUMNS = [
+    [
+      "accounts.name",
+      `insert into public.accounts (name, last_four, format, currency, country)
+       values ($1, '2222', 'chase-bank', 'USD', 'US')`,
+    ],
+    ["categories.name", "insert into public.categories (name) values ($1)"],
+    [
+      "rules.value",
+      `insert into public.rules (match_on, value, type)
+       values ('descriptionContains', $1, 'spending')`,
+    ],
+    [
+      "transactions.fingerprint",
+      insertTransaction(OWNER, "unused", { fingerprint: "$1" }),
+    ],
+  ] as const;
+
+  it("covers every whitespace character in the language", () => {
+    expect(BLANK_CHARACTERS).toHaveLength(25);
+    expect(BLANK_CHARACTERS).toContain("\u00A0");
+    expect(BLANK_CHARACTERS).toContain("\uFEFF");
+  });
+
+  describe.each(COLUMNS)("in %s", (_column, sql) => {
+    const store = (text: string) =>
+      asOwner((tx) => tx.query(sql, [text]));
+
+    it.each(labelled)("refuses %s alone", async (_label, character) => {
+      await expect(store(character)).rejects.toThrow(/check constraint/);
+    });
+
+    it("refuses a run of every kind", async () => {
+      await expect(store(BLANK_CHARACTERS.join(""))).rejects.toThrow(
+        /check constraint/,
+      );
+    });
+
+    it.each(["A\u00A0B", "\u00A0A", "A\u3000", "\u00DF", "0"])(
+      "accepts %j, which has something to read",
+      async (text) => {
+        const { affectedRows } = await store(text);
+        expect(affectedRows).toBe(1);
+      },
+    );
   });
 });
 
@@ -288,8 +415,21 @@ describe("accounts", () => {
     },
   );
 
-  it("refuse a repeated last four", async () => {
+  it("refuse a repeated last four in one format", async () => {
     await refused(insertAccount("1111"), /unique constraint/);
+  });
+
+  it.each([
+    ["chase-card", "USD", "US"],
+    ["commerzbank", "EUR", "DE"],
+  ])("can share a last four across formats: %s", async (format, currency, country) => {
+    const { affectedRows } = await asOwner((tx) =>
+      tx.query(
+        `insert into public.accounts (name, last_four, format, currency, country)
+         values ('Second', '1111', '${format}', '${currency}', '${country}')`,
+      ),
+    );
+    expect(affectedRows).toBe(1);
   });
 
   it("refuse an unknown format", async () => {
@@ -365,6 +505,27 @@ describe("deleting a category", () => {
       { type: "spending", category_id: null, suggested_category_id: null },
     ]);
   });
+
+  it.each(["manual", "rule", "history", "bank-type"])(
+    "clears a source of %s and keeps the type",
+    async (source) => {
+      const { rows } = await asOwner(async (tx) => {
+        await tx.exec(`
+          update public.transactions
+          set type = 'spending',
+              category_id = '${OWNER.categoryId}',
+              category_source = '${source}';
+          delete from public.categories;
+        `);
+        return tx.query(
+          "select type, category_id, category_source from public.transactions",
+        );
+      });
+      expect(rows).toEqual([
+        { type: "spending", category_id: null, category_source: null },
+      ]);
+    },
+  );
 
   it("removes its rules", async () => {
     const { rows } = await asOwner(async (tx) => {

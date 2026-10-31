@@ -14,23 +14,30 @@ create domain public.currency_code as text
 create domain public.decimal_rate as text
   check (value ~ '^[0-9]+(\.[0-9]+)?$' and value ~ '[1-9]');
 
+-- Needs one character that JavaScript's trim() keeps, so text the app calls
+-- blank can't be stored. \S isn't enough: it lets a no-break space through.
+create domain public.filled_text as text
+  check (value ~ '[^\t\n\v\f\r \u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]');
+
 create table public.accounts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete restrict,
-  name text not null check (name ~ '\S'),
+  name public.filled_text not null,
   last_four text not null check (last_four ~ '^[0-9]{4}$'),
   format text not null check (format in ('chase-bank', 'chase-card', 'commerzbank')),
   currency public.currency_code not null,
   country text not null check (country in ('US', 'DE')),
   created_at timestamptz not null default now(),
   unique (user_id, id),
-  unique (user_id, last_four)
+  -- Matches resolveAccount in features/import/parseStatement.ts, which tells two
+  -- accounts apart by format and can't pick between two of one format.
+  unique (user_id, format, last_four)
 );
 
 create table public.categories (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete restrict,
-  name text not null check (name ~ '\S'),
+  name public.filled_text not null,
   position integer not null default 0,
   unique (user_id, id),
   unique (user_id, name)
@@ -42,7 +49,7 @@ create table public.transactions (
 
   -- From the bank. Locked after insert, see the grants below.
   account_id uuid not null,
-  fingerprint text not null check (fingerprint ~ '\S'),
+  fingerprint public.filled_text not null,
   posted_on date not null,
   purchased_on date,
   amount_minor public.minor_units not null,
@@ -88,11 +95,37 @@ create table public.transactions (
     references public.categories (user_id, id) on delete set null (suggested_category_id),
   constraint only_spending_has_a_category
     check (category_id is null or type is not distinct from 'spending'),
+  constraint source_needs_a_category
+    check (category_source is null or category_id is not null),
   constraint original_amount_has_a_currency
     check (num_nonnulls(original_amount_minor, original_currency) in (0, 2))
 );
 
 create index transactions_by_month on public.transactions (user_id, posted_on);
+
+-- A foreign key can only clear its own columns, so deleting a category needs
+-- this to clear the source. Without it, source_needs_a_category refuses the
+-- delete.
+create function public.clear_category_source()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  new.category_source := null;
+  return new;
+end
+$$;
+
+revoke execute on function public.clear_category_source()
+  from public, anon, authenticated;
+
+create trigger category_source_follows_category
+  before update of category_id on public.transactions
+  for each row
+  when (new.category_id is null)
+  execute function public.clear_category_source();
 
 create table public.rules (
   id uuid primary key default gen_random_uuid(),
@@ -100,7 +133,7 @@ create table public.rules (
   match_on text not null check (
     match_on in ('ppdId', 'orderingPartyId', 'descriptionStartsWith', 'descriptionContains')
   ),
-  value text not null check (value ~ '\S'),
+  value public.filled_text not null,
   position integer not null default 0,
   type text check (type in ('spending', 'income', 'transfer', 'saved', 'personal')),
   category_id uuid,
