@@ -49,6 +49,10 @@ describe.skipIf(!dir)("real statements", () => {
       it("keeps no IBAN-shaped text", () => {
         expect(check.ibanShapedFieldCount).toBe(0);
       });
+
+      it("fills every field the raw text marks", () => {
+        expect(check.missedFieldCount).toBe(0);
+      });
     });
   });
 });

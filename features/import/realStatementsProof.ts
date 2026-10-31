@@ -24,6 +24,7 @@ export type StatementCheck = {
   sumsMatch: boolean;
   balanceMismatchCount: number;
   ibanShapedFieldCount: number;
+  missedFieldCount: number;
 };
 
 export type RawAmounts = { dataRowCount: number; bookedSum: number };
@@ -31,7 +32,7 @@ export type RawAmounts = { dataRowCount: number; bookedSum: number };
 const COMMERZBANK_FIELDS_FROM_AMOUNT = 7;
 const IBAN_CANDIDATE = /[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}/g;
 const IBAN_MIN_DIGITS = 10;
-const SEPA_CREDITOR_ID = /^[A-Z]{2}\d{2}ZZZ/;
+const SEPA_CREDITOR_ID = /^[A-Z]{2}\d{2}(?:ZZZ|[A-Z]{3}\d)/;
 
 const TEXT_FIELDS = [
   "description",
@@ -175,6 +176,44 @@ export function countIbanShapedFields(
   return count;
 }
 
+// Each marker in the raw text promises a filled field, so a field that parsing
+// silently leaves empty shows up here. Lines are lower case with no spaces. The
+// exchange marker names a currency, because an unknown one leaves original unset.
+const FIELD_MARKERS: readonly {
+  marker: RegExp;
+  isFilled: (transaction: Transaction) => boolean;
+}[] = [
+  { marker: /idoforderingparty:/, isFilled: (t) => t.orderingPartyId !== undefined },
+  { marker: /originalbetrag:/, isFilled: (t) => t.original !== undefined },
+  { marker: /euro[\d.]+x[\d.]+\(exchgrte\)/, isFilled: (t) => t.original !== undefined },
+  { marker: /ppdid:/, isFilled: (t) => t.ppdId !== undefined },
+  { marker: /transaction#:/, isFilled: (t) => t.transferNumber !== undefined },
+  {
+    marker: /,debit_card,/,
+    isFilled: (t) => t.bankType === "DEBIT_CARD" && t.purchasedOn !== undefined,
+  },
+];
+
+export function countMissedFields(
+  text: string,
+  transactions: readonly Transaction[],
+): number {
+  const lines = text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .slice(1)
+    .filter((line) => !line.startsWith(";;"))
+    .map((line) => line.replace(/\s/g, "").toLowerCase());
+
+  let missed = 0;
+  for (const { marker, isFilled } of FIELD_MARKERS) {
+    const marked = lines.filter((line) => marker.test(line)).length;
+    const filled = transactions.filter(isFilled).length;
+    if (marked > filled) missed += marked - filled;
+  }
+  return missed;
+}
+
 function failed(failure: StatementCheck["failure"]): StatementCheck {
   return {
     failure,
@@ -182,6 +221,7 @@ function failed(failure: StatementCheck["failure"]): StatementCheck {
     sumsMatch: false,
     balanceMismatchCount: 0,
     ibanShapedFieldCount: 0,
+    missedFieldCount: 0,
   };
 }
 
@@ -211,6 +251,7 @@ export async function checkStatement(
       balanceMismatchCount:
         format === "chase-bank" ? countBalanceMismatches(transactions) : 0,
       ibanShapedFieldCount: countIbanShapedFields(transactions),
+      missedFieldCount: countMissedFields(file.text, transactions),
     };
   } catch (error) {
     if (error instanceof StatementError) {

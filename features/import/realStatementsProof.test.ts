@@ -11,6 +11,7 @@ import {
   checkStatement,
   countBalanceMismatches,
   countIbanShapedFields,
+  countMissedFields,
   readRawAmounts,
   readStatementFiles,
 } from "./realStatementsProof";
@@ -147,6 +148,42 @@ describe("countIbanShapedFields", () => {
   });
 });
 
+describe("countMissedFields", () => {
+  const debit = "ID Of Ordering Party: DE00ZZZ00001234567 SEPA-CORE-DIRECT DEBIT";
+
+  it("counts a marked row whose field came out empty", () => {
+    expect(countMissedFields(`header\n${debit}`, [transaction({})])).toBe(1);
+  });
+
+  it("accepts a marked row whose field was filled", () => {
+    const parsed = transaction({ orderingPartyId: "DE00ZZZ00001234567" });
+    expect(countMissedFields(`header\n${debit}`, [parsed])).toBe(0);
+  });
+
+  it("finds a marker that has stray spaces inside it", () => {
+    const text = "header\nI D Of Order ing Par ty: DE00ZZZ00001234567";
+    expect(countMissedFields(text, [transaction({})])).toBe(1);
+  });
+
+  it("ignores pending Commerzbank rows, which aren't parsed", () => {
+    expect(countMissedFields(`header\n;;Debit;${debit}`, [])).toBe(0);
+  });
+
+  it("needs a purchase date on debit card rows only", () => {
+    const text = 'header\nDEBIT,10/05/2026,"SHOP CA 10/04",-1.00,DEBIT_CARD,9.00,,';
+    const transfer = transaction({
+      bankType: "ACCT_XFER",
+      purchasedOn: "2026-10-04",
+    });
+    const card = transaction({
+      bankType: "DEBIT_CARD",
+      purchasedOn: "2026-10-04",
+    });
+    expect(countMissedFields(text, [transfer])).toBe(1);
+    expect(countMissedFields(text, [card])).toBe(0);
+  });
+});
+
 describe("checkStatement", () => {
   it.each(files.map((file, index) => [index + 1, file] as const))(
     "passes synthetic statement %i",
@@ -157,6 +194,7 @@ describe("checkStatement", () => {
         sumsMatch: true,
         balanceMismatchCount: 0,
         ibanShapedFieldCount: 0,
+        missedFieldCount: 0,
       });
     },
   );
