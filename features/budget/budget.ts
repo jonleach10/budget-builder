@@ -24,6 +24,12 @@ const MONTH_SHAPE = /^\d{4}-(?:0[1-9]|1[0-2])$/;
 
 export type Country = "US" | "DE";
 
+const CURRENCIES: Record<Country, string> = { US: "USD", DE: "EUR" };
+
+export function currencyFor(country: Country): string {
+  return CURRENCIES[country];
+}
+
 export type Budget = {
   /** A calendar month, as YYYY-MM. */
   month: string;
