@@ -17,8 +17,10 @@ const TRAILING_WORDS = /(?: [A-Z]+)+$/;
 const CARD_CANDIDATE = /[0-9Xx*]{2,}(?:[ -][0-9Xx*]{2,})*/g;
 
 // A SEPA creditor ID is shaped like an IBAN, but it identifies a merchant and
-// not anyone's account. ZZZ is its creditor business code.
-const SEPA_CREDITOR_ID = /^[A-Z]{2}\d{2}ZZZ[A-Z0-9]+$/;
+// not anyone's account. Its creditor business code is three characters, usually
+// ZZZ. Other codes must be three letters then a digit, because many IBANs have
+// four letters there.
+const SEPA_CREDITOR_ID = /^[A-Z]{2}\d{2}(?:ZZZ[A-Z0-9]+|[A-Z]{3}\d[A-Z0-9]*)$/;
 
 function withoutSpaces(text: string): string {
   return text.replace(/ /g, "");

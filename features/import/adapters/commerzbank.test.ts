@@ -106,6 +106,11 @@ describe("commerzbank statements", () => {
     expect((await parseOne(row)).orderingPartyId).toBe("DE00ZZZ00001234567");
   });
 
+  it("reads the ordering party ID when the SEPA debit type follows it", async () => {
+    const row = `12.10.2026;12.10.2026;Debit;End-To-End Reference: REF1 Mandate Reference: M1 ID Of Ordering Party: DE00ZZZ00001234567 SEPA-CORE-DIRECT DEBIT subsequent;-1,00;EUR;${iban};;;Shop;`;
+    expect((await parseOne(row)).orderingPartyId).toBe("DE00ZZZ00001234567");
+  });
+
   it("drops an ordering party value that isn't an ID", async () => {
     const row = `12.10.2026;12.10.2026;Debit;ID Of Ordering Party: not an / id;-1,00;EUR;${iban};;;Shop;`;
     expect(await parseOne(row)).not.toHaveProperty("orderingPartyId");

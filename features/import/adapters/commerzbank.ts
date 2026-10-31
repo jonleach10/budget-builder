@@ -19,7 +19,7 @@ const FIELDS_AFTER_IBAN = 4;
 // Booking text wraps with stray spaces, even inside words and numbers, so these
 // run on the text with all its whitespace removed.
 const ORDERING_PARTY_ID =
-  /IDOfOrderingParty:([A-Za-z0-9]{1,35})(?=End-To-EndReference:|CustomerReference:|MandateReference:|$)/;
+  /IDOfOrderingParty:([A-Za-z0-9]{1,35})(?=SEPA-|End-To-EndReference:|CustomerReference:|MandateReference:|$)/;
 const ORIGINAL_AMOUNT = /Originalbetrag:([\d.,]+)([A-Z]{3})/;
 const EXCHANGE_RATE = /Kurs:([\d.,]+)[A-Z]{3}/;
 

@@ -65,6 +65,14 @@ describe("redactIdentifier", () => {
     expect(redactIdentifier("DE00ZZZ00001234567")).toBe("DE00ZZZ00001234567");
   });
 
+  it("keeps a creditor ID with another business code", () => {
+    expect(redactIdentifier("DE00ABC00001234567")).toBe("DE00ABC00001234567");
+  });
+
+  it("drops an IBAN with a four-letter bank code", () => {
+    expect(redactIdentifier("GB00WEST12345698765432")).toBeUndefined();
+  });
+
   it("drops an IBAN rather than keeping a placeholder", () => {
     expect(redactIdentifier("DE00123456789012345678")).toBeUndefined();
   });
