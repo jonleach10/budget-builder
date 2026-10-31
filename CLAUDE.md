@@ -45,3 +45,13 @@ Claude works in local sessions only. No Claude workflow, token or bot runs on Gi
 PRs follow `.github/pull_request_template.md`. Claude opens a PR only with proof of testing to put in its Testing done section.
 
 Commits have no `Co-Authored-By` lines. PR descriptions have no "Generated with Claude Code" line or session link.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues, through the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
