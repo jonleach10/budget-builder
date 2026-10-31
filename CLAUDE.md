@@ -29,7 +29,7 @@ A budget for joint money across Chase accounts in the US and Commerzbank account
 - No transaction data goes to AI services.
 - UI work follows the project's `midnight-glass` skill, and interface text follows the `voice` skill.
 
-## Review criteria for Claude's PR reviews
+## Review criteria
 
 The rules above, plus:
 
@@ -40,8 +40,8 @@ The rules above, plus:
 
 ## PR policy
 
-Claude reviews and may open draft PRs from `ready-for-agent` issues. Claude never approves or merges. Only the owner does.
+Claude works in local sessions only. No Claude workflow, token or bot runs on GitHub, and GitHub Actions holds no secrets. Claude may open PRs from a local session. Claude never approves or merges. Only the owner does.
 
-PRs follow `.github/pull_request_template.md`. Agents open a PR only when they have proof of testing to put in its Testing done section.
+PRs follow `.github/pull_request_template.md`. Claude opens a PR only with proof of testing to put in its Testing done section.
 
 Commits have no `Co-Authored-By` lines. PR descriptions have no "Generated with Claude Code" line or session link.
