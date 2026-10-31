@@ -7,10 +7,15 @@ const CARD_MIN_LENGTH = 12;
 
 const IBAN_SHAPE = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
 
-// Spaces are optional, so a match can run into the capitalized words after an
-// IBAN. Those words are trimmed off again in redactIbans.
-const IBAN_CANDIDATE = /[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}(?![A-Z0-9])/g;
-const TRAILING_WORDS = /(?: [A-Z]+)+$/;
+// Spaces are optional, because bank text wraps at arbitrary points. A match ends
+// at its last digit's word, which leaves the capitalized words after an IBAN out
+// of it. There's no upper limit, because a limit can end a match inside an IBAN
+// that starts later in the run and leave its tail in the text.
+const IBAN_CANDIDATE = /[A-Z]{2}\d{2}(?: ?[A-Z0-9])* ?\d[A-Z0-9]*/g;
+
+// A word of five or more letters can't be part of a spaced IBAN, so it divides
+// the text into separate runs. The capture keeps the word when splitting.
+const NON_IBAN_WORD = /(?<![A-Z0-9])([A-Z]{5,})(?![A-Z0-9])/;
 
 // Groups need a separator between them, which keeps this linear on long runs.
 // Each group has at least two characters so "100 x 200" stays text.
@@ -30,14 +35,14 @@ export function isIbanShaped(text: string): boolean {
   return IBAN_SHAPE.test(withoutSpaces(text.trim()));
 }
 
+function redactIbanCandidates(text: string): string {
+  return text.replace(IBAN_CANDIDATE, (match) =>
+    withoutSpaces(match).length >= IBAN_MIN_LENGTH ? REDACTED : match,
+  );
+}
+
 function redactIbans(text: string): string {
-  return text.replace(IBAN_CANDIDATE, (match) => {
-    const words = TRAILING_WORDS.exec(match)?.[0] ?? "";
-    const iban = match.slice(0, match.length - words.length);
-    return withoutSpaces(iban).length >= IBAN_MIN_LENGTH
-      ? REDACTED + words
-      : match;
-  });
+  return text.split(NON_IBAN_WORD).map(redactIbanCandidates).join("");
 }
 
 function redactCardNumbers(text: string): string {
