@@ -1,3 +1,5 @@
+const MAX_DAYS_AFTER_POSTING = 31;
+
 function pad(value: number, length: number): string {
   return String(value).padStart(length, "0");
 }
@@ -24,18 +26,29 @@ export function parseGermanDate(text: string): string | null {
   return toIsoDate(year, month, day);
 }
 
+function addDays(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
 /**
- * Finds the year of an MM/DD date printed on a posted row. A month more than
- * half a year after the posting month belongs to the previous year, which
- * covers December purchases posted in January without moving a purchase that
- * is dated a day after it posted.
+ * Finds the year of an MM/DD date printed on a posted row: the latest date with
+ * that month and day that falls no more than 31 days after posting. Only the
+ * years around posting are tried, so a leap day with no leap year among them
+ * stays unread.
  */
 export function inferPurchaseDate(
   monthDay: string,
   postedOn: string,
 ): string | undefined {
   const [month, day] = monthDay.split("/").map(Number);
-  const [postedYear, postedMonth] = postedOn.split("-").map(Number);
-  const year = month > postedMonth + 6 ? postedYear - 1 : postedYear;
-  return toIsoDate(year, month, day) ?? undefined;
+  const [postedYear] = postedOn.split("-").map(Number);
+  const latest = addDays(postedOn, MAX_DAYS_AFTER_POSTING);
+
+  for (const year of [postedYear + 1, postedYear, postedYear - 1]) {
+    const date = toIsoDate(year, month, day);
+    if (date !== null && date <= latest) return date;
+  }
+  return undefined;
 }

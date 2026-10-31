@@ -96,6 +96,21 @@ describe("commerzbank statements", () => {
     });
   });
 
+  it.each([
+    ["no decimals", "250.000", "VND", 250000, "26.123,45", "26123.45"],
+    ["three decimals", "3,125", "KWD", 3125, "0,32", "0.32"],
+    ["printed decimals on yen", "5.000,00", "JPY", 5000, "162,35", "162.35"],
+  ])(
+    "keeps the original amount for a currency with %s",
+    async (_label, printed, currency, minor, printedRate, rate) => {
+      const row = `12.10.2026;12.10.2026;Card;Originalbetrag: ${printed} ${currency} Kurs: ${printedRate} ${currency} /EUR;-1,00;EUR;${iban};;;Shop;`;
+      expect((await parseOne(row)).original).toEqual({
+        amount: { minor, currency },
+        rate,
+      });
+    },
+  );
+
   it("leaves original unset when the booking text's amount can't be read", async () => {
     const row = `12.10.2026;12.10.2026;Card;Originalbetrag: 1.5 USD Kurs: 1,1 USD /EUR;-1,00;EUR;${iban};;;Shop;`;
     expect(await parseOne(row)).not.toHaveProperty("original");

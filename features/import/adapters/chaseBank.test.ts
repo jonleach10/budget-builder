@@ -103,6 +103,26 @@ describe("chase-bank statements", () => {
       expect(row.purchasedOn).toBe("2026-01-03");
     });
 
+    it.each([
+      ["a date in January posted on New Year's Eve", "01/01", "12/31/2026", "2027-01-01"],
+      ["a date exactly 31 days after posting", "01/01", "12/01/2026", "2027-01-01"],
+      ["a date 32 days after posting", "01/01", "11/30/2026", "2026-01-01"],
+      ["a date far ahead of the posting month", "12/20", "06/15/2026", "2025-12-20"],
+      ["a leap day in a leap year", "02/29", "03/01/2024", "2024-02-29"],
+    ])("reads %s", async (_label, printed, postedOn, purchasedOn) => {
+      const row = await parseDescription(`EXAMPLE MARKET NY ${printed}`, postedOn);
+      expect(row.purchasedOn).toBe(purchasedOn);
+    });
+
+    it("keeps a leap day with no leap year in reach as text", async () => {
+      const row = await parseDescription(
+        "EXAMPLE MARKET NY 02/29",
+        "03/01/2026",
+      );
+      expect(row.description).toBe("EXAMPLE MARKET NY 02/29");
+      expect(row).not.toHaveProperty("purchasedOn");
+    });
+
     it("keeps a trailing number that isn't a date as text", async () => {
       const row = await parseDescription("EXAMPLE MARKET NY 13/45");
       expect(row.description).toBe("EXAMPLE MARKET NY 13/45");
@@ -128,6 +148,54 @@ describe("chase-bank statements", () => {
         "SHOP 10/05 Euro       1,011.90 X 1.121008 (EXCHG RTE)",
       );
       expect(row.original?.amount.minor).toBe(101190);
+    });
+
+    it("takes the date right before the currency, not one in the merchant name", async () => {
+      const row = await parseDescription(
+        "STATION 24/24 PARIS                   10/05 Euro       11.90 X 1.121008 (EXCHG RTE)",
+      );
+      expect(row).toMatchObject({
+        description: "STATION 24/24 PARIS",
+        purchasedOn: "2026-10-05",
+        original: {
+          amount: { minor: 1190, currency: "EUR" },
+          rate: "1.121008",
+        },
+      });
+    });
+
+    it.each([
+      ["Euro", "EUR"],
+      ["EURO", "EUR"],
+      ["British Pound", "GBP"],
+      ["Pound Sterling", "GBP"],
+      ["POUND STERLING", "GBP"],
+      ["Swiss Franc", "CHF"],
+      ["Canadian Dollar", "CAD"],
+      ["Australian Dollar", "AUD"],
+      ["Mexican Peso", "MXN"],
+      ["Danish Krone", "DKK"],
+      ["Swedish Krona", "SEK"],
+      ["Norwegian Krone", "NOK"],
+    ])("reads the currency name %s", async (name, currency) => {
+      const row = await parseDescription(
+        `SHOP 10/05 ${name}       11.90 X 1.250000 (EXCHG RTE)`,
+      );
+      expect(row.original?.amount).toEqual({ minor: 1190, currency });
+    });
+
+    it.each([
+      ["Japanese Yen", "JPY"],
+      ["South Korean Won", "KRW"],
+    ])("reads a whole-number amount in %s", async (name, currency) => {
+      const row = await parseDescription(
+        `SHOP 10/05 ${name}       5,000 X 0.006700 (EXCHG RTE)`,
+      );
+      expect(row.description).toBe("SHOP");
+      expect(row.original).toEqual({
+        amount: { minor: 5000, currency },
+        rate: "0.006700",
+      });
     });
 
     it("drops the suffix but keeps going on an unknown currency name", async () => {

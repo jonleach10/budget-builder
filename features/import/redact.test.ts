@@ -13,6 +13,20 @@ describe("redactText", () => {
     expect(redactText(text)).toBe(expected);
   });
 
+  it("removes an unspaced IBAN with no digits after its check digits", () => {
+    expect(redactText("To AB12ABCDEFGHIJKLM.")).toBe(`To ${REDACTED}.`);
+  });
+
+  it("removes a spaced IBAN that follows only short words", () => {
+    expect(
+      redactText("KD12 RENT FOR MAY 2026 DE00 1234 5678 9012 3456 78"),
+    ).not.toMatch(/1234|5678|9012|3456|\b78\b/);
+  });
+
+  it("removes an IBAN wrapped at arbitrary points", () => {
+    expect(redactText("DE0012345 67890123456 78")).toBe(REDACTED);
+  });
+
   it("keeps the words after an IBAN", () => {
     expect(redactText("DE00123456789012345678 EXAMPLE SHOP")).toBe(
       `${REDACTED} EXAMPLE SHOP`,
@@ -53,6 +67,31 @@ describe("redactText", () => {
 
   it("handles a long digit run without slowing down", () => {
     expect(redactText(`${"1".repeat(5000)}x`)).not.toContain("1");
+  });
+
+  it.each([
+    ["short capitalized words", `AB12${" A".repeat(50000)} 1`],
+    ["long capitalized words", `AB12${" ABCDE".repeat(50000)} 1`],
+    ["references that start like an IBAN", `${"AB12 ".repeat(50000)}1`],
+  ])("handles a long run of %s without slowing down", (_label, text) => {
+    const startedAt = performance.now();
+    redactText(text);
+    expect(performance.now() - startedAt).toBeLessThan(1000);
+  });
+
+  it("leaves merchant text with a postcode alone", () => {
+    const text = "AB12 CAFE CENTRAL BERLIN 10115";
+    expect(redactText(text)).toBe(text);
+  });
+
+  it("redacts short words it can't tell from an IBAN", () => {
+    expect(redactText("AB12 CAFE BAR 10115")).toBe(REDACTED);
+  });
+
+  it("keeps a long word in front of a spaced IBAN", () => {
+    expect(
+      redactText("KD12 MIETE OKTOBER 2026 DE00 1234 5678 9012 3456 78"),
+    ).toBe(`KD12 MIETE OKTOBER 2026 ${REDACTED}`);
   });
 });
 

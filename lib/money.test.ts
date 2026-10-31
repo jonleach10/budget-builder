@@ -46,6 +46,35 @@ describe("parseMoney", () => {
     expect(parseMoney("1.234", "KRW", "german").minor).toBe(1234);
   });
 
+  it.each(
+    "BIF CLP DJF GNF ISK JPY KMF KRW PYG RWF UGX UYI VND VUV XAF XOF XPF"
+      .split(" "),
+  )("reads %s with no decimals", (currency) => {
+    expect(parseMoney("7", currency, "us").minor).toBe(7);
+  });
+
+  it.each("BHD IQD JOD KWD LYD OMR TND".split(" "))(
+    "reads %s with three decimals",
+    (currency) => {
+      expect(parseMoney("7", currency, "us").minor).toBe(7000);
+    },
+  );
+
+  it.each("CLF UYW".split(" "))("reads %s with four decimals", (currency) => {
+    expect(parseMoney("7", currency, "us").minor).toBe(70000);
+  });
+
+  it("defaults a currency that isn't in the table to two decimals", () => {
+    expect(parseMoney("7", "ZZZ", "us").minor).toBe(700);
+  });
+
+  it("accepts zero decimals on a currency with no minor unit", () => {
+    expect(parseMoney("5.000,00", "JPY", "german")).toEqual({
+      minor: 5000,
+      currency: "JPY",
+    });
+  });
+
   it.each([
     [""],
     ["abc"],
@@ -73,6 +102,23 @@ describe("parseMoney", () => {
     expect(() => parseMoney("1.5", "JPY", "us")).toThrow(MoneyError);
     expect(() => parseMoney("1,005", "EUR", "german")).toThrow(MoneyError);
   });
+
+  it.each([
+    ["1.5", "JPY", "us"],
+    ["1.234", "USD", "us"],
+    ["1.230", "USD", "us"],
+    ["1,005", "EUR", "german"],
+  ] as const)(
+    "gives too-many-decimals as the reason for %s %s",
+    (text, currency, style) => {
+      expect.assertions(1);
+      try {
+        parseMoney(text, currency, style);
+      } catch (error) {
+        expect(error).toHaveProperty("reason", "too-many-decimals");
+      }
+    },
+  );
 
   it("rejects amounts too large to hold exactly", () => {
     expect(() => parseMoney("90071992547409.93", "USD", "us")).toThrow(

@@ -15,10 +15,27 @@ const HEADER =
 const MIN_FIELD_COUNT = 7;
 const MAX_FIELD_COUNT = 8;
 
-const CURRENCY_BY_NAME: Record<string, string> = { euro: "EUR" };
+// Only Euro has been seen in a real file. The other names are a best guess at
+// Chase's wording, and a wrong guess only leaves original unset on that row.
+const CURRENCY_BY_NAME: Record<string, string> = {
+  euro: "EUR",
+  "british pound": "GBP",
+  "pound sterling": "GBP",
+  "swiss franc": "CHF",
+  "japanese yen": "JPY",
+  "south korean won": "KRW",
+  "canadian dollar": "CAD",
+  "australian dollar": "AUD",
+  "mexican peso": "MXN",
+  "danish krone": "DKK",
+  "swedish krona": "SEK",
+  "norwegian krone": "NOK",
+};
 
+// The merchant text is greedy because it can hold its own NN/NN, as in
+// STATION 24/24. The purchase date is the one right before the currency name.
 const FOREIGN_PURCHASE =
-  /^(.*?)\s+(\d{2}\/\d{2})\s+(\S.*?)\s+([\d,]+\.\d+)\s+X\s+(\d+\.\d+)\s+\(EXCHG RTE\)\s*$/;
+  /^(.*)\s+(\d{2}\/\d{2})\s+(\S.*?)\s+([\d,]+(?:\.\d+)?)\s+X\s+(\d+\.\d+)\s+\(EXCHG RTE\)\s*$/;
 const FOREIGN_FEE = /^(FOREIGN EXCH RATE ADJ FEE)\s+(\d{2}\/\d{2})\s*(.*)$/;
 const ONLINE_TRANSFER =
   /^(.*?)\s+transaction#:\s*(\d+)(?:\s+(\d{2}\/\d{2}))?\s*$/i;
