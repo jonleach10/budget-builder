@@ -12,7 +12,7 @@ function toIsoDate(year: number, month: number, day: number): string | null {
 export function parseUsDate(text: string): string | null {
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text.trim());
   if (!match) return null;
-  const [, month, day, year] = match.map(Number);
+  const [month, day, year] = match.slice(1).map(Number);
   return toIsoDate(year, month, day);
 }
 
@@ -20,7 +20,7 @@ export function parseUsDate(text: string): string | null {
 export function parseGermanDate(text: string): string | null {
   const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(text.trim());
   if (!match) return null;
-  const [, day, month, year] = match.map(Number);
+  const [day, month, year] = match.slice(1).map(Number);
   return toIsoDate(year, month, day);
 }
 

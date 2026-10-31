@@ -9,7 +9,7 @@ import { StatementError } from "./errors";
 import { parseStatement } from "./parseStatement";
 import type { Account } from "./types";
 
-const cardText = loadFixture("chaseCard.csv");
+const cardText = loadFixture(chaseCardFileName);
 
 function parseCard(fileName: string, cardAccounts: Account[] = accounts) {
   return parseStatement({

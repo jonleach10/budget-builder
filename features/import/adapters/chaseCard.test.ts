@@ -21,7 +21,7 @@ function parse(text: string) {
 
 describe("chase-card statements", () => {
   it("reads every row with its bank's fields", async () => {
-    const statement = await parse(loadFixture("chaseCard.csv"));
+    const statement = await parse(loadFixture(chaseCardFileName));
 
     expect(statement.accountId).toBe("card-1");
     expect(statement.format).toBe("chase-card");
@@ -40,19 +40,19 @@ describe("chase-card statements", () => {
   });
 
   it("reads a quoted description and tidies its spacing", async () => {
-    const { transactions } = await parse(loadFixture("chaseCard.csv"));
+    const { transactions } = await parse(loadFixture(chaseCardFileName));
     expect(transactions[1].description).toBe("SHOP *EXAMPLE.COM, INC");
     expect(transactions[1].amount.minor).toBe(-350);
   });
 
   it("keeps the memo as the purpose when it isn't empty", async () => {
-    const { transactions } = await parse(loadFixture("chaseCard.csv"));
+    const { transactions } = await parse(loadFixture(chaseCardFileName));
     expect(transactions[2].purpose).toBe("Family plan");
     expect(transactions[0]).not.toHaveProperty("purpose");
   });
 
   it("keeps the sign, so payments and returns stay positive", async () => {
-    const { transactions } = await parse(loadFixture("chaseCard.csv"));
+    const { transactions } = await parse(loadFixture(chaseCardFileName));
     const types = transactions.map((t) => [t.bankType, t.amount.minor > 0]);
     expect(types).toEqual([
       ["Sale", false],
@@ -67,12 +67,12 @@ describe("chase-card statements", () => {
   });
 
   it("leaves an empty category unset on payments", async () => {
-    const { transactions } = await parse(loadFixture("chaseCard.csv"));
+    const { transactions } = await parse(loadFixture(chaseCardFileName));
     expect(transactions[4]).not.toHaveProperty("bankCategory");
   });
 
   it("gives exact identical rows different fingerprints", async () => {
-    const { transactions } = await parse(loadFixture("chaseCard.csv"));
+    const { transactions } = await parse(loadFixture(chaseCardFileName));
     expect(transactions[2].fingerprint).not.toBe(transactions[3].fingerprint);
   });
 

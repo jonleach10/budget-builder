@@ -28,7 +28,7 @@ async function parseDescription(description: string, postedOn = "10/06/2026") {
 
 describe("chase-bank statements", () => {
   it("reads every row in file order", async () => {
-    const statement = await parse(loadFixture("chaseBank.csv"));
+    const statement = await parse(loadFixture(chaseBankFileName));
 
     expect(statement.accountId).toBe("bank-1");
     expect(statement.format).toBe("chase-bank");
@@ -48,7 +48,7 @@ describe("chase-bank statements", () => {
   });
 
   it("keeps amount, type and balance as minor units", async () => {
-    const { transactions } = await parse(loadFixture("chaseBank.csv"));
+    const { transactions } = await parse(loadFixture(chaseBankFileName));
     expect(transactions[8]).toMatchObject({
       amount: { minor: -350, currency: "USD" },
       bankType: "DEBIT_CARD",
@@ -57,7 +57,7 @@ describe("chase-bank statements", () => {
   });
 
   it("has balances that reconcile from row to row", async () => {
-    const { transactions } = await parse(loadFixture("chaseBank.csv"));
+    const { transactions } = await parse(loadFixture(chaseBankFileName));
     for (let i = 0; i + 1 < transactions.length; i += 1) {
       const { balance, amount } = transactions[i];
       expect(balance!.minor - amount.minor).toBe(
@@ -230,7 +230,7 @@ describe("chase-bank statements", () => {
     const inputs: string[] = [];
     await parseStatement({
       fileName: chaseBankFileName,
-      text: loadFixture("chaseBank.csv"),
+      text: loadFixture(chaseBankFileName),
       accounts,
       hash: (input) => {
         inputs.push(input);

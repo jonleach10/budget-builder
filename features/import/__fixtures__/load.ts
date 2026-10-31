@@ -2,8 +2,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Account, Hash } from "../types";
 
+/** Named like real exports, so the real-file proof can run against this folder. */
+export const statementsDir = join(__dirname, "statements");
+
 export function loadFixture(name: string): string {
-  return readFileSync(join(__dirname, name), "utf8");
+  return readFileSync(join(statementsDir, name), "utf8");
 }
 
 export const accounts: Account[] = [
@@ -16,4 +19,4 @@ export const passThroughHash: Hash = (input) => input;
 
 export const chaseBankFileName = "Chase1111_Activity_20261031.csv";
 export const chaseCardFileName = "Chase2222_Activity_20261031.csv";
-export const commerzbankFileName = "commerzbank-export.csv";
+export const commerzbankFileName = "DE3333_EUR_export.csv";

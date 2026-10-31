@@ -37,7 +37,7 @@ function fail(rows: string[]) {
 
 describe("commerzbank statements", () => {
   it("reads a file with a byte order mark, CRLF and semicolons", async () => {
-    const statement = await parse(asExported(loadFixture("commerzbank.csv")));
+    const statement = await parse(asExported(loadFixture(commerzbankFileName)));
 
     expect(statement.accountId).toBe("euro-1");
     expect(statement.format).toBe("commerzbank");
@@ -56,7 +56,7 @@ describe("commerzbank statements", () => {
   });
 
   it("ignores pending rows and counts them", async () => {
-    const statement = await parse(loadFixture("commerzbank.csv"));
+    const statement = await parse(loadFixture(commerzbankFileName));
     expect(statement.ignoredPendingCount).toBe(2);
     expect(statement.transactions.map((t) => t.description)).not.toContain(
       "Example Kiosk",
@@ -64,19 +64,19 @@ describe("commerzbank statements", () => {
   });
 
   it("keeps a row dated in the future", async () => {
-    const { transactions } = await parse(loadFixture("commerzbank.csv"));
+    const { transactions } = await parse(loadFixture(commerzbankFileName));
     expect(transactions[0].postedOn).toBe("2030-11-05");
   });
 
   it("reads amounts with dropped zeros and German grouping", async () => {
-    const { transactions } = await parse(loadFixture("commerzbank.csv"));
+    const { transactions } = await parse(loadFixture(commerzbankFileName));
     expect(transactions.map((t) => t.amount.minor)).toEqual([
       -90000, -4250, -4638, 250000, -950, -350,
     ]);
   });
 
   it("takes the foreign amount from the booking text and keeps the charged amount", async () => {
-    const { transactions } = await parse(loadFixture("commerzbank.csv"));
+    const { transactions } = await parse(loadFixture(commerzbankFileName));
     expect(transactions[2]).toMatchObject({
       amount: { minor: -4638, currency: "EUR" },
       original: {
@@ -148,7 +148,7 @@ describe("commerzbank statements", () => {
     const inputs: string[] = [];
     const { transactions } = await parseStatement({
       fileName: commerzbankFileName,
-      text: loadFixture("commerzbank.csv"),
+      text: loadFixture(commerzbankFileName),
       accounts,
       hash: (input) => {
         inputs.push(input);
