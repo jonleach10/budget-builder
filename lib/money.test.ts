@@ -104,26 +104,21 @@ describe("parseMoney", () => {
   });
 
   it.each([
-    ["1.5", "JPY"],
-    ["1.234", "USD"],
-    ["1.230", "USD"],
-  ])("gives too-many-decimals as the reason for %s %s", (text, currency) => {
-    expect.assertions(1);
-    try {
-      parseMoney(text, currency, "us");
-    } catch (error) {
-      expect(error).toHaveProperty("reason", "too-many-decimals");
-    }
-  });
-
-  it("gives too-many-decimals as the reason for 1,005 EUR", () => {
-    expect.assertions(1);
-    try {
-      parseMoney("1,005", "EUR", "german");
-    } catch (error) {
-      expect(error).toHaveProperty("reason", "too-many-decimals");
-    }
-  });
+    ["1.5", "JPY", "us"],
+    ["1.234", "USD", "us"],
+    ["1.230", "USD", "us"],
+    ["1,005", "EUR", "german"],
+  ] as const)(
+    "gives too-many-decimals as the reason for %s %s",
+    (text, currency, style) => {
+      expect.assertions(1);
+      try {
+        parseMoney(text, currency, style);
+      } catch (error) {
+        expect(error).toHaveProperty("reason", "too-many-decimals");
+      }
+    },
+  );
 
   it("rejects amounts too large to hold exactly", () => {
     expect(() => parseMoney("90071992547409.93", "USD", "us")).toThrow(

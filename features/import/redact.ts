@@ -7,11 +7,13 @@ const CARD_MIN_LENGTH = 12;
 
 const IBAN_SHAPE = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
 
-// Spaces are optional, because bank text wraps at arbitrary points. A match ends
-// at its last digit's word, which leaves the capitalized words after an IBAN out
-// of it. There's no upper limit, because a limit can end a match inside an IBAN
-// that starts later in the run and leave its tail in the text.
-const IBAN_CANDIDATE = /[A-Z]{2}\d{2}(?: ?[A-Z0-9])* ?\d[A-Z0-9]*/g;
+// Spaces are optional, because bank text wraps at arbitrary points. A match is
+// its first word, extended to the word holding its last digit, which leaves the
+// capitalized words after an IBAN out of it. There's no upper limit, because a
+// limit can end a match inside an IBAN that starts later in the run and leave
+// its tail in the text.
+const IBAN_CANDIDATE =
+  /[A-Z]{2}\d{2}[A-Z0-9]*(?:(?: ?[A-Z0-9])* ?\d[A-Z0-9]*)?/g;
 
 // A word of five or more letters can't be part of a spaced IBAN, so it divides
 // the text into separate runs. The capture keeps the word when splitting.

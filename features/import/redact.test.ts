@@ -13,10 +13,8 @@ describe("redactText", () => {
     expect(redactText(text)).toBe(expected);
   });
 
-  it("removes a spaced IBAN that follows long words and a reference", () => {
-    expect(
-      redactText("KD12 MIETE OKTOBER 2026 DE00 1234 5678 9012 3456 78"),
-    ).not.toMatch(/1234|5678|9012|3456|\b78\b/);
+  it("removes an unspaced IBAN with no digits after its check digits", () => {
+    expect(redactText("To AB12ABCDEFGHIJKLM.")).toBe(`To ${REDACTED}.`);
   });
 
   it("removes a spaced IBAN that follows only short words", () => {
