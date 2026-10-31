@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    // Agent worktrees are whole checkouts, each with its own lint run.
+    ".claude/worktrees/**",
   ]),
 ]);
 

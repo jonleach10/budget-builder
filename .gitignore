@@ -26,6 +26,7 @@ next-env.d.ts
 .DS_Store
 *.pem
 .claude/worktrees/
+AGENTS.md
 
 # debug
 npm-debug.log*
@@ -43,3 +44,4 @@ yarn-error.log*
 # typescript
 Budget Builder.code-workspace
 .vscode/settings.json
+Projects.code-workspace
