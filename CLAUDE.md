@@ -15,7 +15,7 @@ A budget for joint money across Chase accounts in the US and Commerzbank account
 ## Structure
 
 - `app/` holds thin routes.
-- `features/` holds logic by domain: `import`, `categorize`, `budget`, `auth`.
+- `features/` holds logic by domain: `import`, `categorize`, `budget`, `fx`, `auth`.
 - `components/ui/` holds shadcn components.
 - `lib/` holds shared utilities.
 - `supabase/migrations/` holds schema and row-level security.
@@ -29,6 +29,18 @@ A budget for joint money across Chase accounts in the US and Commerzbank account
 - No transaction data goes to AI services.
 - UI work follows the project's `midnight-glass` skill, and interface text follows the `voice` skill.
 
+## One-way doors
+
+These are hard or impossible to undo. Each needs the owner's go on the plan before building, runs in the main session rather than a background agent, and gets a line in the PR's Merge Danger section.
+
+- Schema migrations and anything run against the hosted database.
+- Row-level security policies.
+- Auth: sign-in, session checks, signup settings and MFA.
+- Deleting stored data, or changing what's kept.
+- The fingerprint format or text cleaning, once rows are stored, because raw bank text is discarded after parsing.
+- Anything pushed to this public repo that can't be taken back, such as secrets or real data.
+- Repo rules and hosting settings.
+
 ## Review criteria
 
 The rules above, plus:
@@ -37,6 +49,7 @@ The rules above, plus:
 - No secrets.
 - No `any` without a reason.
 - The change matches its issue's acceptance criteria.
+- A change that touches a one-way door names it under Merge Danger.
 
 ## PR policy
 
