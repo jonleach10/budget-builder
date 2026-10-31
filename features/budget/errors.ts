@@ -2,7 +2,9 @@ export type BudgetErrorCode =
   | "invalid-month"
   | "invalid-amount"
   | "entry-currency-mismatch"
-  | "invalid-date";
+  | "invalid-date"
+  | "comparison-mismatch"
+  | "conversion-currency-mismatch";
 
 const MESSAGES: Record<BudgetErrorCode, string> = {
   "invalid-month":
@@ -13,6 +15,10 @@ const MESSAGES: Record<BudgetErrorCode, string> = {
     "An entry isn't in the budget's currency. Compare each country's entries with that country's budget.",
   "invalid-date":
     "An entry has a date Budget Builder can't read. Use the format YYYY-MM-DD.",
+  "comparison-mismatch":
+    "These comparisons can't be combined. Use a US and a Germany comparison for the same month.",
+  "conversion-currency-mismatch":
+    "The currency conversion didn't return USD. Check the conversion, then try again.",
 };
 
 /** Takes a code only, so an error can't carry entry data. */
