@@ -65,7 +65,7 @@ jobs:
           while IFS= read -r f; do
             [ -z "$f" ] && continue
             case "$f" in
-              .github/*|supabase/migrations/*|features/auth/*|app/login/*|proxy.ts|lib/supabase*|*.sql)
+              .github/*|.claude/agents/*|supabase/migrations/*|features/auth/*|app/login/*|proxy.ts|lib/supabase*|*.sql)
                 blocked="${blocked}${f}"$'\n'
                 ;;
             esac
