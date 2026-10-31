@@ -1,0 +1,56 @@
+name: Claude Code
+
+# Runs when the owner mentions @claude. Claude reads the repository and replies
+# in a comment. It cannot change code here: its token has read-only contents, and
+# its edit and commit tools are removed. Code changes come only from
+# `ready-for-agent` issues, through claude-issue-to-pr.yml.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude:
+    if: |
+      github.actor == 'jonleach10' && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # Read-only, so Claude cannot push from this workflow
+      pull-requests: write # Required to reply on PRs
+      issues: write # Required to reply on issues
+      actions: read # Required for Claude to read CI results on PRs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Use this job's token rather than the Claude app token, which can write
+          # contents. The job's permissions above are then the real limit.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          settings: '{"attribution":{"commit":"","pr":""}}'
+
+          # This is an optional setting that allows Claude to read CI results on PRs
+          additional_permissions: |
+            actions: read
+
+          claude_args: |
+            --disallowedTools "Edit,MultiEdit,Write,NotebookEdit,Bash(git add:*),Bash(git commit:*),Bash(git rm:*)"
+            --append-system-prompt "You can read this repository and reply in a comment. You cannot change code, commit or push from this workflow. If asked for a code change, say that it needs a GitHub issue with the ready-for-agent label."
+
