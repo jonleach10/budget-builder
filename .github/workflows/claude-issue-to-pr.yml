@@ -50,7 +50,8 @@ jobs:
                If the issue needs one of them, stop, do not open a PR, and say so in a
                comment on the issue.
             6. Do not add dependencies unless the issue asks for them.
-            7. Push the branch, then open a DRAFT pull request. The command must start with
+            7. Push the branch with `git push -u origin claude/issue-${{ github.event.issue.number }}`,
+               then open a DRAFT pull request. The command must start with
                `gh pr create --draft`. Use `--base main`, a short title, and a body that has
                "Closes #${{ github.event.issue.number }}", a summary of what changed and why,
                and how you tested it. Never open a non-draft PR.
@@ -58,5 +59,5 @@ jobs:
           claude_args: |
             --model claude-sonnet-5-5
             --max-turns 40
-            --allowedTools "Read,Glob,Grep,Edit,MultiEdit,Write,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git branch:*),Bash(git checkout:*),Bash(git switch:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(npm ci),Bash(npm run lint:*),Bash(npm run typecheck:*),Bash(npm run test:*),Bash(npm run build:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create --draft:*),Bash(gh pr view:*),Bash(gh pr list:*)"
-            --disallowedTools "Bash(gh pr review:*),Bash(gh pr merge:*),Bash(gh pr ready:*),Bash(gh pr close:*),Bash(gh api:*),Bash(git push --force:*),Bash(git push -f:*),Bash(git push --force-with-lease:*),WebFetch,WebSearch"
+            --allowedTools "Read,Glob,Grep,Edit,MultiEdit,Write,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git branch:*),Bash(git checkout:*),Bash(git switch:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin claude/*),Bash(git push -u origin claude/*),Bash(npm ci),Bash(npm run lint:*),Bash(npm run typecheck:*),Bash(npm run test:*),Bash(npm run build:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create --draft:*),Bash(gh pr view:*),Bash(gh pr list:*)"
+            --disallowedTools "Bash(gh pr review:*),Bash(gh pr merge:*),Bash(gh pr ready:*),Bash(gh pr close:*),Bash(gh api:*),Bash(git push *main*),Bash(git push --force:*),Bash(git push -f:*),Bash(git push --force-with-lease:*),WebFetch,WebSearch"
