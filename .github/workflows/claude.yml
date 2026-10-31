@@ -1,5 +1,10 @@
 name: Claude Code
 
+# Runs when the owner mentions @claude. Claude reads the repository and replies
+# in a comment. It cannot change code here: its token has read-only contents, and
+# its edit and commit tools are removed. Code changes come only from
+# `ready-for-agent` issues, through claude-issue-to-pr.yml.
+
 on:
   issue_comment:
     types: [created]
@@ -13,16 +18,17 @@ on:
 jobs:
   claude:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      github.actor == 'jonleach10' && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      )
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
+      contents: read # Read-only, so Claude cannot push from this workflow
+      pull-requests: write # Required to reply on PRs
+      issues: write # Required to reply on issues
       actions: read # Required for Claude to read CI results on PRs
     steps:
       - name: Checkout repository
@@ -35,17 +41,16 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Use this job's token rather than the Claude app token, which can write
+          # contents. The job's permissions above are then the real limit.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           settings: '{"attribution":{"commit":"","pr":""}}'
 
           # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
-
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr *)'
+          claude_args: |
+            --disallowedTools "Edit,MultiEdit,Write,NotebookEdit,Bash(git add:*),Bash(git commit:*),Bash(git rm:*)"
+            --append-system-prompt "You can read this repository and reply in a comment. You cannot change code, commit or push from this workflow. If asked for a code change, say that it needs a GitHub issue with the ready-for-agent label."
 
