@@ -1,0 +1,9 @@
+Transaction Date,Post Date,Description,Category,Type,Amount,Memo
+10/06/2026,10/07/2026,EXAMPLE MARKET #1234,Groceries,Sale,-42.17,
+10/05/2026,10/06/2026,"SHOP   *EXAMPLE.COM, INC",Shopping,Sale,-3.5,
+10/05/2026,10/06/2026,STREAMFLIX A1B2C3,Entertainment,Sale,-11.99,Family plan
+10/05/2026,10/06/2026,STREAMFLIX A1B2C3,Entertainment,Sale,-11.99,Family plan
+10/04/2026,10/05/2026,Payment Thank You-Mobile,,Payment,250.00,
+10/03/2026,10/04/2026,EXAMPLE MARKET #1234,Groceries,Return,8.25,
+10/02/2026,10/02/2026,LATE FEE,Fees,Fee,-29.00,
+10/01/2026,10/02/2026,ROUNDING ADJUSTMENT,,Adjustment,0.40,

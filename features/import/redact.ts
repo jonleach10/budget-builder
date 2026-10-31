@@ -1,3 +1,5 @@
+import type { StatementRow } from "./types";
+
 export const REDACTED = "[REDACTED]";
 
 const IBAN_MIN_LENGTH = 15;
@@ -53,8 +55,33 @@ export function redactText(text: string): string {
  * Cleans a reference value. A value that is itself an account or card number
  * is dropped, because a field holding only a placeholder says nothing.
  */
-export function redactIdentifier(id: string): string | undefined {
+export function redactIdentifier(id: string | undefined): string | undefined {
+  if (id === undefined) return undefined;
   if (SEPA_CREDITOR_ID.test(id)) return id;
   const cleaned = redactText(id);
   return cleaned === "" || cleaned.includes(REDACTED) ? undefined : cleaned;
+}
+
+function redactOptional(text: string | undefined): string | undefined {
+  if (text === undefined) return undefined;
+  return redactText(text) || undefined;
+}
+
+function withoutUnset<T extends object>(value: T): T {
+  const entries = Object.entries(value);
+  return Object.fromEntries(entries.filter(([, v]) => v !== undefined)) as T;
+}
+
+/** Cleans every text field a row keeps, and removes the fields left empty. */
+export function redactRow(row: StatementRow): StatementRow {
+  return withoutUnset({
+    ...row,
+    description: redactText(row.description),
+    purpose: redactOptional(row.purpose),
+    bankType: redactOptional(row.bankType),
+    bankCategory: redactOptional(row.bankCategory),
+    ppdId: redactIdentifier(row.ppdId),
+    orderingPartyId: redactIdentifier(row.orderingPartyId),
+    transferNumber: redactIdentifier(row.transferNumber),
+  });
 }
