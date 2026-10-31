@@ -1,25 +1,30 @@
-## What changed
+# {PR Title}
 
-<!-- A short summary of the change. -->
+Closes #{issue-number}
 
-## Why
+## Type of Task
+- [ ] New feature
+- [ ] Bug fix
+- [ ] Refactoring
+- [ ] UI/UX improvement
 
-<!-- The problem this solves. Link the issue, for example "Closes #123". -->
+## Description
+- What was added/modified
+- Why the change was necessary
+- Any technical details worth noting
 
-## How it was tested
+## Impact
+- **UX**: How it affects user experience
+- **Performance**: Any performance implications
+- **Security**: Security-related impacts
+- **Maintenance**: Effects on code maintainability
 
-<!-- Commands run, tests added, manual checks. Use synthetic data only. -->
+## Additional Information
+Include any supplementary information, setup instructions,
+or context that reviewers should know.
 
-## Checklist
+## Issues
+Document any known issues, limitations, or pending concerns.
 
-- [ ] The change matches the acceptance criteria of its issue
-- [ ] Money is integer minor units plus a currency, never floats
-- [ ] No business logic in routes or components
-- [ ] Every new table has row-level security, with policies tested
-- [ ] No real statement data, account numbers or transaction text in code, fixtures, logs or analytics
-- [ ] No transaction data is sent to AI services
-- [ ] New domain logic has tests
-- [ ] No secrets committed
-- [ ] No `any` without a reason in a comment
-- [ ] UI changes follow the `midnight-glass` skill and interface text follows the `voice` skill
-- [ ] `npm run lint`, `typecheck`, `test` and `build` pass
+## Demo
+Include relevant screenshots, GIFs, or video links demonstrating the changes.
