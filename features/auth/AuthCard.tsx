@@ -27,11 +27,11 @@ export default function AuthCard() {
     </div>
   );
 }
-function LoginCard({ onSwitch }) {
+function LoginCard({ onSwitch }: { onSwitch: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleSignIn = async function(event) {
+  const handleSignIn = async function() {
     const {data, error} = await supabase.auth.signInWithPassword({
       email: email,
       password: password,
@@ -71,19 +71,19 @@ function LoginCard({ onSwitch }) {
           onClick={onSwitch}
           className="w-full text-sm text-muted-foreground"
         >
-          Don't have an account? Sign up
+          Don&apos;t have an account? Sign up
         </Button>
       </CardFooter>
     </Card>
   );
 }
 
-function SignupCard({ onSwitch }) {
+function SignupCard({ onSwitch }: { onSwitch: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
 
-  const handleSignup = async function(event) {
+  const handleSignup = async function() {
     const {data, error} = await supabase.auth.signUp({
       email: email,
       password: password,

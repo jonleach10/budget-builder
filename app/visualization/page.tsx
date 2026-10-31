@@ -1,21 +1,28 @@
 'use client';
 
 import { useState } from 'react';
+import type { ChangeEvent } from 'react';
+
+type Row = Record<string, string>;
+type FileData = { fileName: string; data: Row[] };
+type FileColumns = { fileName: string; columns: string[] };
+type ColumnInput = { oldName: string; newName: string; ignore: boolean };
+type Actual = { category: string; budget: number; total: number; delta: number };
 
 export default function Page() {
   const [step, setStep] = useState('upload');
-  const [data, setData] = useState(null);
-  const [columns, setColumns] = useState([]);
-  const [columnInputs, setColumnInputs] = useState({});
-  const [categories, setCategories] = useState([]);
-  const [budgets, setBudgets] = useState({});
-  const [mappedData, setMappedData] = useState([]);
-  const [actuals, setActuals] = useState([]);
+  const [data, setData] = useState<FileData[] | null>(null);
+  const [columns, setColumns] = useState<FileColumns[]>([]);
+  const [columnInputs, setColumnInputs] = useState<Record<string, ColumnInput>>({});
+  const [categories, setCategories] = useState<string[]>([]);
+  const [budgets, setBudgets] = useState<Record<string, number>>({});
+  const [mappedData, setMappedData] = useState<Row[]>([]);
+  const [actuals, setActuals] = useState<Actual[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Handlers
-  const handleFileUpload = async (event) => {
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
   
@@ -23,8 +30,8 @@ export default function Page() {
     setError(null);
   
     try {
-      const allData = [];
-      const columnsByFile = [];
+      const allData: FileData[] = [];
+      const columnsByFile: FileColumns[] = [];
       
       // Process each file
       for (let i = 0; i < files.length; i++) {
@@ -52,7 +59,7 @@ export default function Page() {
       setColumns(columnsByFile);
       
       // Initialize input values for each column from all files
-      const initialInputs = [];
+      const initialInputs: Record<string, ColumnInput> = {};
       columnsByFile.forEach(fileGroup => {
         fileGroup.columns.forEach(col => {
           // Use a unique key combining file name and column name
@@ -65,21 +72,21 @@ export default function Page() {
         });
       });
       setColumnInputs(initialInputs);
-      let categories = Array.from(new Set(allData[0].data.map(d => d.Category))).filter(r => r != "");
+      const categories = Array.from(new Set(allData[0].data.map(d => d.Category))).filter(r => r != "");
       setCategories(categories);
-      let budgets = {};
+      const budgets: Record<string, number> = {};
       categories.forEach(c => {
         budgets[c] = 0;
       });
       setBudgets(budgets);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
       console.error('Error reading files:', err);
     } finally {
       setLoading(false);
     }
   };
-  const handleInputChange = (column, value, field = 'newName') => {
+  const handleInputChange = (column: string, value: string | boolean, field: keyof ColumnInput = 'newName') => {
     setColumnInputs(prev => ({
       ...prev,
       [column]: {
@@ -88,14 +95,15 @@ export default function Page() {
       }
     }));
   };
-  const handleBudgetChange = (category, value) => {
+  const handleBudgetChange = (category: string, value: string) => {
     setBudgets(prev => ({
     ...prev,
     [category]: value === '' ? 0 : parseFloat(value) || 0
   }));
   }
   const handleContinue = () => {
-    const mapped = processFileData(data, columnInputs);
+    if (!data) return;
+    const mapped = processFileData(data);
     setMappedData(mapped);
     setStep("table");
   };
@@ -103,7 +111,7 @@ export default function Page() {
     setStep("upload");
   };
   // Process files
-  const csvToJson = (csvText) => {
+  const csvToJson = (csvText: string) => {
     const lines = csvText.trim().split('\n');
     // Detect delimiter by checking the first line
     const firstLine = lines[0];
@@ -113,7 +121,7 @@ export default function Page() {
     // Parse data rows
     const jsonData = lines.slice(1).map(line => {
       const values = parseCSVLine(line, delimiter);
-      const obj = {};
+      const obj: Row = {};
       headers.forEach((header, index) => {
         obj[header] = values[index]?.trim() || '';
       });
@@ -121,18 +129,18 @@ export default function Page() {
     });
     return jsonData;
   };
-  const processFileData = (fileData, cols) => {
-    let rows = fileData[0].data;
-    let columns = Object.values(columnInputs).filter(c => !c.ignore);
-    let mappedData = rows.filter(r => r["Value date"] != "").map(row => {
-      let mapObj = {};
+  const processFileData = (fileData: FileData[]) => {
+    const rows = fileData[0].data;
+    const columns = Object.values(columnInputs).filter(c => !c.ignore);
+    const mappedData = rows.filter(r => r["Value date"] != "").map(row => {
+      const mapObj: Row = {};
       columns.forEach(col => {
         mapObj[col.newName] = row[col.oldName];
       });
       return mapObj;
     });
-    let actuals = categories.map(c => {
-      let total = mappedData.filter(r => r["Category"] == c).map(r => parseFloat(r["Amount"])).reduce((acc, val) => acc + val, 0);
+    const actuals = categories.map(c => {
+      const total = mappedData.filter(r => r["Category"] == c).map(r => parseFloat(r["Amount"])).reduce((acc, val) => acc + val, 0);
       return  {
         "category":c,
         "budget":budgets[c],
@@ -144,8 +152,8 @@ export default function Page() {
     return mappedData;
   }
   // Helper function to parse a CSV line handling quoted fields
-  const parseCSVLine = (line, delimiter) => {
-    const result = [];
+  const parseCSVLine = (line: string, delimiter: string) => {
+    const result: string[] = [];
     let current = '';
     let inQuotes = false;
     
