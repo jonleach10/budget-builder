@@ -41,3 +41,7 @@ The rules above, plus:
 ## PR policy
 
 Claude reviews and may open draft PRs from `ready-for-agent` issues. Claude never approves or merges. Only the owner does.
+
+PRs follow `.github/pull_request_template.md`. Agents open a PR only when they have proof of testing to put in its Testing done section.
+
+Commits have no `Co-Authored-By` lines. PR descriptions have no "Generated with Claude Code" line or session link.
