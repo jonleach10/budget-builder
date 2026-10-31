@@ -1,4 +1,5 @@
 'use client';
+import Link from "next/link"
 import { Home, Landmark, LayoutTemplate, Settings, Wallpaper } from "lucide-react"
 import {
   Sidebar,
@@ -65,12 +66,19 @@ export function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.url}>
+                  {item.url ? (
+                    <SidebarMenuButton asChild>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  ) : (
+                    <SidebarMenuButton disabled>
                       <item.icon />
                       <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
+                    </SidebarMenuButton>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
