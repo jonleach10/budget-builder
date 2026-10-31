@@ -7,11 +7,16 @@ Closes #{issue-number}
 - [ ] Bug fix
 - [ ] Refactoring
 - [ ] UI/UX improvement
+- [ ] Change request
 
 ## Description
 - What was added/modified
 - Why the change was necessary
 - Any technical details worth noting
+
+## Testing done
+List the tests and commands that were run, with their results.
+Agents must not open a PR without proof of testing.
 
 ## Impact
 - **UX**: How it affects user experience
