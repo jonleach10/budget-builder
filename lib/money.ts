@@ -27,7 +27,36 @@ export class MoneyError extends Error {
 }
 
 const DEFAULT_EXPONENT = 2;
-const EXPONENTS: Record<string, number> = { JPY: 0, KRW: 0 };
+
+// Every ISO 4217 currency whose exponent isn't 2.
+const EXPONENTS: Record<string, number> = {
+  BIF: 0,
+  CLP: 0,
+  DJF: 0,
+  GNF: 0,
+  ISK: 0,
+  JPY: 0,
+  KMF: 0,
+  KRW: 0,
+  PYG: 0,
+  RWF: 0,
+  UGX: 0,
+  UYI: 0,
+  VND: 0,
+  VUV: 0,
+  XAF: 0,
+  XOF: 0,
+  XPF: 0,
+  BHD: 3,
+  IQD: 3,
+  JOD: 3,
+  KWD: 3,
+  LYD: 3,
+  OMR: 3,
+  TND: 3,
+  CLF: 4,
+  UYW: 4,
+};
 
 const STYLES: Record<
   DecimalStyle,
@@ -66,9 +95,14 @@ export function parseMoney(
   const [whole, fraction = ""] = unsigned.split(decimal);
 
   const exponent = EXPONENTS[currency] ?? DEFAULT_EXPONENT;
-  if (fraction.length > exponent) throw new MoneyError("too-many-decimals");
+  // A bank can print 5.000,00 for a currency with no minor unit.
+  const hasOnlyZeroDecimals = exponent === 0 && /^0*$/.test(fraction);
+  if (fraction.length > exponent && !hasOnlyZeroDecimals) {
+    throw new MoneyError("too-many-decimals");
+  }
 
-  const digits = whole.split(group).join("") + fraction.padEnd(exponent, "0");
+  const minorDigits = fraction.padEnd(exponent, "0").slice(0, exponent);
+  const digits = whole.split(group).join("") + minorDigits;
   const magnitude = Number.parseInt(digits, 10);
   if (!Number.isSafeInteger(magnitude)) throw new MoneyError("out-of-range");
 
