@@ -13,6 +13,7 @@ export type CategoryContext = {
   manualCategory?: string | null;
   categoryRules: readonly CategoryRule[];
   pastCategories: PastCategories;
+  mixedMerchants: readonly string[];
   bankTypeMap: BankMap;
   bankCategoryMap: BankMap;
 };
@@ -32,7 +33,9 @@ function lookUp(
 
 /**
  * The type comes first, so a spending row is the only kind that reaches the
- * steps. A blank category at any step counts as no match.
+ * steps. A blank category at any step counts as no match. A mixed merchant
+ * skips the bank type map, so its rows go to review unless JL's own category
+ * or rule decides them.
  */
 export function categorize(
   transaction: Transaction,
@@ -42,11 +45,17 @@ export function categorize(
   if (type === undefined) return { status: "needs-review" };
   if (!countsAgainstBudget(type)) return { status: "no-category" };
 
+  const key = merchantKey(transaction);
+  const isMixed = key !== undefined && context.mixedMerchants.includes(key);
+
   const steps: [CategorySource, string | null | undefined][] = [
     ["manual", context.manualCategory],
     ["rule", findCategory(transaction, context.categoryRules)],
-    ["history", lookUp(context.pastCategories, merchantKey(transaction))],
-    ["bank-type", lookUp(context.bankTypeMap, transaction.bankType)],
+    ["history", lookUp(context.pastCategories, key)],
+    [
+      "bank-type",
+      isMixed ? undefined : lookUp(context.bankTypeMap, transaction.bankType),
+    ],
   ];
 
   for (const [source, category] of steps) {

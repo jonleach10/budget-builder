@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { redactText } from "@/features/import/redact";
 import type { Transaction } from "@/features/import/types";
 import {
   merchantKey,
+  mixedMerchants,
   pastCategories,
   type CategorizedRow,
 } from "./pastCategories";
@@ -63,6 +65,8 @@ describe("merchantKey", () => {
     ["Example Market", "EXAMPLE MARKET"],
     ["Beispiel Müller", "BEISPIEL MÜLLER"],
     ["Beispiel Straße", "BEISPIEL STRASSE"],
+    ["BEISPIEL STRAẞE", "Beispiel Straße"],
+    ["BEISPIEL STRAẞE", "BEISPIEL STRASSE"],
   ])("ignores case between %s and %s", (one, other) => {
     expect(merchantKey(transaction({ description: one }))).toBe(
       merchantKey(transaction({ description: other })),
@@ -112,6 +116,24 @@ describe("merchantKey", () => {
 
   it.each(["", "   "])("gives no key to a description of %j", (description) => {
     expect(merchantKey(transaction({ description }))).toBeUndefined();
+  });
+
+  it.each([
+    ["removed whole", "AB12 CAFE BAR 10115"],
+    ["left with a prefix", "PAY DE00123456789012345678"],
+    ["left with other text", "EXAMPLE SHOP 1111222233334444"],
+  ])("gives no key to a description %s by redaction", (_label, text) => {
+    expect(
+      merchantKey(transaction({ description: redactText(text) })),
+    ).toBeUndefined();
+  });
+
+  it("keeps an ID key when the description was redacted", () => {
+    const description = redactText("PAY DE00123456789012345678");
+
+    expect(merchantKey(transaction({ ppdId: "PPD0001", description }))).toBe(
+      merchantKey(transaction({ ppdId: "PPD0001" })),
+    );
   });
 });
 
@@ -217,5 +239,50 @@ describe("pastCategories", () => {
     const lookup = pastCategories([confirmed("Groceries")]);
 
     expect(JSON.parse(JSON.stringify(lookup))).toEqual(lookup);
+  });
+});
+
+describe("mixedMerchants", () => {
+  it("lists a merchant with two confirmed categories", () => {
+    const rows = [confirmed("Groceries"), confirmed("Dining")];
+
+    expect(mixedMerchants(rows)).toStrictEqual([merchantKey(transaction())]);
+  });
+
+  it("keeps a merchant mixed after a third row", () => {
+    const rows = [
+      confirmed("Groceries"),
+      confirmed("Dining"),
+      confirmed("Groceries"),
+    ];
+
+    expect(mixedMerchants(rows)).toStrictEqual([merchantKey(transaction())]);
+  });
+
+  it("leaves out a merchant with one confirmed category", () => {
+    const rows = [confirmed("Groceries"), confirmed("Groceries")];
+
+    expect(mixedMerchants(rows)).toStrictEqual([]);
+  });
+
+  it("doesn't let a guess make a merchant mixed", () => {
+    const rows: CategorizedRow[] = [
+      confirmed("Groceries"),
+      { transaction: transaction(), category: "Dining", source: "history" },
+    ];
+
+    expect(mixedMerchants(rows)).toStrictEqual([]);
+  });
+
+  it("doesn't let a blank category make a merchant mixed", () => {
+    expect(mixedMerchants([confirmed("Groceries"), confirmed("  ")])).toStrictEqual(
+      [],
+    );
+  });
+
+  it("gives plain data that survives JSON", () => {
+    const list = mixedMerchants([confirmed("Groceries"), confirmed("Dining")]);
+
+    expect(JSON.parse(JSON.stringify(list))).toEqual(list);
   });
 });

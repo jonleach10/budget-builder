@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { redactText } from "@/features/import/redact";
 import type { Transaction } from "@/features/import/types";
 import { bankCategoryMap, bankTypeMap } from "./bankMaps";
 import { categorize, type CategoryContext } from "./categorize";
 import type { CategoryRule } from "./findCategory";
-import { merchantKey, pastCategories } from "./pastCategories";
+import { merchantKey, mixedMerchants, pastCategories } from "./pastCategories";
 
 function transaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
@@ -22,6 +23,7 @@ function context(overrides: Partial<CategoryContext> = {}): CategoryContext {
   return {
     categoryRules: [],
     pastCategories: {},
+    mixedMerchants: [],
     bankTypeMap: {},
     bankCategoryMap: {},
     ...overrides,
@@ -299,6 +301,81 @@ describe("categorize", () => {
       });
 
       expect(categorize(row, "spending", ctx)).toStrictEqual({
+        status: "needs-review",
+      });
+    });
+
+    describe("a mixed merchant whose bank type is in the map", () => {
+      const rows = [
+        { transaction: transaction(), category: "Travel", source: "manual" },
+        { transaction: transaction(), category: "Insurance", source: "manual" },
+      ] as const;
+      const mixed = context({
+        pastCategories: pastCategories(rows),
+        mixedMerchants: mixedMerchants(rows),
+        bankTypeMap: { CARD: "From bank type" },
+      });
+
+      it("goes to review", () => {
+        expect(categorize(transaction(), "spending", mixed)).toStrictEqual({
+          status: "needs-review",
+        });
+      });
+
+      it("keeps the suggestion from the bank category map", () => {
+        const ctx = { ...mixed, bankCategoryMap: { Shopping: "Suggested" } };
+
+        expect(categorize(transaction(), "spending", ctx)).toStrictEqual({
+          status: "needs-review",
+          suggestedCategory: "Suggested",
+        });
+      });
+
+      it("still takes a manual category", () => {
+        const ctx = { ...mixed, manualCategory: "From manual" };
+
+        expect(categorize(transaction(), "spending", ctx)).toStrictEqual({
+          status: "categorized",
+          category: "From manual",
+          source: "manual",
+        });
+      });
+
+      it("still takes a category rule", () => {
+        const ctx = { ...mixed, categoryRules: [rule] };
+
+        expect(categorize(transaction(), "spending", ctx)).toStrictEqual({
+          status: "categorized",
+          category: "From rule",
+          source: "rule",
+        });
+      });
+
+      it("leaves other merchants to the bank type map", () => {
+        const other = transaction({ description: "EXAMPLE CAFE" });
+
+        expect(categorize(other, "spending", mixed)).toStrictEqual({
+          status: "categorized",
+          category: "From bank type",
+          source: "bank-type",
+        });
+      });
+    });
+
+    it("doesn't spread a category between rows with redacted descriptions", () => {
+      const first = transaction({
+        description: redactText("PAY DE00123456789012345678"),
+      });
+      const second = transaction({
+        description: redactText("PAY DE00987654321098765432"),
+      });
+      const ctx = context({
+        pastCategories: pastCategories([
+          { transaction: first, category: "Rent", source: "manual" },
+        ]),
+      });
+
+      expect(categorize(second, "spending", ctx)).toStrictEqual({
         status: "needs-review",
       });
     });

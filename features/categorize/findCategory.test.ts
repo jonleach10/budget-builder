@@ -72,6 +72,18 @@ describe("findCategory", () => {
     ).toBe("Rent");
   });
 
+  it.each([
+    ["straße", "BEISPIEL STRAẞE 7"],
+    ["STRAẞE", "Beispiel Straße 7"],
+    ["STRASSE", "BEISPIEL STRAẞE 7"],
+  ])("matches the capital sharp s: %s in %s", (value, description) => {
+    const rules: CategoryRule[] = [
+      { matchOn: "descriptionContains", value, category: "Rent" },
+    ];
+
+    expect(findCategory(transaction({ description }), rules)).toBe("Rent");
+  });
+
   it("matches IDs exactly", () => {
     const rules: CategoryRule[] = [
       { matchOn: "ppdId", value: "ppd0001", category: "Groceries" },
