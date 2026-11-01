@@ -30,3 +30,12 @@ describe("cn with custom font sizes", () => {
     expect(cn("text-sm", `text-${name}`)).toBe(`text-${name}`);
   });
 });
+
+describe("cn with custom shadows", () => {
+  it.each(["hairline", "hairline-focus", "glass", "modal", "glow"])(
+    "shadow-%s overrides an earlier shadow-sm",
+    (name) => {
+      expect(cn("shadow-sm", `shadow-${name}`)).toBe(`shadow-${name}`);
+    },
+  );
+});

@@ -4,7 +4,8 @@ export type BudgetErrorCode =
   | "entry-currency-mismatch"
   | "invalid-date"
   | "comparison-mismatch"
-  | "conversion-currency-mismatch";
+  | "conversion-currency-mismatch"
+  | "unknown-account";
 
 const MESSAGES: Record<BudgetErrorCode, string> = {
   "invalid-month":
@@ -19,6 +20,8 @@ const MESSAGES: Record<BudgetErrorCode, string> = {
     "These comparisons can't be combined. Use a US and a Germany comparison for the same month.",
   "conversion-currency-mismatch":
     "The currency conversion didn't return USD. Check the conversion, then try again.",
+  "unknown-account":
+    "A transaction's account can't be found. Reload the page, then try again.",
 };
 
 /** Takes a code only, so an error can't carry entry data. */

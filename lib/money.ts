@@ -113,6 +113,44 @@ export function parseMoney(
   return { minor: negative && magnitude !== 0 ? -magnitude : magnitude, currency };
 }
 
+const SYMBOLS: Record<string, string> = { USD: "$", EUR: "€", JPY: "¥" };
+
+/** Splits the digits as text, so a stored value never passes through a float. */
+function splitDigits({ minor, currency }: Money): {
+  whole: string;
+  fraction: string;
+} {
+  if (!Number.isInteger(minor)) throw new MoneyError("malformed");
+  if (!Number.isSafeInteger(minor)) throw new MoneyError("out-of-range");
+
+  const exponent = currencyExponent(currency);
+  const digits = String(Math.abs(minor)).padStart(exponent + 1, "0");
+  const wholeLength = digits.length - exponent;
+  return {
+    whole: digits.slice(0, wholeLength),
+    fraction: digits.slice(wholeLength),
+  };
+}
+
+function joinDigits(whole: string, fraction: string): string {
+  return fraction === "" ? whole : `${whole}.${fraction}`;
+}
+
+/** Formats minor units for display, such as $1,234.56 or -€5.00. */
+export function formatMoney(money: Money): string {
+  const { whole, fraction } = splitDigits(money);
+  const grouped = whole.replace(/\B(?=(\d{3})+$)/g, ",");
+  const prefix = SYMBOLS[money.currency] ?? `${money.currency} `;
+  const sign = money.minor < 0 ? "-" : "";
+  return `${sign}${prefix}${joinDigits(grouped, fraction)}`;
+}
+
+/** Formats an amount for a text field, in a form parseMoney reads back. */
+export function formatPlainAmount(money: Money): string {
+  const { whole, fraction } = splitDigits(money);
+  return `${money.minor < 0 ? "-" : ""}${joinDigits(whole, fraction)}`;
+}
+
 export function sumMinor(values: readonly number[]): number {
   let total = 0;
   for (const value of values) {

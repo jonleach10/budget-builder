@@ -7,14 +7,17 @@ import { BudgetError } from "./errors";
 export type ConvertToUsd = (amount: Money) => Money;
 
 /**
- * Gives one USD result per category. Remaining comes from the converted budgeted
- * and spent, never from converting remaining, so rounding can't break
- * remaining = budgeted - spent.
+ * Gives one USD result per category. Only Germany's budgeted amounts are
+ * converted here. Germany's spent is passed in per category, already in USD,
+ * because each row keeps the amount its own rate gave it at import. Remaining
+ * comes from the USD budgeted and spent, never from converting remaining, so
+ * rounding can't break remaining = budgeted - spent.
  */
 export function combineComparisons(
   us: BudgetComparison,
   germany: BudgetComparison,
   convert: ConvertToUsd,
+  germanySpentUsd: ReadonlyMap<string, number>,
 ): BudgetComparison {
   const usd = currencyFor("US");
   if (
@@ -45,7 +48,11 @@ export function combineComparisons(
     add(row.category, row.budgeted, row.spent);
   }
   for (const row of germany.categories) {
-    add(row.category, toUsd(row.budgeted), toUsd(row.spent));
+    add(row.category, toUsd(row.budgeted), germanySpentUsd.get(row.category) ?? 0);
+  }
+  const germanyRows = new Set(germany.categories.map((row) => row.category));
+  for (const [category, spent] of germanySpentUsd) {
+    if (!germanyRows.has(category)) add(category, 0, spent);
   }
 
   const categories = [...totals].map(([category, total]) => {
