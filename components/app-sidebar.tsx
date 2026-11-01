@@ -14,8 +14,7 @@ import {
   SidebarTrigger,
   SidebarFooter
 } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabaseClient"
+import { LogOutButton } from "@/features/auth/LogOutButton"
 
 const items = [
   {
@@ -46,14 +45,6 @@ const items = [
 ]
 
 export function AppSidebar() {
-  const handleSignOut = async function() {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error signing out:', error)
-    } else {
-      console.log("User successfully signed out")
-    }
-  }
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
@@ -86,9 +77,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <Button variant="outline" className="w-full" onClick={handleSignOut}>
-          Logout
-        </Button>
+        <LogOutButton />
       </SidebarFooter>
     </Sidebar>
   )
