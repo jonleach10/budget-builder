@@ -22,20 +22,28 @@ export type MfaClient = {
   }): Promise<{ error: unknown }>;
 };
 
+const ALREADY_SET_UP =
+  "An authenticator is already set up. Reload this page to continue.";
+
 function failure(error: unknown): { ok: false; message: string } {
   return { ok: false, message: authErrorMessage(error) };
 }
 
 /**
- * Removes any setup that was started and never finished, because Supabase
- * would otherwise keep it and a second attempt could fail.
+ * Refuses if an authenticator is already verified, because the proxy only
+ * checks that on page load and another tab may have finished setup since.
+ * Otherwise removes any setup that was started and never finished, because
+ * Supabase would keep it and a second attempt could fail.
  */
 export async function startMfaSetup(mfa: MfaClient): Promise<MfaSetup> {
   const { data: factors, error: listError } = await mfa.listFactors();
   if (listError || !factors) return failure(listError);
 
+  if (factors.all.some(({ status }) => status === "verified")) {
+    return { ok: false, message: ALREADY_SET_UP };
+  }
+
   for (const factor of factors.all) {
-    if (factor.status === "verified") continue;
     const { error } = await mfa.unenroll({ factorId: factor.id });
     if (error) return failure(error);
   }

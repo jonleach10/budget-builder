@@ -65,12 +65,18 @@ describe("startMfaSetup", () => {
     );
   });
 
-  it("leaves a verified factor alone", async () => {
-    const mfa = fakeMfa([{ id: "in-use", status: "verified" }]);
+  it("refuses to start with a verified factor, and changes nothing", async () => {
+    const mfa = fakeMfa([
+      { id: "abandoned", status: "unverified" },
+      { id: "in-use", status: "verified" },
+    ]);
 
-    await startMfaSetup(mfa);
-
+    expect(await startMfaSetup(mfa)).toEqual({
+      ok: false,
+      message: "An authenticator is already set up. Reload this page to continue.",
+    });
     expect(mfa.unenroll).not.toHaveBeenCalled();
+    expect(mfa.enroll).not.toHaveBeenCalled();
   });
 
   it("reports a failure to list factors and enrolls nothing", async () => {
