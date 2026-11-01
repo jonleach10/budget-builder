@@ -295,7 +295,7 @@ export function RulesScreen({ data }: { data: RulesScreenData | null }) {
           />
           <RuleGroup
             title="Text Rules"
-            hint="Tried after ID rules, top to bottom. The first match wins, and case doesn't matter."
+            hint="Tried after ID rules, top to bottom. The first match gives the type. If it has no category, a lower rule can give one. Case doesn't matter."
             emptyText="No text rules yet."
             rules={textRules}
             actions={actions}

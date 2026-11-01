@@ -119,15 +119,22 @@ export function ruleFromForm(form: RuleForm): RuleDraft {
   };
 }
 
-/** trim() removes exactly what the schema's filled_text check calls blank. */
+/**
+ * trim() removes exactly what the schema's filled_text check calls blank. An ID
+ * loses every space, because the adapters store IDs without any and a value
+ * copied from a bank file can hold one where the booking text wrapped.
+ */
 export function validateRule(draft: RuleDraft): RuleCheck {
-  const value = draft.value.trim();
   const { match_on, type, category_id } = draft;
 
-  if (value === "") return { ok: false, message: "Enter a value." };
+  if (draft.value.trim() === "") return { ok: false, message: "Enter a value." };
   if (!isMatchOn(match_on)) {
     return { ok: false, message: "Select what this rule matches." };
   }
+  const value = isIdRule({ match_on })
+    ? draft.value.replace(/\s/g, "")
+    : draft.value.trim();
+
   if (type !== null && category_id !== null) {
     return { ok: false, message: "Select a type or a category, not both." };
   }

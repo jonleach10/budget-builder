@@ -143,6 +143,25 @@ describe("validateRule", () => {
     });
   });
 
+  // Bank files wrap booking text with stray spaces, and stored IDs have none.
+  it.each(["ppdId", "orderingPartyId"])(
+    "removes every space from a %s value",
+    (match_on) => {
+      expect(
+        validateRule({ ...VALID, match_on, value: " DE00ZZZ000 01234567\n" }),
+      ).toEqual({
+        ok: true,
+        rule: { ...VALID, match_on, value: "DE00ZZZ00001234567" },
+      });
+    },
+  );
+
+  it("keeps the spaces inside a text value", () => {
+    const draft = { ...VALID, match_on: "descriptionContains" };
+
+    expect(validateRule(draft)).toEqual({ ok: true, rule: draft });
+  });
+
   // The schema's filled_text check treats these as blank. They're code points
   // because they would be invisible as characters in this file.
   const WIDE_BLANKS = [
