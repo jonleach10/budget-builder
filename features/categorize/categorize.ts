@@ -1,5 +1,5 @@
 import type { Transaction } from "@/features/import/types";
-import type { BankMap } from "./bankMaps";
+import { lookUp, type BankMap } from "./bankMaps";
 import { findCategory, type CategoryRule } from "./findCategory";
 import {
   merchantKey,
@@ -22,14 +22,6 @@ export type CategoryResult =
   | { status: "categorized"; category: string; source: CategorySource }
   | { status: "no-category" }
   | { status: "needs-review"; suggestedCategory?: string };
-
-/** Own keys only, so bank text like "constructor" stays an unknown value. */
-function lookUp(
-  map: Readonly<Record<string, string>>,
-  key: string | undefined,
-): string | undefined {
-  return key !== undefined && Object.hasOwn(map, key) ? map[key] : undefined;
-}
 
 /**
  * The type comes first, so a spending row is the only kind that reaches the
