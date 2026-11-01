@@ -59,12 +59,15 @@ export type PrepareImportInput = {
   /** Saved rates from `from` to `to`, inclusive, in USD per EUR. */
   readSavedRates: (from: string, to: string) => Promise<RatesByDate>;
   fetch: typeof globalThis.fetch;
+  /** The current date, as YYYY-MM-DD. Rows dated after it aren't stored yet. */
+  today: string;
 };
 
 export type PreparedImport = {
   rows: ImportRow[];
   /** Rates that aren't saved yet. */
   rates: ImportRate[];
+  /** Pending rows in the files, plus rows dated after today. */
   ignoredPendingCount: number;
 };
 
@@ -180,6 +183,9 @@ function toImportRate([rate_date, rate]: [string, string]): ImportRate {
  * their base amounts, and the rates that aren't saved yet. A saved rate wins over
  * a fetched one, because rows already locked to it have to stay explainable.
  *
+ * A row dated after today waits, because no rate exists for its date yet and a
+ * stored row locks the rate it gets. A later import stores it once the date comes.
+ *
  * Any failure throws before anything is stored. Errors are `FxError` or
  * `MoneyError`, and carry a reason only.
  */
@@ -187,8 +193,10 @@ export async function prepareImport({
   statements,
   readSavedRates,
   fetch,
+  today,
 }: PrepareImportInput): Promise<PreparedImport> {
-  const transactions = statements.flatMap((statement) => statement.transactions);
+  const parsed = statements.flatMap((statement) => statement.transactions);
+  const transactions = parsed.filter((row) => row.postedOn <= today);
   const ratedRows = transactions.filter(
     (row) => row.amount.currency === RATED_CURRENCY,
   );
@@ -210,7 +218,7 @@ export async function prepareImport({
     rates: Object.entries(newRates).map(toImportRate),
     ignoredPendingCount: statements.reduce(
       (total, statement) => total + statement.ignoredPendingCount,
-      0,
+      parsed.length - transactions.length,
     ),
   };
 }

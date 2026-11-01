@@ -22,6 +22,7 @@ as $$
 declare
   v_new bigint;
   v_possible_duplicates bigint;
+  v_pair jsonb;
 begin
   -- A row in someone else's account could otherwise conflict with a stored row
   -- and count as skipped, which would show that the row exists. Accounts this
@@ -74,28 +75,35 @@ begin
   -- A pair updates both rows or neither, so an edited row can't leave its
   -- partner half-paired. A type of 'transfer' or null means JL hasn't chosen
   -- something else for the row. Each pair is { moneyOut, moneyIn }, with each
-  -- side as { accountId, fingerprint }.
-  with open_pairs as (
-    select
-      gen_random_uuid() as pair_id,
-      money_out.id as money_out_id,
-      money_in.id as money_in_id
-    from jsonb_array_elements(p_pairs) as pair
-    join public.transactions as money_out
-      on money_out.account_id = (pair -> 'moneyOut' ->> 'accountId')::uuid
-      and money_out.fingerprint = pair -> 'moneyOut' ->> 'fingerprint'
-    join public.transactions as money_in
-      on money_in.account_id = (pair -> 'moneyIn' ->> 'accountId')::uuid
-      and money_in.fingerprint = pair -> 'moneyIn' ->> 'fingerprint'
-    where money_out.transfer_pair_id is null
-      and money_in.transfer_pair_id is null
-      and (money_out.type is null or money_out.type = 'transfer')
-      and (money_in.type is null or money_in.type = 'transfer')
-  )
-  update public.transactions as stored
-  set type = 'transfer', transfer_pair_id = open_pairs.pair_id
-  from open_pairs
-  where stored.id in (open_pairs.money_out_id, open_pairs.money_in_id);
+  -- side as { accountId, fingerprint }. Pairs run one at a time, in order, so
+  -- each sees the one before it and a row two pairs name stays with the first.
+  for v_pair in
+    select pair
+    from jsonb_array_elements(p_pairs) with ordinality as element (pair, position)
+    order by position
+  loop
+    with open_pair as (
+      select
+        gen_random_uuid() as pair_id,
+        money_out.id as money_out_id,
+        money_in.id as money_in_id
+      from public.transactions as money_out
+      join public.transactions as money_in
+        on money_in.account_id = (v_pair -> 'moneyIn' ->> 'accountId')::uuid
+        and money_in.fingerprint = v_pair -> 'moneyIn' ->> 'fingerprint'
+      where money_out.account_id = (v_pair -> 'moneyOut' ->> 'accountId')::uuid
+        and money_out.fingerprint = v_pair -> 'moneyOut' ->> 'fingerprint'
+        and money_out.id <> money_in.id
+        and money_out.transfer_pair_id is null
+        and money_in.transfer_pair_id is null
+        and (money_out.type is null or money_out.type = 'transfer')
+        and (money_in.type is null or money_in.type = 'transfer')
+    )
+    update public.transactions as stored
+    set type = 'transfer', transfer_pair_id = open_pair.pair_id
+    from open_pair
+    where stored.id in (open_pair.money_out_id, open_pair.money_in_id);
+  end loop;
 
   return jsonb_build_object(
     'new', v_new,

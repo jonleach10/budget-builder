@@ -2,6 +2,7 @@ import type { PGlite, Transaction } from "@electric-sql/pglite";
 import { beforeAll, describe, expect, it } from "vitest";
 import { prepareImport, type ImportRow } from "@/features/import/prepareImport";
 import {
+  commitAs,
   createTestDatabase,
   LOGGED_OUT,
   OTHER,
@@ -82,14 +83,6 @@ async function count(tx: Transaction, table: string): Promise<number> {
     `select count(*)::int as total from public.${table}`,
   );
   return rows[0].total;
-}
-
-/** Stands in for a call in its own transaction, so a test can look afterwards. */
-async function refused(tx: Transaction, work: () => Promise<unknown>) {
-  await tx.exec("savepoint before_import");
-  const error = await work().catch((caught: Error) => caught);
-  await tx.exec("rollback to savepoint before_import");
-  return error;
 }
 
 let db: PGlite;
@@ -232,6 +225,7 @@ describe("import_transactions", () => {
         ],
         readSavedRates: async () => ({}),
         fetch: globalThis.fetch,
+        today: "2026-10-05",
       });
 
       await runAs(db, withMfa(OWNER), async (tx) => {
@@ -379,43 +373,133 @@ describe("import_transactions", () => {
         expect((await stored(tx, "out")).transfer_pair_id).toBeNull();
       });
     });
+
+    it("gives a row named in two pairs to the first pair only", async () => {
+      await runAs(db, withMfa(OWNER), async (tx) => {
+        await importRows(
+          tx,
+          [row("out"), row("in-a"), row("in-b")],
+          [],
+          [pair("out", "in-a"), pair("out", "in-b")],
+        );
+
+        const out = await stored(tx, "out");
+        expect(out.transfer_pair_id).not.toBeNull();
+        expect((await stored(tx, "in-a")).transfer_pair_id).toBe(
+          out.transfer_pair_id,
+        );
+        expect(await stored(tx, "in-b")).toMatchObject({
+          type: null,
+          transfer_pair_id: null,
+        });
+      });
+    });
+
+    it("still pairs a row whose earlier pair was skipped", async () => {
+      await runAs(db, withMfa(OWNER), async (tx) => {
+        await importRows(
+          tx,
+          [row("a"), row("b"), row("c"), row("d")],
+          [],
+          [pair("a", "b"), pair("b", "c"), pair("c", "d")],
+        );
+
+        const third = await stored(tx, "c");
+        expect(third.transfer_pair_id).not.toBeNull();
+        expect((await stored(tx, "d")).transfer_pair_id).toBe(
+          third.transfer_pair_id,
+        );
+      });
+    });
+
+    it("gives one pair listed twice a single id", async () => {
+      await runAs(db, withMfa(OWNER), async (tx) => {
+        await importRows(
+          tx,
+          [row("out"), row("in")],
+          [],
+          [pair("out", "in"), pair("out", "in")],
+        );
+
+        const out = await stored(tx, "out");
+        expect(out.transfer_pair_id).not.toBeNull();
+        expect((await stored(tx, "in")).transfer_pair_id).toBe(
+          out.transfer_pair_id,
+        );
+      });
+    });
+
+    it("skips a pair naming the same row twice", async () => {
+      await runAs(db, withMfa(OWNER), async (tx) => {
+        await importRows(tx, [row("alone")], [], [pair("alone", "alone")]);
+
+        expect(await stored(tx, "alone")).toMatchObject({
+          type: null,
+          transfer_pair_id: null,
+        });
+      });
+    });
   });
 
   describe("a failure", () => {
+    // These calls commit, as the app's do, so a partial store would stay and show.
+    let ownDb: PGlite;
+    const session = withMfa(OWNER);
+
+    beforeAll(async () => {
+      ownDb = await createTestDatabase();
+    }, 60_000);
+
+    const call = (rows: unknown[], rates: unknown[]) =>
+      commitAs(ownDb, session, (tx) => importRows(tx, rows, rates));
+
+    const refusedCall = (rows: unknown[], rates: unknown[]) =>
+      call(rows, rates).catch((caught: Error) => caught);
+
+    const totals = () =>
+      runAs(ownDb, session, async (tx) => ({
+        rows: await count(tx, "transactions"),
+        rates: await count(tx, "fx_rates"),
+      }));
+
     it.each([
       ["a bad date", { posted_on: "not-a-date" }],
       ["a bad currency", { currency: "dollars" }],
       ["a missing amount", { amount_minor: "" }],
       ["a bad type", { type: "gift" }],
     ])("from %s stores nothing at all", async (_label, overrides) => {
-      await runAs(db, withMfa(OWNER), async (tx) => {
-        const rowsBefore = await count(tx, "transactions");
-        const ratesBefore = await count(tx, "fx_rates");
+      const before = await totals();
 
-        const error = await refused(tx, () =>
-          importRows(
-            tx,
-            [row("good"), row("bad", overrides)],
-            [rate("2026-10-03", "1.09")],
-          ),
-        );
+      const error = await refusedCall(
+        [row("good"), row("bad", overrides)],
+        [rate("2026-10-03", "1.09")],
+      );
 
-        expect(error).toBeInstanceOf(Error);
-        expect(await count(tx, "transactions")).toBe(rowsBefore);
-        expect(await count(tx, "fx_rates")).toBe(ratesBefore);
-      });
+      expect(error).toBeInstanceOf(Error);
+      expect(await totals()).toEqual(before);
     });
 
     it("from a bad rate stores no rows", async () => {
-      await runAs(db, withMfa(OWNER), async (tx) => {
-        const before = await count(tx, "transactions");
+      const before = await totals();
 
-        const error = await refused(tx, () =>
-          importRows(tx, [row("good")], [rate("2026-10-03", "0")]),
-        );
+      const error = await refusedCall(
+        [row("good")],
+        [rate("2026-10-03", "0")],
+      );
 
-        expect(error).toBeInstanceOf(Error);
-        expect(await count(tx, "transactions")).toBe(before);
+      expect(error).toBeInstanceOf(Error);
+      expect(await totals()).toEqual(before);
+    });
+
+    // Shows the counts above can fail: what a call stores does reach them.
+    it("doesn't apply to a call that succeeds", async () => {
+      const before = await totals();
+
+      await call([row("kept")], [rate("2026-10-04", "1.09")]);
+
+      expect(await totals()).toEqual({
+        rows: before.rows + 1,
+        rates: before.rates + 1,
       });
     });
   });
@@ -466,10 +550,16 @@ describe("import_transactions", () => {
           { moneyOut: side("mine"), moneyIn: theirs },
         ]);
 
+        // Dropping the role reads past the policies, and reading here comes
+        // before the rollback, so a change to their row would still show.
+        await tx.exec("reset role");
+        const { rows } = await tx.query(
+          `select transfer_pair_id from public.transactions
+           where account_id = $1 and fingerprint = 'seeded'`,
+          [OTHER.accountId],
+        );
+        expect(rows).toEqual([{ transfer_pair_id: null }]);
         expect((await stored(tx, "mine")).transfer_pair_id).toBeNull();
-      });
-      await runAs(db, withMfa(OTHER), async (tx) => {
-        expect((await stored(tx, "seeded")).transfer_pair_id).toBeNull();
       });
     });
   });

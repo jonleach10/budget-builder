@@ -1,8 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { FxError } from "@/features/fx/errors";
 import type { RatesByDate } from "@/features/fx/findRate";
+import {
+  accounts,
+  commerzbankFileName,
+  loadFixture,
+  passThroughHash,
+} from "./__fixtures__/load";
+import { parseStatement } from "./parseStatement";
 import { prepareImport, summarizeImport } from "./prepareImport";
 import type { ParsedStatement, Transaction } from "./types";
+
+// Later than every row these tests expect to be stored.
+const TODAY = "2026-12-31";
 
 function transaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
@@ -54,6 +64,7 @@ function prepare(
     statements: [statement(transactions)],
     readSavedRates: async () => saved,
     fetch: fetch as unknown as typeof globalThis.fetch,
+    today: TODAY,
   });
 }
 
@@ -85,6 +96,7 @@ describe("prepareImport", () => {
         statements: [statement([transaction()])],
         readSavedRates,
         fetch: fetch as unknown as typeof globalThis.fetch,
+        today: TODAY,
       });
 
       expect(rows[0]).toMatchObject({
@@ -140,6 +152,7 @@ describe("prepareImport", () => {
         ],
         readSavedRates,
         fetch: rateSource({}) as unknown as typeof globalThis.fetch,
+        today: TODAY,
       }).catch(() => undefined);
 
       expect(readSavedRates).toHaveBeenCalledWith("2026-08-25", "2026-10-15");
@@ -158,6 +171,7 @@ describe("prepareImport", () => {
         ],
         readSavedRates,
         fetch: rateSource({}) as unknown as typeof globalThis.fetch,
+        today: TODAY,
       });
 
       expect(readSavedRates).toHaveBeenCalledWith("2026-09-24", "2026-10-05");
@@ -241,6 +255,7 @@ describe("prepareImport", () => {
         statements: [statement([euros(-1, "2026-10-05")])],
         readSavedRates: async () => ({}),
         fetch: fetch as unknown as typeof globalThis.fetch,
+        today: TODAY,
       }).catch((e) => e);
 
       expect(error).toBeInstanceOf(FxError);
@@ -331,6 +346,7 @@ describe("prepareImport", () => {
         ],
         readSavedRates: async () => ({}),
         fetch: rateSource({}) as unknown as typeof globalThis.fetch,
+        today: TODAY,
       });
 
       expect(rows.map((row) => row.account_id)).toEqual([
@@ -338,6 +354,134 @@ describe("prepareImport", () => {
         "account-2",
       ]);
       expect(ignoredPendingCount).toBe(5);
+    });
+  });
+
+  describe("rows dated after today", () => {
+    const today = "2026-10-05";
+
+    function prepareOn(
+      transactions: Transaction[],
+      saved: RatesByDate,
+      fetch: ReturnType<typeof rateSource>,
+      ignoredPending = 0,
+    ) {
+      return prepareImport({
+        statements: [statement(transactions, ignoredPending)],
+        readSavedRates: async () => saved,
+        fetch: fetch as unknown as typeof globalThis.fetch,
+        today,
+      });
+    }
+
+    it("are left out and counted with the pending rows", async () => {
+      const { rows, ignoredPendingCount } = await prepareOn(
+        [euros(-1, "2026-10-05"), euros(-90000, "2026-10-16")],
+        FULL_RANGE,
+        rateSource({}),
+        2,
+      );
+
+      expect(rows.map((row) => row.posted_on)).toEqual(["2026-10-05"]);
+      expect(ignoredPendingCount).toBe(3);
+    });
+
+    it("are left out when they're in USD too", async () => {
+      const { rows, ignoredPendingCount } = await prepareOn(
+        [transaction({ postedOn: "2026-10-06" })],
+        {},
+        rateSource({}),
+      );
+
+      expect(rows).toEqual([]);
+      expect(ignoredPendingCount).toBe(1);
+    });
+
+    it("don't extend the rate range", async () => {
+      const readSavedRates = vi.fn(async () => FULL_RANGE);
+      const fetch = rateSource({});
+
+      await prepareImport({
+        statements: [
+          statement([euros(-1, "2026-10-05"), euros(-1, "2026-10-16")]),
+        ],
+        readSavedRates,
+        fetch: fetch as unknown as typeof globalThis.fetch,
+        today,
+      });
+
+      expect(readSavedRates).toHaveBeenCalledWith("2026-09-24", "2026-10-05");
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("need no rate when no other EUR row is in the upload", async () => {
+      const readSavedRates = vi.fn(async () => ({}));
+      const fetch = rateSource({});
+
+      const { rows, rates } = await prepareImport({
+        statements: [statement([euros(-1, "2026-10-16")])],
+        readSavedRates,
+        fetch: fetch as unknown as typeof globalThis.fetch,
+        today,
+      });
+
+      expect(rows).toEqual([]);
+      expect(rates).toEqual([]);
+      expect(readSavedRates).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("are stored by a later import, once the date has come", async () => {
+      const row = euros(-90000, "2026-10-05");
+
+      const early = await prepareImport({
+        statements: [statement([row])],
+        readSavedRates: async () => FULL_RANGE,
+        fetch: rateSource({}) as unknown as typeof globalThis.fetch,
+        today: "2026-10-04",
+      });
+      const later = await prepareOn([row], FULL_RANGE, rateSource({}));
+
+      expect(early.rows).toEqual([]);
+      expect(later.rows.map((stored) => stored.posted_on)).toEqual([
+        "2026-10-05",
+      ]);
+    });
+
+    it("don't stop the Commerzbank fixture, which has one", async () => {
+      const parsed = await parseStatement({
+        fileName: commerzbankFileName,
+        text: loadFixture(commerzbankFileName),
+        accounts,
+        hash: passThroughHash,
+      });
+      const fetch = rateSource({ "2026-10-07": 1.1, "2026-10-12": 1.1 });
+
+      const { rows, ignoredPendingCount } = await prepareImport({
+        statements: [parsed],
+        readSavedRates: async () => ({}),
+        fetch: fetch as unknown as typeof globalThis.fetch,
+        today: "2026-10-31",
+      });
+
+      // Six booked rows, one of them dated 2030, and two pending rows.
+      expect(rows).toHaveLength(5);
+      expect(rows.map((row) => row.posted_on)).not.toContain("2030-11-05");
+      expect(ignoredPendingCount).toBe(3);
+    });
+  });
+
+  describe("a row dated today", () => {
+    it("is stored", async () => {
+      const { rows, ignoredPendingCount } = await prepareImport({
+        statements: [statement([euros(-1, "2026-10-05")])],
+        readSavedRates: async () => FULL_RANGE,
+        fetch: rateSource({}) as unknown as typeof globalThis.fetch,
+        today: "2026-10-05",
+      });
+
+      expect(rows).toHaveLength(1);
+      expect(ignoredPendingCount).toBe(0);
     });
   });
 });
