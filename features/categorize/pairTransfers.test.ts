@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { Transaction } from "@/features/import/types";
 import { pairTransfers, type PairingAccount } from "./pairTransfers";
 
@@ -230,7 +230,18 @@ describe("pairTransfers", () => {
     });
 
     it("counts days across a clock change", () => {
-      // Clocks change on 2026-11-01 in the US.
+      // Clocks change on 2026-11-01 in the US. Neither CET nor CI's UTC has a
+      // change between these dates, so the test runs on US time.
+      vi.stubEnv("TZ", "America/New_York");
+      onTestFinished(() => {
+        vi.unstubAllEnvs();
+      });
+
+      // Local time sees 5 days and an hour, so the change really is in range.
+      const localMs =
+        new Date(2026, 10, 4).getTime() - new Date(2026, 9, 30).getTime();
+      expect(localMs / (60 * 60 * 1000)).toBe(121);
+
       const payment = cardPayment(120000, { postedOn: "2026-10-30" });
       const bankRow = usd(CHECKING, -120000, { postedOn: "2026-11-04" });
 
