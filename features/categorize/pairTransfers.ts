@@ -1,16 +1,11 @@
-import { convertMoney } from "@/features/fx/convertMoney";
-import { findRate, type RatesByDate } from "@/features/fx/findRate";
 import type {
   Account,
   StatementFormat,
   Transaction,
 } from "@/features/import/types";
-import { sumMinor } from "@/lib/money";
 import { hasText } from "./text";
 
 const CARD_PAYMENT_MAX_DAYS = 5;
-const CROSS_CURRENCY_MAX_DAYS = 5;
-const CROSS_CURRENCY_MAX_PERCENT = 5;
 const SAME_AMOUNT_MAX_DAYS = 3;
 
 const CARD_PAYMENT_BANK_TYPE = "Payment";
@@ -20,10 +15,7 @@ export type PairingAccount = Pick<Account, "id" | "format">;
 
 export type RowId = Pick<Transaction, "accountId" | "fingerprint">;
 
-export type TransferEvidence =
-  | "transfer-number"
-  | "card-payment"
-  | "cross-currency";
+export type TransferEvidence = "transfer-number" | "card-payment";
 
 export type TransferPair = {
   evidence: TransferEvidence;
@@ -31,7 +23,7 @@ export type TransferPair = {
   moneyIn: RowId;
 };
 
-export type UncertainReason = TransferEvidence | "no-rate" | "same-amount";
+export type UncertainReason = TransferEvidence | "same-amount";
 
 /** Rows that may belong together, for JL to decide. */
 export type UncertainMatch = {
@@ -47,8 +39,8 @@ export type PairingResult = {
 
 type OpenRow = Transaction & { format: StatementFormat; day: number };
 
-/** Two rows that may be one transfer. With no rate, the link can't be judged. */
-type Link = { rows: [OpenRow, OpenRow]; noRate?: boolean };
+/** Two rows that may be one transfer. */
+type Link = [OpenRow, OpenRow];
 
 function rowId({ accountId, fingerprint }: RowId): RowId {
   return { accountId, fingerprint };
@@ -152,12 +144,12 @@ function linksBetween(
   return rows.flatMap((row) =>
     others
       .filter((other) => isCandidate(row, other))
-      .map((other): Link => ({ rows: [row, other] })),
+      .map((other): Link => [row, other]),
   );
 }
 
 function sharesRow(a: Link, b: Link): boolean {
-  return a.rows.some((row) => b.rows.includes(row));
+  return a.some((row) => b.includes(row));
 }
 
 /** Splits links into groups, where linked rows always share a group. */
@@ -174,23 +166,16 @@ function linkGroups(links: readonly Link[]): Link[][] {
 }
 
 function rowsIn(links: readonly Link[]): Set<OpenRow> {
-  return new Set(links.flatMap((link) => link.rows));
+  return new Set(links.flat());
 }
 
 /** A group of one link means each row has exactly one candidate: the other. */
-function settle(
-  links: readonly Link[],
-  evidence: TransferEvidence,
-  result: PairingResult,
-): void {
+function settleCardLinks(links: readonly Link[], result: PairingResult): void {
   for (const group of linkGroups(links)) {
-    const noRate = group.some((link) => link.noRate);
-    if (group.length === 1 && !noRate) {
-      result.pairs.push(toPair(...group[0].rows, evidence));
+    if (group.length === 1) {
+      result.pairs.push(toPair(...group[0], "card-payment"));
     } else {
-      result.uncertain.push(
-        toUncertain([...rowsIn(group)], noRate ? "no-rate" : evidence),
-      );
+      result.uncertain.push(toUncertain([...rowsIn(group)], "card-payment"));
     }
   }
 }
@@ -212,51 +197,6 @@ function isCardPaymentCandidate(payment: OpenRow, bankRow: OpenRow): boolean {
     canPair(payment, bankRow) &&
     isWithinDays(payment, bankRow, CARD_PAYMENT_MAX_DAYS)
   );
-}
-
-/**
- * Cross-multiplied, so no value becomes a float. `sumMinor` refuses a bad value
- * first, because BigInt's own errors print it.
- */
-function isWithinPercent(size: number, base: number, percent: number): boolean {
-  const difference = BigInt(Math.abs(sumMinor([size, -base])));
-  return difference * BigInt(100) <= BigInt(base) * BigInt(percent);
-}
-
-function isCurrency(row: OpenRow, currency: string): boolean {
-  return row.amount.currency === currency;
-}
-
-function canCrossCurrencies(eurRow: OpenRow, usdRow: OpenRow): boolean {
-  return (
-    eurRow.accountId !== usdRow.accountId &&
-    isMoneyOut(eurRow) !== isMoneyOut(usdRow) &&
-    isWithinDays(eurRow, usdRow, CROSS_CURRENCY_MAX_DAYS)
-  );
-}
-
-function crossCurrencyLinks(
-  rows: readonly OpenRow[],
-  rates: RatesByDate,
-): Link[] {
-  const eurRows = rows.filter((row) => isCurrency(row, "EUR"));
-  const usdRows = rows.filter((row) => isCurrency(row, "USD"));
-
-  return linksBetween(eurRows, usdRows, canCrossCurrencies).flatMap((link) => {
-    const [eurRow, usdRow] = link.rows;
-    const [moneyOut] = moneyOutFirst(eurRow, usdRow);
-    const rate = findRate(rates, moneyOut.postedOn);
-    if (rate === undefined) return [{ ...link, noRate: true }];
-
-    const { minor } = convertMoney(eurRow.amount, rate, "USD");
-    return isWithinPercent(
-      Math.abs(usdRow.amount.minor),
-      Math.abs(minor),
-      CROSS_CURRENCY_MAX_PERCENT,
-    )
-      ? [link]
-      : [];
-  });
 }
 
 function isSameAmountCandidate(moneyOut: OpenRow, moneyIn: OpenRow): boolean {
@@ -290,21 +230,21 @@ function inStableOrder(result: PairingResult): PairingResult {
 }
 
 /**
- * Finds the transfers among the rows open to pairing. `rates` holds USD per EUR.
+ * Finds the transfers among the rows open to pairing.
  *
- * Evidence goes strongest first: transfer number, card payment, cross-currency,
- * then the same amount alone, which is never enough to pair. Each kind judges
- * all its rows at once, so the result doesn't depend on input order. A row that
- * evidence pairs or calls uncertain takes no part in anything weaker, so it
- * lands in one result at most. A row with a transfer number is only ever judged
- * by that number, because its other side would carry the same one.
+ * Evidence goes strongest first: transfer number, card payment, then the same
+ * amount alone, which is never enough to pair. Each kind judges all its rows at
+ * once, so the result doesn't depend on input order. A row that evidence pairs
+ * or calls uncertain takes no part in anything weaker, so it lands in one result
+ * at most. A row with a transfer number is only ever judged by that number,
+ * because its other side would carry the same one.
  *
- * Errors come from `convertMoney` and `sumMinor`, and carry a reason only.
+ * Rows in two currencies never pair. Dates and amounts alone can't prove such a
+ * transfer, so the owner sets one by hand.
  */
 export function pairTransfers(
   rows: readonly Transaction[],
   accounts: readonly PairingAccount[],
-  rates: RatesByDate,
 ): PairingResult {
   const open = openRows(rows, accounts);
   const result: PairingResult = {
@@ -324,19 +264,14 @@ export function pairTransfers(
     bankRows,
     isCardPaymentCandidate,
   );
-  settle(cardLinks, "card-payment", result);
+  settleCardLinks(cardLinks, result);
   const judgedByCard = rowsIn(cardLinks);
   result.unpairedCardPayments = cardPayments
     .filter((row) => !judgedByCard.has(row))
     .map(rowId);
 
-  const afterCards = bankRows.filter((row) => !judgedByCard.has(row));
-  const crossLinks = crossCurrencyLinks(afterCards, rates);
-  settle(crossLinks, "cross-currency", result);
-  const judgedAcrossCurrencies = rowsIn(crossLinks);
-
   flagSameAmounts(
-    afterCards.filter((row) => !judgedAcrossCurrencies.has(row)),
+    bankRows.filter((row) => !judgedByCard.has(row)),
     result,
   );
 
