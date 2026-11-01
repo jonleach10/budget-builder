@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutLineChart, type ChartInput } from "./lineChart";
+import { layoutLineChart, type ChartInput } from "./lineChartLayout";
 
 function chart(
   first: readonly number[],

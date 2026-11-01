@@ -1,6 +1,15 @@
 'use client';
 import Link from "next/link"
-import { Home, Landmark, LayoutTemplate, Settings, Wallpaper } from "lucide-react"
+import { usePathname } from "next/navigation"
+import {
+  Inbox,
+  LayoutDashboard,
+  List,
+  Settings,
+  SlidersHorizontal,
+  Upload,
+  Wallet,
+} from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -12,39 +21,25 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
-  SidebarFooter
+  SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { LogOutButton } from "@/features/auth/LogOutButton"
 
 const items = [
-  {
-    title: "Home",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Quick Start",
-    url: "/visualization",
-    icon: Wallpaper
-  },
-  {
-    title: "Budgets",
-    //url: "/budgets",
-    icon: Landmark,
-  },
-  {
-    title: "Templates",
-    //url: "/templates",
-    icon: LayoutTemplate,
-  },
-  {
-    title: "Settings",
-    //url: "/settings",
-    icon: Settings,
-  }
+  { title: "Overview", url: "/", icon: LayoutDashboard },
+  { title: "Budget", url: "/budget", icon: Wallet },
+  { title: "Transactions", icon: List },
+  { title: "Review Inbox", icon: Inbox },
+  { title: "Import", icon: Upload },
+  { title: "Rules", url: "/rules", icon: SlidersHorizontal },
+  { title: "Settings", url: "/settings", icon: Settings },
 ]
 
 export function AppSidebar() {
+  const pathname = usePathname()
+  const { setOpenMobile } = useSidebar()
+
   return (
     <Sidebar collapsible="icon" variant="inset">
       <SidebarHeader>
@@ -58,8 +53,11 @@ export function AppSidebar() {
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   {item.url ? (
-                    <SidebarMenuButton asChild>
-                      <Link href={item.url}>
+                    <SidebarMenuButton asChild isActive={pathname === item.url}>
+                      <Link
+                        href={item.url}
+                        onClick={() => setOpenMobile(false)}
+                      >
                         <item.icon />
                         <span>{item.title}</span>
                       </Link>

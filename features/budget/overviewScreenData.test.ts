@@ -3,7 +3,7 @@ import {
   buildOverviewScreen,
   type OverviewData,
   type ReadyOverview,
-} from "./overviewScreen";
+} from "./overviewScreenData";
 import type { LedgerRow } from "./rows";
 import type { BudgetView } from "./screenParams";
 

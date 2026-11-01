@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBudgetScreen, type ReadyBudgetScreen } from "./budgetScreen";
+import { buildBudgetScreen, type ReadyBudgetScreen } from "./budgetScreenData";
 import type { BudgetAmountRow, CategoryRow, LedgerRow } from "./rows";
 import type { BudgetView, ScreenParams } from "./screenParams";
 import type { ViewData } from "./viewFigures";

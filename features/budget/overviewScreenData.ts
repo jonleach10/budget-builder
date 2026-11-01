@@ -1,6 +1,6 @@
 import { formatMoney, sumMinor } from "@/lib/money";
 import type { CategoryComparison } from "./compareBudget";
-import { layoutLineChart, type ChartLayout } from "./lineChart";
+import { layoutLineChart, type ChartLayout } from "./lineChartLayout";
 import { monthName, shortMonthName } from "./months";
 import type { LedgerRow } from "./rows";
 import type { ScreenParams } from "./screenParams";
