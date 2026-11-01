@@ -49,7 +49,7 @@ export async function startMfaSetup(mfa: MfaClient): Promise<MfaSetup> {
   return {
     ok: true,
     factorId: data.id,
-    qrCode: data.totp.qr_code,
+    qrCode: data.totp.qr_code.trimEnd(),
     secret: data.totp.secret,
   };
 }

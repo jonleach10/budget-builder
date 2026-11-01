@@ -39,6 +39,21 @@ describe("startMfaSetup", () => {
     });
   });
 
+  it("drops the newline Supabase ends a QR code with, which next/image refuses", async () => {
+    const mfa = fakeMfa();
+    mfa.enroll.mockResolvedValue({
+      data: {
+        ...ENROLLED,
+        totp: { ...ENROLLED.totp, qr_code: `${ENROLLED.totp.qr_code}\n` },
+      },
+      error: null,
+    });
+
+    const setup = await startMfaSetup(mfa);
+
+    expect(setup).toMatchObject({ qrCode: ENROLLED.totp.qr_code });
+  });
+
   it("removes an abandoned setup first, so setup can restart", async () => {
     const mfa = fakeMfa([{ id: "abandoned", status: "unverified" }]);
 
