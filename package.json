@@ -28,6 +28,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.14",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "26.6.5",
     "@types/papaparse": "^5.5.2",

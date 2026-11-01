@@ -41,6 +41,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase link writes the project ID here
+supabase/.temp
+
 # typescript
 Budget Builder.code-workspace
 .vscode/settings.json
