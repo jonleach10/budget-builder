@@ -93,6 +93,7 @@ Add the first block inside the existing `@theme inline` block and the rest as a 
   --color-signal-blue: #027dea;
   --color-glass-edge: rgba(186, 215, 247, 0.12);
   --color-frost-wash: rgba(186, 214, 247, 0.06);
+  --color-qr-plate: #ffffff;
 
   --text-caption: 12px;
   --text-caption--line-height: 1.33;
@@ -154,6 +155,8 @@ Add the first block inside the existing `@theme inline` block and the rest as a 
 **Status badge:** a badge with a sign or icon, plus `text-deep-teal` or `text-ember-glow`.
 
 **Icon tile:** a 56px circle, `rounded-full bg-frost-wash shadow-hairline`, with a line icon at 1.5px stroke in `text-foreground`. Use lucide, which the repo already has.
+
+**QR code plate:** `rounded-md bg-qr-plate p-2`, because scanners need dark squares on white. This is the only white surface. Use it for nothing else.
 
 **Eyebrow label:** `font-eyebrow text-[15px] uppercase tracking-[0.1em] text-moon-mist`, centered, between lines that fade from transparent to `rgba(186, 215, 247, 0.12)`. Use on landing and demo sections only.
 

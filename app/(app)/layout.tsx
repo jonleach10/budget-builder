@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { requireSession } from "@/features/auth/requireSession";
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  await requireSession();
+
   return (
     <SidebarProvider>
       <AppSidebar />
