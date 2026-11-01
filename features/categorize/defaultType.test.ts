@@ -14,7 +14,7 @@ function transaction(bankType?: string): Transaction {
 }
 
 describe("defaultType", () => {
-  it.each(["Sale", "Return", "Fee", "DEBIT_CARD", "FEE_TRANSACTION"])(
+  it.each(["Sale", "Return", "Fee", "DEBIT_CARD", "FEE_TRANSACTION", "Debit"])(
     "gives spending for the bank type %s",
     (bankType) => {
       expect(defaultType(transaction(bankType))).toBe("spending");

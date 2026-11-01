@@ -14,6 +14,7 @@ export const bankCategoryMap: BankMap = {};
 /** Bank text on the left, type on the right. Plain data, keyed exactly. */
 export const bankDefaultTypeMap: Readonly<Record<string, TransactionType>> = {
   DEBIT_CARD: "spending",
+  Debit: "spending",
   FEE_TRANSACTION: "spending",
   Fee: "spending",
   Return: "spending",
