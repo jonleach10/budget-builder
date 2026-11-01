@@ -128,7 +128,7 @@ describe("buildBudgetScreen", () => {
     );
 
     expect(screen.review).toBe(
-      "2 rows need review and aren't in these totals.",
+      "2 rows need review and aren't in the budget totals.",
     );
   });
 

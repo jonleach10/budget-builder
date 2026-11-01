@@ -149,7 +149,7 @@ describe("buildOverviewScreen", () => {
 
   it("shows the needs-review count", () => {
     expect(ready("us").review).toBe(
-      "2 rows need review and aren't in these totals.",
+      "2 rows need review and aren't in the budget totals.",
     );
   });
 
@@ -165,7 +165,9 @@ describe("buildOverviewScreen", () => {
       data({ ledger: [usRow({ type: null, category: null })] }),
     );
 
-    expect(screen.review).toBe("1 row needs review and isn't in these totals.");
+    expect(screen.review).toBe(
+      "1 row needs review and isn't in the budget totals.",
+    );
   });
 
   it("uses base amounts in Combined and own amounts in Germany", () => {

@@ -35,7 +35,7 @@ function ready(extra: Partial<ReadyOverview> = {}): ReadyOverview {
   return {
     status: "ready",
     subtitle: "Amounts are in USD.",
-    review: "2 rows need review and aren't in these totals.",
+    review: "2 rows need review and aren't in the budget totals.",
     budgeted: "$7,700.00",
     spent: "$7,434.61",
     remaining: "$265.39",
@@ -152,8 +152,17 @@ describe("TrendCard", () => {
   });
 
   it("has a legend and end labels", () => {
-    expect(html.match(/Income/g)?.length).toBeGreaterThanOrEqual(2);
-    expect(html.match(/Spending/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(html.match(/>Income</g)).toHaveLength(2);
+    expect(html.match(/>Spending</g)).toHaveLength(2);
+  });
+
+  it("keeps only the legend when the end labels are dropped", () => {
+    const legendOnly = renderToStaticMarkup(
+      createElement(TrendCard, { layout: { ...TREND, endLabels: [] } }),
+    );
+
+    expect(legendOnly.match(/>Income</g)).toHaveLength(1);
+    expect(legendOnly.match(/>Spending</g)).toHaveLength(1);
   });
 
   it("makes every month a button that names its figures", () => {

@@ -28,6 +28,11 @@ import {
   RemainingAmount,
 } from "./ScreenParts";
 import type { ScreenParams } from "./screenParams";
+import {
+  copyButtonText,
+  saveButtonText,
+  type BudgetAction,
+} from "./screenText";
 
 const FORM_ID = "budget-form";
 
@@ -97,7 +102,7 @@ function AmountCell({
         className={cn(
           glassField,
           "w-[120px] text-right tabular-nums md:h-8 md:w-28",
-          error && "shadow-[inset_0_0_0_1px_var(--color-ember-glow)]",
+          error && "ring-1 ring-ember-glow/25 ring-inset",
         )}
       />
       <FieldError message={error} />
@@ -437,8 +442,10 @@ function ReadyBudget({
   const [openIds, setOpenIds] = useState<ReadonlySet<string>>(new Set());
   const [showErrors, setShowErrors] = useState(false);
   const [notice, setNotice] = useState<NoticeMessage | null>(null);
+  const [action, setAction] = useState<BudgetAction>("save");
   const { pending, run } = useServerAction();
 
+  const running = pending ? action : null;
   const editable = country !== null;
   const textOf = (line: BudgetLine) =>
     edits[line.categoryId] ?? line.amountInput;
@@ -484,6 +491,7 @@ function ReadyBudget({
     );
     setShowErrors(true);
     setNotice(null);
+    setAction("save");
     run(() => saveBudgetAction(month, country, amounts), report);
   }
 
@@ -491,10 +499,11 @@ function ReadyBudget({
     if (country === null) return;
 
     setNotice(null);
+    setAction("copy");
     run(() => copyMonthAction(from, month, country), report);
   }
 
-  const saveLabel = pending ? "Saving..." : "Save Budget";
+  const saveLabel = saveButtonText(running);
   // Violet is for the one main action, which is Copy when it's on offer.
   const SaveButton = setup.kind === "copy" ? OutlineButton : Button;
 
@@ -526,7 +535,7 @@ function ReadyBudget({
             className="h-11 md:h-9"
             disabled={pending}
             onClick={() => handleCopy(setup.from)}>
-            {pending ? "Copying..." : `Copy ${setup.fromLabel}`}
+            {copyButtonText(running, setup.fromLabel)}
           </Button>
         </EmptyPanel>
       )}

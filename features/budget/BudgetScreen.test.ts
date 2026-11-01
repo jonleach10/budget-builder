@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { BudgetScreen } from "./BudgetScreen";
 import type {
   BudgetLine,
@@ -13,6 +13,16 @@ vi.mock("@/features/auth/requireSession", () => ({
   requireSession: vi.fn(),
   serverClient: vi.fn(),
 }));
+
+const action = vi.hoisted(() => ({ pending: false }));
+
+vi.mock("@/hooks/use-server-action", () => ({
+  useServerAction: () => ({ pending: action.pending, run: vi.fn() }),
+}));
+
+afterEach(() => {
+  action.pending = false;
+});
 
 const GROCERIES: BudgetLine = {
   categoryId: "cat-groceries",
@@ -42,7 +52,7 @@ function ready(extra: Partial<ReadyBudgetScreen> = {}): ReadyBudgetScreen {
   return {
     status: "ready",
     subtitle: "Amounts are in USD. Changes apply to October 2026 only.",
-    review: "2 rows need review and aren't in these totals.",
+    review: "2 rows need review and aren't in the budget totals.",
     country: "US",
     currency: "USD",
     setup: { kind: "has-amounts" },
@@ -128,8 +138,30 @@ describe("BudgetScreen", () => {
   it("shows the needs-review count as text, not a link", () => {
     const html = render(ready());
 
-    expect(html).toContain("2 rows need review and aren&#x27;t in these totals.");
+    expect(html).toContain(
+      "2 rows need review and aren&#x27;t in the budget totals.",
+    );
     expect(html).not.toMatch(/<a[^>]*>[^<]*rows need review/);
+  });
+
+  it("shows only the running action as busy", () => {
+    action.pending = true;
+
+    const html = render(
+      ready({
+        setup: {
+          kind: "copy",
+          from: "2026-09",
+          fromLabel: "September 2026",
+          title: "No Budget for October 2026",
+          text: "Copy the amounts from September 2026, then edit any that change.",
+        },
+      }),
+    );
+
+    expect(html).toContain("Saving...");
+    expect(html).not.toContain("Copying...");
+    expect(html).toContain("Copy September 2026");
   });
 
   it("offers the copy, with the button naming the month", () => {
