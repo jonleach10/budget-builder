@@ -37,14 +37,11 @@ function OutlineButton({ className, ...props }: ButtonProps) {
   );
 }
 
-/** The outlined pill in ember, for confirming something that can't be undone. */
+/** The outlined pill with ember text, for confirming something that can't be undone. */
 function DangerButton({ className, ...props }: ButtonProps) {
   return (
     <OutlineButton
-      className={cn(
-        "border border-ember-glow/45 text-ember-glow shadow-none hover:text-ember-glow",
-        className
-      )}
+      className={cn("text-ember-glow hover:text-ember-glow", className)}
       {...props} />
   );
 }
