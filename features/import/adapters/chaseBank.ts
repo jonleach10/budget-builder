@@ -1,3 +1,4 @@
+import { checkBalances } from "../balances";
 import { inferPurchaseDate } from "../dates";
 import { StatementError } from "../errors";
 import type {
@@ -107,8 +108,9 @@ export const chaseBank: StatementAdapter = {
   lastFour: chaseLastFour,
   parse(text, account) {
     const { currency } = account;
+    const csvRows = readCsvRows(text);
 
-    const rows = readCsvRows(text).map(({ line, fields }): StatementRow => {
+    const rows = csvRows.map(({ line, fields }): StatementRow => {
       const extra = fields[MIN_FIELD_COUNT] ?? "";
       if (
         fields.length < MIN_FIELD_COUNT ||
@@ -132,6 +134,10 @@ export const chaseBank: StatementAdapter = {
             : readAmount(balance, currency, "us", line),
       };
     });
+
+    checkBalances(
+      rows.map((row, index) => ({ ...row, line: csvRows[index].line })),
+    );
 
     return { rows, ignoredPendingCount: 0 };
   },

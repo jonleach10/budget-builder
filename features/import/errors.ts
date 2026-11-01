@@ -6,7 +6,8 @@ export type StatementErrorCode =
   | "malformed-row"
   | "invalid-date"
   | "invalid-amount"
-  | "currency-mismatch";
+  | "currency-mismatch"
+  | "balance-mismatch";
 
 const EXPORT_AGAIN =
   "Export the statement from the bank again, then import the new file.";
@@ -31,6 +32,8 @@ function messageFor(code: StatementErrorCode, line?: number): string {
       return `${where} has an amount Budget Builder can't read. ${EXPORT_AGAIN}`;
     case "currency-mismatch":
       return `${where} isn't in the account's currency. Check the account's currency, then import the file again.`;
+    case "balance-mismatch":
+      return `${where} has a balance that doesn't follow from the row above it. ${EXPORT_AGAIN}`;
   }
 }
 

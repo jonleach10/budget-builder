@@ -1,10 +1,11 @@
-import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import Papa from "papaparse";
 import { parseMoney, sumMinor } from "@/lib/money";
 import { StatementError } from "./errors";
+import { sha256Hex } from "./fingerprint";
 import { parseStatement } from "./parseStatement";
+import { redactIdentifier } from "./redact";
 import type {
   Account,
   StatementFormat,
@@ -22,17 +23,24 @@ export type StatementCheck = {
   failure: { code: string; line?: number } | null;
   countsMatch: boolean;
   sumsMatch: boolean;
-  balanceMismatchCount: number;
   ibanShapedFieldCount: number;
   missedFieldCount: number;
 };
 
 export type RawAmounts = { dataRowCount: number; bookedSum: number };
 
+export type ExportComparison = {
+  sharedRowCount: number;
+  matchedRowCount: number;
+};
+
 const COMMERZBANK_FIELDS_FROM_AMOUNT = 7;
 const IBAN_CANDIDATE = /[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}/g;
 const IBAN_MIN_DIGITS = 10;
 const SEPA_CREDITOR_ID = /^[A-Z]{2}\d{2}(?:ZZZ|[A-Z]{3}\d)/;
+// Reads a line that countMissedFields has already lowered and stripped of spaces.
+const ORDERING_PARTY_VALUE =
+  /idoforderingparty:([a-z0-9]{1,35})(?=sepa-|end-to-endreference:|customerreference:|mandatereference:|;|"|$)/;
 
 const TEXT_FIELDS = [
   "description",
@@ -137,21 +145,6 @@ export function readRawAmounts(
     : readRawChase(normalized, currency);
 }
 
-/** Rows run newest first, so each balance less its amount is the next balance. */
-export function countBalanceMismatches(
-  transactions: readonly Transaction[],
-): number {
-  let mismatches = 0;
-  for (let i = 0; i + 1 < transactions.length; i += 1) {
-    const { amount, balance } = transactions[i];
-    const next = transactions[i + 1].balance;
-    if (!balance || !next || balance.minor - amount.minor !== next.minor) {
-      mismatches += 1;
-    }
-  }
-  return mismatches;
-}
-
 function hasIbanShape(text: string): boolean {
   const candidates = text.match(IBAN_CANDIDATE) ?? [];
   return candidates.some(
@@ -176,14 +169,27 @@ export function countIbanShapedFields(
   return count;
 }
 
+/** `redactIdentifier` drops an ID shaped like an IBAN, on the private side. */
+function isDroppedOrderingPartyId(line: string): boolean {
+  const value = ORDERING_PARTY_VALUE.exec(line)?.[1];
+  return (
+    value !== undefined && redactIdentifier(value.toUpperCase()) === undefined
+  );
+}
+
 // Each marker in the raw text promises a filled field, so a field that parsing
 // silently leaves empty shows up here. Lines are lower case with no spaces. The
 // exchange marker names a currency, because an unknown one leaves original unset.
 const FIELD_MARKERS: readonly {
   marker: RegExp;
   isFilled: (transaction: Transaction) => boolean;
+  isDropped?: (line: string) => boolean;
 }[] = [
-  { marker: /idoforderingparty:/, isFilled: (t) => t.orderingPartyId !== undefined },
+  {
+    marker: /idoforderingparty:/,
+    isFilled: (t) => t.orderingPartyId !== undefined,
+    isDropped: isDroppedOrderingPartyId,
+  },
   { marker: /originalbetrag:/, isFilled: (t) => t.original !== undefined },
   { marker: /euro[\d.]+x[\d.]+\(exchgrte\)/, isFilled: (t) => t.original !== undefined },
   { marker: /ppdid:/, isFilled: (t) => t.ppdId !== undefined },
@@ -206,12 +212,64 @@ export function countMissedFields(
     .map((line) => line.replace(/\s/g, "").toLowerCase());
 
   let missed = 0;
-  for (const { marker, isFilled } of FIELD_MARKERS) {
-    const marked = lines.filter((line) => marker.test(line)).length;
+  for (const { marker, isFilled, isDropped } of FIELD_MARKERS) {
+    const marked = lines.filter(
+      (line) => marker.test(line) && !isDropped?.(line),
+    ).length;
     const filled = transactions.filter(isFilled).length;
     if (marked > filled) missed += marked - filled;
   }
   return missed;
+}
+
+/** Parses every file with the production hash. A bad file throws. */
+export async function readTransactions(
+  files: readonly StatementSource[],
+  accounts: readonly Account[],
+): Promise<Transaction[]> {
+  const statements = await Promise.all(
+    files.map((file) => parseStatement({ ...file, accounts, hash: sha256Hex })),
+  );
+  return statements.flatMap((statement) => statement.transactions);
+}
+
+function postedRange(rows: readonly Transaction[]): [string, string] {
+  const dates = rows.map((row) => row.postedOn).sort();
+  return [dates[0], dates[dates.length - 1]];
+}
+
+/**
+ * Proves the fingerprint holds across exports: every older row, on a date the
+ * newer export also covers, must appear in it with the same fingerprint.
+ */
+export function compareExports(
+  older: readonly Transaction[],
+  newer: readonly Transaction[],
+): ExportComparison {
+  let sharedRowCount = 0;
+  let matchedRowCount = 0;
+
+  for (const accountId of new Set(older.map((row) => row.accountId))) {
+    const newerRows = newer.filter((row) => row.accountId === accountId);
+    if (newerRows.length === 0) continue;
+
+    const olderRows = older.filter((row) => row.accountId === accountId);
+    const [firstOlder, lastOlder] = postedRange(olderRows);
+    const [firstNewer, lastNewer] = postedRange(newerRows);
+    const from = firstOlder > firstNewer ? firstOlder : firstNewer;
+    const to = lastOlder < lastNewer ? lastOlder : lastNewer;
+
+    const fingerprints = new Set(newerRows.map((row) => row.fingerprint));
+    const shared = olderRows.filter(
+      (row) => row.postedOn >= from && row.postedOn <= to,
+    );
+    sharedRowCount += shared.length;
+    matchedRowCount += shared.filter((row) =>
+      fingerprints.has(row.fingerprint),
+    ).length;
+  }
+
+  return { sharedRowCount, matchedRowCount };
 }
 
 function failed(failure: StatementCheck["failure"]): StatementCheck {
@@ -219,7 +277,6 @@ function failed(failure: StatementCheck["failure"]): StatementCheck {
     failure,
     countsMatch: false,
     sumsMatch: false,
-    balanceMismatchCount: 0,
     ibanShapedFieldCount: 0,
     missedFieldCount: 0,
   };
@@ -233,7 +290,7 @@ export async function checkStatement(
     const statement = await parseStatement({
       ...file,
       accounts,
-      hash: (input) => createHash("sha256").update(input).digest("hex"),
+      hash: sha256Hex,
     });
     const { transactions, format, ignoredPendingCount } = statement;
 
@@ -248,8 +305,6 @@ export async function checkStatement(
       countsMatch:
         transactions.length + ignoredPendingCount === raw.dataRowCount,
       sumsMatch: parsedSum === raw.bookedSum,
-      balanceMismatchCount:
-        format === "chase-bank" ? countBalanceMismatches(transactions) : 0,
       ibanShapedFieldCount: countIbanShapedFields(transactions),
       missedFieldCount: countMissedFields(file.text, transactions),
     };
