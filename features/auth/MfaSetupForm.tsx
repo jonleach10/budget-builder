@@ -43,7 +43,7 @@ export function MfaSetupForm() {
   return (
     <div className="space-y-4">
       {/* Scanners need dark squares on white, whatever the theme. */}
-      <div className="mx-auto w-fit rounded-md bg-white p-2">
+      <div className="mx-auto w-fit rounded-md bg-qr-plate p-2">
         <Image
           src={setup.qrCode}
           alt="QR code for your authenticator app"
