@@ -119,7 +119,7 @@ export async function deleteCategory(
   const usage = await store.usage(category.id);
   if (usage === null) return NOT_DELETED;
 
-  const refusal = deleteRefusal(category.name, usage);
+  const refusal = deleteRefusal(usage);
   if (refusal !== null) return { ok: false, message: refusal };
 
   const result = outcome(await store.remove(category.id), NOT_DELETED);

@@ -50,6 +50,31 @@ describe("validateCategoryName", () => {
     expect(validateCategoryName("STRASSE", stored)).toMatchObject({ ok: false });
   });
 
+  it("treats the capital sharp s as the same letter", () => {
+    const stored = [{ id: "cat-road", name: "Straße", position: 0 }];
+    const capital = String.fromCharCode(0x1e9e);
+
+    expect(
+      validateCategoryName(`STRA${capital}E`, stored),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("refuses a name that differs only by a run of spaces", () => {
+    const stored = [{ id: "cat-out", name: "Eating Out", position: 0 }];
+
+    expect(validateCategoryName("Eating  Out", stored)).toMatchObject({
+      ok: false,
+    });
+  });
+
+  it("refuses a name that a stored run of spaces already looks like", () => {
+    const stored = [{ id: "cat-out", name: "Eating  Out", position: 0 }];
+
+    expect(validateCategoryName("Eating Out", stored)).toMatchObject({
+      ok: false,
+    });
+  });
+
   it("lets a category keep its own name", () => {
     expect(
       validateCategoryName("Groceries", CATEGORIES, "cat-groceries"),
@@ -73,18 +98,18 @@ describe("deleteRefusal", () => {
   const UNUSED = { transactions: 0, rules: 0, budgetAmounts: 0 };
 
   it("allows a category nothing uses", () => {
-    expect(deleteRefusal("Pets", UNUSED)).toBeNull();
+    expect(deleteRefusal(UNUSED)).toBeNull();
   });
 
-  it("names every count when a category is in use", () => {
+  it("names every count, and no stored text, when a category is in use", () => {
     expect(
-      deleteRefusal("Groceries", {
+      deleteRefusal({
         transactions: 214,
         rules: 2,
         budgetAmounts: 8,
       }),
     ).toBe(
-      "Groceries can't be deleted because it has 214 transactions, 2 rules and 8 budget amounts. Change those first, then try again.",
+      "This category can't be deleted because it has 214 transactions, 2 rules and 8 budget amounts. Change those first, then try again.",
     );
   });
 
@@ -93,12 +118,12 @@ describe("deleteRefusal", () => {
     ["a rule", { ...UNUSED, rules: 1 }, "0 transactions, 1 rule and 0 budget amounts"],
     ["a budget amount", { ...UNUSED, budgetAmounts: 1 }, "0 transactions, 0 rules and 1 budget amount"],
   ])("refuses when the only use is %s", (_use, usage, counts) => {
-    expect(deleteRefusal("Dining", usage)).toContain(counts);
+    expect(deleteRefusal(usage)).toContain(counts);
   });
 
   it("puts commas in large counts", () => {
     expect(
-      deleteRefusal("Dining", { ...UNUSED, transactions: 1200 }),
+      deleteRefusal({ ...UNUSED, transactions: 1200 }),
     ).toContain("1,200 transactions");
   });
 });

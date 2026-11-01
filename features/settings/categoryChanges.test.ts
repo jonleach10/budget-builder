@@ -203,8 +203,9 @@ describe("deleteCategory", () => {
     expect(result).toMatchObject({ ok: false });
     expect(result).toHaveProperty(
       "message",
-      expect.stringContaining("Pets can't be deleted"),
+      expect.stringContaining("This category can't be deleted"),
     );
+    expect(JSON.stringify(result)).not.toContain(PETS.name);
     expect(store.remove).not.toHaveBeenCalled();
   });
 

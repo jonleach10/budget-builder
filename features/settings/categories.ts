@@ -1,3 +1,5 @@
+import { ignoreCase } from "@/features/categorize/text";
+
 /** A row of the categories table. */
 export type CategoryRow = { id: string; name: string; position: number };
 
@@ -15,10 +17,15 @@ export type NameCheck =
 export const DUPLICATE_NAME =
   "A category with this name already exists. Enter a different name.";
 
+/** Equal for names that a table would show as the same category. */
+function nameKey(name: string): string {
+  return ignoreCase(name.trim().replace(/\s+/g, " "));
+}
+
 /**
- * The schema only refuses an exact repeat, but two names that differ by case
- * would look like one category. ownId is the category being renamed, which can
- * keep its name or change only its case.
+ * The schema only refuses an exact repeat, but two names that differ by case or
+ * by a run of spaces would look like one category. ownId is the category being
+ * renamed, which can keep its name or change only its case.
  */
 export function validateCategoryName(
   name: string,
@@ -30,8 +37,7 @@ export function validateCategoryName(
 
   const taken = categories.some(
     (category) =>
-      category.id !== ownId &&
-      category.name.toUpperCase() === clean.toUpperCase(),
+      category.id !== ownId && nameKey(category.name) === nameKey(clean),
   );
   return taken ? { ok: false, message: DUPLICATE_NAME } : { ok: true, name: clean };
 }
@@ -41,14 +47,15 @@ function counted(count: number, noun: string): string {
 }
 
 /** Gives the reason a category can't be deleted, or null if it can be. */
-export function deleteRefusal(
-  name: string,
-  { transactions, rules, budgetAmounts }: CategoryUsage,
-): string | null {
+export function deleteRefusal({
+  transactions,
+  rules,
+  budgetAmounts,
+}: CategoryUsage): string | null {
   if (transactions + rules + budgetAmounts === 0) return null;
 
   return (
-    `${name} can't be deleted because it has ` +
+    "This category can't be deleted because it has " +
     `${counted(transactions, "transaction")}, ${counted(rules, "rule")} and ` +
     `${counted(budgetAmounts, "budget amount")}. ` +
     "Change those first, then try again."
