@@ -22,6 +22,11 @@ export const DEFAULT_CATEGORIES = [
 
 const MONTH_SHAPE = /^\d{4}-(?:0[1-9]|1[0-2])$/;
 
+/** True for a calendar month in YYYY-MM form. */
+export function isMonth(text: string): boolean {
+  return MONTH_SHAPE.test(text);
+}
+
 export type Country = "US" | "DE";
 
 const CURRENCIES: Record<Country, string> = { US: "USD", DE: "EUR" };
@@ -43,7 +48,7 @@ export function createBudget(
   country: Country,
   amounts: Readonly<Record<string, number>>,
 ): Budget {
-  if (!MONTH_SHAPE.test(month)) throw new BudgetError("invalid-month");
+  if (!isMonth(month)) throw new BudgetError("invalid-month");
   if (!Object.values(amounts).every(Number.isSafeInteger)) {
     throw new BudgetError("invalid-amount");
   }

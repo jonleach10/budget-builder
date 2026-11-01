@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MoneyError } from "@/lib/money";
-import { copyBudget, createBudget } from "./budget";
+import { copyBudget, createBudget, type Budget } from "./budget";
 import { compareBudget, type BudgetEntry } from "./compareBudget";
 import { BudgetError } from "./errors";
 
@@ -117,6 +117,49 @@ describe("compareBudget", () => {
     });
   });
 
+  it.each([" ", "   ", "\t", String.fromCharCode(0xa0)])(
+    "counts the whitespace-only category %j as needing review",
+    (category) => {
+      const budget = createBudget("2026-03", "DE", { Groceries: 30000 });
+      const entries: BudgetEntry[] = [
+        {
+          postedOn: "2026-03-12",
+          category,
+          amount: { minor: -4500, currency: "EUR" },
+        },
+      ];
+
+      expect(compareBudget(budget, entries)).toEqual({
+        month: "2026-03",
+        currency: "EUR",
+        categories: [
+          { category: "Groceries", budgeted: 30000, spent: 0, remaining: 30000 },
+        ],
+        needsReview: 1,
+      });
+    },
+  );
+
+  // Budget is a plain exported type, so nothing forces a loader to use
+  // createBudget. A date column gives the month back as a full date.
+  it.each(["2026-03-01", "2026-3", "March 2026"])(
+    "refuses the budget month %j instead of dropping every entry as another month",
+    (month) => {
+      const budget: Budget = {
+        month,
+        country: "US",
+        amounts: { Groceries: 45000 },
+      };
+      const entries: BudgetEntry[] = [
+        { postedOn: "2026-03-04", category: "Groceries", amount: usd(-1250) },
+      ];
+
+      const failure = catchBudgetError(() => compareBudget(budget, entries));
+
+      expect(failure.code).toBe("invalid-month");
+    },
+  );
+
   it("shows a category with entries but no budget amount, with budgeted 0", () => {
     const budget = createBudget("2026-03", "US", { Groceries: 45000 });
     const entries: BudgetEntry[] = [
@@ -213,6 +256,31 @@ describe("compareBudget", () => {
       if (postedOn) expect(failure.message).not.toContain(postedOn);
     },
   );
+
+  it.each(["2026-02-29", "2026-02-30", "2026-04-31", "2026-06-31"])(
+    "refuses %j, a day its month doesn't have",
+    (postedOn) => {
+      const budget = createBudget(postedOn.slice(0, 7), "US", { Dining: 20000 });
+      const entries: BudgetEntry[] = [
+        { postedOn, category: "Dining", amount: usd(-100) },
+      ];
+
+      const failure = catchBudgetError(() => compareBudget(budget, entries));
+
+      expect(failure.code).toBe("invalid-date");
+    },
+  );
+
+  it("accepts the leap day of a leap year", () => {
+    const budget = createBudget("2028-02", "US", { Dining: 20000 });
+    const entries: BudgetEntry[] = [
+      { postedOn: "2028-02-29", category: "Dining", amount: usd(-100) },
+    ];
+
+    expect(compareBudget(budget, entries).categories).toEqual([
+      { category: "Dining", budgeted: 20000, spent: 100, remaining: 19900 },
+    ]);
+  });
 
   it("doesn't roll unspent money into a copied month", () => {
     const march = createBudget("2026-03", "US", { Leisure: 10000 });

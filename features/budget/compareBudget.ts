@@ -1,5 +1,5 @@
 import { sumMinor, type Money } from "@/lib/money";
-import { currencyFor, type Budget } from "./budget";
+import { currencyFor, isMonth, type Budget } from "./budget";
 import { BudgetError } from "./errors";
 
 /** An entry that already passed the type check. Negative means money out. */
@@ -25,7 +25,11 @@ export type BudgetComparison = {
   needsReview: number;
 };
 
-const DATE_SHAPE = /^(\d{4}-(?:0[1-9]|1[0-2]))-(?:0[1-9]|[12]\d|3[01])$/;
+const DATE_SHAPE = /^((\d{4})-(0[1-9]|1[0-2]))-(0[1-9]|[12]\d|3[01])$/;
+
+function daysIn(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
 
 /**
  * Reads the month as text, so a time zone can't move an entry into another one.
@@ -34,13 +38,21 @@ const DATE_SHAPE = /^(\d{4}-(?:0[1-9]|1[0-2]))-(?:0[1-9]|[12]\d|3[01])$/;
 function monthOf(postedOn: string): string {
   const match = DATE_SHAPE.exec(postedOn);
   if (!match) throw new BudgetError("invalid-date");
-  return match[1];
+
+  const [, month, year, monthNumber, day] = match;
+  if (Number(day) > daysIn(Number(year), Number(monthNumber))) {
+    throw new BudgetError("invalid-date");
+  }
+  return month;
 }
 
 export function compareBudget(
   budget: Budget,
   entries: readonly BudgetEntry[],
 ): BudgetComparison {
+  // A malformed month would match no entry and report nothing spent.
+  if (!isMonth(budget.month)) throw new BudgetError("invalid-month");
+
   // Maps, so a category named like an Object property stays a plain category.
   const budgeted = new Map(Object.entries(budget.amounts));
   const outflows = new Map<string, number[]>();
@@ -54,7 +66,7 @@ export function compareBudget(
       throw new BudgetError("entry-currency-mismatch");
     }
     if (monthOf(entry.postedOn) !== budget.month) continue;
-    if (!entry.category) {
+    if (!entry.category?.trim()) {
       needsReview += 1;
       continue;
     }
