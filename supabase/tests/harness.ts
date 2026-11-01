@@ -123,6 +123,13 @@ function claimsOf(session: Session): string {
   });
 }
 
+async function startSession(tx: Transaction, session: Session): Promise<void> {
+  await tx.query("select set_config('request.jwt.claims', $1, true)", [
+    claimsOf(session),
+  ]);
+  await tx.exec(`set local role ${session.role}`);
+}
+
 /** Runs work as a session, then rolls back, so tests can't affect each other. */
 export async function runAs<T>(
   db: PGlite,
@@ -131,12 +138,26 @@ export async function runAs<T>(
 ): Promise<T> {
   let result: T | undefined;
   await db.transaction(async (tx) => {
-    await tx.query("select set_config('request.jwt.claims', $1, true)", [
-      claimsOf(session),
-    ]);
-    await tx.exec(`set local role ${session.role}`);
+    await startSession(tx, session);
     result = await work(tx);
     await tx.rollback();
+  });
+  return result as T;
+}
+
+/**
+ * Runs work as a session in its own transaction, as the app's calls run. It
+ * commits unless the work throws, so a test that uses it needs its own database.
+ */
+export async function commitAs<T>(
+  db: PGlite,
+  session: Session,
+  work: (tx: Transaction) => Promise<T>,
+): Promise<T> {
+  let result: T | undefined;
+  await db.transaction(async (tx) => {
+    await startSession(tx, session);
+    result = await work(tx);
   });
   return result as T;
 }

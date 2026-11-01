@@ -52,6 +52,7 @@ describe("commerzbank statements", () => {
       bankCategory: "Insurance",
       orderingPartyId: "DE00ZZZ00001234567",
       fingerprint: expect.any(String),
+      repeatIndex: 0,
     });
   });
 
