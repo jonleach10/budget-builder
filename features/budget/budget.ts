@@ -31,6 +31,10 @@ export type Country = "US" | "DE";
 
 const CURRENCIES: Record<Country, string> = { US: "USD", DE: "EUR" };
 
+export function isCountry(text: string): text is Country {
+  return text === "US" || text === "DE";
+}
+
 export function currencyFor(country: Country): string {
   return CURRENCIES[country];
 }
