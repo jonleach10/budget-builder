@@ -1,8 +1,23 @@
-export default function Page() {
+import { requireSession } from "@/features/auth/requireSession";
+import { loadOverviewScreen } from "@/features/budget/loadScreens";
+import { currentMonth } from "@/features/budget/months";
+import { OverviewScreen } from "@/features/budget/OverviewScreen";
+import { readScreenParams } from "@/features/budget/screenParams";
+
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function OverviewPage({ searchParams }: PageProps) {
+  await requireSession();
+
+  const current = currentMonth(new Date());
+  const params = readScreenParams(await searchParams, current);
+
   return (
-    <div className="flex flex-col items-center justify-center w-full gap-4">
-      <h1 className="text-2xl font-bold">Welcome to Budget Builder</h1>
-      <h2 className="text-lg">Use Quick Start to get started</h2>
-    </div>
+    <OverviewScreen
+      params={params}
+      screen={await loadOverviewScreen(params, current)}
+    />
   );
 }

@@ -55,7 +55,7 @@ Keep each element type on one radius. Consistency is much of what makes the syst
 
 ## Typography
 
-- Inter for all UI text, Space Grotesk for display headings, JetBrains Mono for eyebrow labels. These are the free substitutes for the reference's licensed fonts, so don't add the originals without a license.
+- Inter for all UI text, Space Grotesk for display headings, JetBrains Mono for eyebrow labels and for values compared with bank text, such as a rule's ID or match text. These are the free substitutes for the reference's licensed fonts, so don't add the originals without a license.
 - Display headings use weight 500 at most. Their presence comes from size.
 - The ice gradient (`text-ice-gradient`) is for the largest landing and demo headings only, never for body text, buttons or numbers.
 

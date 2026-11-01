@@ -18,6 +18,9 @@ const twMerge = extendTailwindMerge({
           ],
         },
       ],
+      shadow: [
+        { shadow: ["hairline", "hairline-focus", "glass", "modal", "glow"] },
+      ],
     },
   },
 });

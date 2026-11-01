@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   currencyExponent,
+  formatMoney,
+  formatPlainAmount,
   isDecimalShaped,
   MoneyError,
   parseMoney,
@@ -160,6 +162,71 @@ describe("parseMoney", () => {
     } catch (error) {
       expect(String(error)).not.toMatch(/SECRET|4242/);
     }
+  });
+});
+
+describe("formatMoney", () => {
+  it.each([
+    [123456, "USD", "$1,234.56"],
+    [123400, "EUR", "€1,234.00"],
+    [0, "USD", "$0.00"],
+    [7, "USD", "$0.07"],
+    [99, "EUR", "€0.99"],
+    [100, "USD", "$1.00"],
+    [123456789012, "USD", "$1,234,567,890.12"],
+    [-500, "USD", "-$5.00"],
+    [-123456, "EUR", "-€1,234.56"],
+  ])("shows %i %s as %s", (minor, currency, text) => {
+    expect(formatMoney({ minor, currency })).toBe(text);
+  });
+
+  it("shows a zero-decimal currency with no decimal point", () => {
+    expect(formatMoney({ minor: 1234567, currency: "JPY" })).toBe("¥1,234,567");
+    expect(formatMoney({ minor: -5, currency: "JPY" })).toBe("-¥5");
+  });
+
+  it("shows a three-decimal currency with three decimals", () => {
+    expect(formatMoney({ minor: 1234567, currency: "KWD" })).toBe(
+      "KWD 1,234.567",
+    );
+  });
+
+  it("shows a currency with no symbol by its code", () => {
+    expect(formatMoney({ minor: 150, currency: "GBP" })).toBe("GBP 1.50");
+  });
+
+  it("holds the largest safe amount exactly", () => {
+    expect(
+      formatMoney({ minor: Number.MAX_SAFE_INTEGER, currency: "USD" }),
+    ).toBe("$90,071,992,547,409.91");
+  });
+
+  it("never shows negative zero", () => {
+    expect(formatMoney({ minor: -0, currency: "USD" })).toBe("$0.00");
+  });
+
+  it.each([1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53])(
+    "refuses %s, which isn't whole minor units held exactly",
+    (minor) => {
+      expect(() => formatMoney({ minor, currency: "USD" })).toThrow(MoneyError);
+    },
+  );
+});
+
+describe("formatPlainAmount", () => {
+  it.each([
+    [123456, "USD", "1234.56"],
+    [45000, "EUR", "450.00"],
+    [7, "USD", "0.07"],
+    [1234, "JPY", "1234"],
+  ])("shows %i %s as %s", (minor, currency, text) => {
+    expect(formatPlainAmount({ minor, currency })).toBe(text);
+  });
+
+  it("gives text parseMoney reads back as the same amount", () => {
+    const money = { minor: 987654321, currency: "USD" };
+
+    expect(parseMoney(formatPlainAmount(money), "USD", "us")).toEqual(money);
   });
 });
 
