@@ -36,6 +36,7 @@ describe("chase-card statements", () => {
       bankType: "Sale",
       bankCategory: "Groceries",
       fingerprint: expect.any(String),
+      repeatIndex: 0,
     });
   });
 

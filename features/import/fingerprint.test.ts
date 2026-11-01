@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addFingerprints } from "./fingerprint";
+import { addFingerprints, sha256Hex } from "./fingerprint";
 import type { StatementRow } from "./types";
 
 function row(overrides: Partial<StatementRow> = {}): StatementRow {
@@ -62,11 +62,39 @@ describe("addFingerprints", () => {
     const transactions = await addFingerprints(rows, "acct-1", asyncHash);
     expect(transactions[0].description).toBe("STREAMFLIX A1B2C3");
     expect(transactions[1].description).toBe("OTHER SHOP");
-    expect(transactions[0].fingerprint).toMatch(/^hashed:/);
+    expect(transactions[0].fingerprint).toMatch(/^v1:hashed:/);
   });
 
   it("adds the account id to each transaction", async () => {
     const [transaction] = await addFingerprints([row()], "acct-1", passThrough);
     expect(transaction.accountId).toBe("acct-1");
+  });
+
+  it("records how many identical rows came before each row", async () => {
+    const other = row({ description: "EXAMPLE MARKET" });
+    const transactions = await addFingerprints(
+      [row(), other, row(), row()],
+      "acct-1",
+      passThrough,
+    );
+    expect(transactions.map((t) => t.repeatIndex)).toEqual([0, 0, 1, 2]);
+  });
+
+  // Stored rows match on this exact value, so a change here makes every
+  // overlapping row look new. The hash was worked out with shasum, outside this
+  // code, over ["acct-1","2026-10-05",-1199,"USD","STREAMFLIX A1B2C3",0].
+  it("keeps the stored format", async () => {
+    const [transaction] = await addFingerprints([row()], "acct-1", sha256Hex);
+    expect(transaction.fingerprint).toBe(
+      "v1:b47efd573e54e698a3f5d7668a4774f80737d4755fccee9ec57a0870949647f0",
+    );
+  });
+});
+
+describe("sha256Hex", () => {
+  it("gives the known hash of a known input", async () => {
+    expect(await sha256Hex("abc")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
   });
 });

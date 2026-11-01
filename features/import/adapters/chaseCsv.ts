@@ -4,7 +4,8 @@ import type { StatementSource } from "../types";
 
 export type CsvRow = { line: number; fields: string[] };
 
-const CHASE_FILE_NAME = /^Chase(\d{4})_Activity_.*\.[cC][sS][vV]$/;
+// A date-range export has no underscore after Activity.
+const CHASE_FILE_NAME = /^Chase(\d{4})_Activity.*\.[cC][sS][vV]$/;
 
 export function chaseLastFour({ fileName }: StatementSource): string | null {
   return CHASE_FILE_NAME.exec(fileName)?.[1] ?? null;
