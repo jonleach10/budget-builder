@@ -2,20 +2,27 @@ import { beforeAll, describe, expect, it } from "vitest";
 import {
   buildAccounts,
   checkStatement,
+  compareExports,
   readStatementFiles,
+  readTransactions,
+  type ExportComparison,
   type StatementCheck,
 } from "./realStatementsProof";
 
 /*
  * Proves the parsers against real exports on a machine that has them:
  *   REAL_STATEMENTS_DIR=<folder> npx vitest run features/import/realStatements.test.ts
- * CI skips this. Assertions see only booleans, counts, and error codes and
- * lines, and test names use an index, so a failure prints no statement data.
+ * Add REAL_STATEMENTS_OLDER_DIR=<folder> to compare with an older export of the
+ * same accounts. CI skips this. Assertions see only booleans, counts, and error
+ * codes and lines, and test names use an index, so a failure prints no
+ * statement data.
  */
 
 const dir = process.env.REAL_STATEMENTS_DIR;
+const olderDir = process.env.REAL_STATEMENTS_OLDER_DIR;
 const files = dir ? readStatementFiles(dir) : [];
-const accounts = buildAccounts(files);
+const olderFiles = olderDir ? readStatementFiles(olderDir) : [];
+const accounts = buildAccounts([...files, ...olderFiles]);
 
 describe.skipIf(!dir)("real statements", () => {
   it("finds statement files", () => {
@@ -42,10 +49,6 @@ describe.skipIf(!dir)("real statements", () => {
         expect(check.sumsMatch).toBe(true);
       });
 
-      it("has a balance chain that reconciles", () => {
-        expect(check.balanceMismatchCount).toBe(0);
-      });
-
       it("keeps no IBAN-shaped text", () => {
         expect(check.ibanShapedFieldCount).toBe(0);
       });
@@ -54,5 +57,24 @@ describe.skipIf(!dir)("real statements", () => {
         expect(check.missedFieldCount).toBe(0);
       });
     });
+  });
+});
+
+describe.skipIf(!dir || !olderDir)("an older export of the same accounts", () => {
+  let comparison: ExportComparison;
+
+  beforeAll(async () => {
+    comparison = compareExports(
+      await readTransactions(olderFiles, accounts),
+      await readTransactions(files, accounts),
+    );
+  });
+
+  it("shares rows with the newer export", () => {
+    expect(comparison.sharedRowCount > 0).toBe(true);
+  });
+
+  it("gives every shared row the same fingerprint", () => {
+    expect(comparison.matchedRowCount).toBe(comparison.sharedRowCount);
   });
 });

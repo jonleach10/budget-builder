@@ -36,6 +36,11 @@ export type StatementRow = {
 export type Transaction = StatementRow & {
   accountId: string;
   fingerprint: string;
+  /**
+   * How many identical rows came before this one in its file. `addFingerprints`
+   * always sets it. It's optional so rows built elsewhere needn't carry it.
+   */
+  repeatIndex?: number;
 };
 
 export type ParsedStatement = {

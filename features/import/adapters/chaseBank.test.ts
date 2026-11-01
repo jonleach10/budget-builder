@@ -66,6 +66,21 @@ describe("chase-bank statements", () => {
     }
   });
 
+  it("fails the file at a balance that doesn't reconcile", async () => {
+    const text = [
+      header,
+      `DEBIT,10/07/2026,"SHOP",-1.00,DEBIT_CARD,100.00,,`,
+      "",
+      `DEBIT,10/06/2026,"SHOP",-1.00,DEBIT_CARD,500.00,,`,
+    ].join("\n");
+
+    const error = await parse(text).catch((e) => e);
+
+    expect(error).toBeInstanceOf(StatementError);
+    expect(error.code).toBe("balance-mismatch");
+    expect(error.line).toBe(4);
+  });
+
   it("keeps unknown bank types as they are", async () => {
     const row = `DEBIT,10/06/2026,"SOMETHING",-1.00,NEW_TYPE,100.00,,`;
     const { transactions } = await parse(`${header}\n${row}\n`);

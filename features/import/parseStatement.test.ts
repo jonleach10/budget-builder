@@ -60,7 +60,7 @@ describe("reading the file", () => {
       accounts,
       hash: async (input) => `hashed:${input.length}`,
     });
-    expect(statement.transactions[0].fingerprint).toMatch(/^hashed:\d+$/);
+    expect(statement.transactions[0].fingerprint).toMatch(/^v1:hashed:\d+$/);
   });
 });
 
@@ -69,6 +69,7 @@ describe("finding the Chase account", () => {
     ["Chase2222_Activity_20261031.csv"],
     ["Chase2222_Activity_20261031.CSV"],
     ["Chase2222_Activity_20261001_20261031_20261101.Csv"],
+    ["Chase2222_Activity20261001_20261031_20261101.CSV"],
   ])("reads the last four from %s", async (fileName) => {
     const statement = await parseCard(fileName);
     expect(statement.accountId).toBe("card-1");
@@ -77,6 +78,7 @@ describe("finding the Chase account", () => {
   it.each([
     ["no last four", "statement.csv"],
     ["a different prefix", "Bank2222_Activity_20261031.csv"],
+    ["no account digits", "Chase_Activity20261031.csv"],
     ["another extension", "Chase2222_Activity_20261031.txt"],
     ["last four nobody registered", "Chase9999_Activity_20261031.csv"],
   ])("fails on %s", async (_label, fileName) => {

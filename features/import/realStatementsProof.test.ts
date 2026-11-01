@@ -9,11 +9,12 @@ import {
 import {
   buildAccounts,
   checkStatement,
-  countBalanceMismatches,
+  compareExports,
   countIbanShapedFields,
   countMissedFields,
   readRawAmounts,
   readStatementFiles,
+  readTransactions,
 } from "./realStatementsProof";
 import type { Transaction } from "./types";
 
@@ -93,27 +94,6 @@ describe("readRawAmounts", () => {
   });
 });
 
-describe("countBalanceMismatches", () => {
-  const row = (minor: number, balance?: number) =>
-    transaction({
-      amount: { minor, currency: "USD" },
-      balance:
-        balance === undefined ? undefined : { minor: balance, currency: "USD" },
-    });
-
-  it("accepts a chain that reconciles, newest first", () => {
-    expect(countBalanceMismatches([row(-100, 900), row(500, 1000), row(0, 500)])).toBe(0);
-  });
-
-  it("counts a broken link", () => {
-    expect(countBalanceMismatches([row(-100, 900), row(500, 999)])).toBe(1);
-  });
-
-  it("counts a missing balance", () => {
-    expect(countBalanceMismatches([row(-100, 900), row(500)])).toBe(1);
-  });
-});
-
 describe("countIbanShapedFields", () => {
   it("finds an IBAN in any text field", () => {
     expect(
@@ -160,6 +140,11 @@ describe("countMissedFields", () => {
     expect(countMissedFields(`header\n${debit}`, [parsed])).toBe(0);
   });
 
+  it("expects an ID shaped like an IBAN to be dropped", () => {
+    const iban = "ID Of Ordering Party: DE00123456789012345678 SEPA-CORE-DIRECT DEBIT";
+    expect(countMissedFields(`header\n${iban}`, [transaction({})])).toBe(0);
+  });
+
   it("finds a marker that has stray spaces inside it", () => {
     const text = "header\nI D Of Order ing Par ty: DE00ZZZ00001234567";
     expect(countMissedFields(text, [transaction({})])).toBe(1);
@@ -184,6 +169,63 @@ describe("countMissedFields", () => {
   });
 });
 
+describe("compareExports", () => {
+  const row = (postedOn: string, fingerprint: string) =>
+    transaction({ postedOn, fingerprint });
+
+  it("counts rows inside the dates both exports cover", () => {
+    const older = [row("2026-10-01", "a"), row("2026-10-02", "b")];
+    const newer = [
+      row("2026-10-02", "b"),
+      row("2026-10-03", "c"),
+      row("2026-10-04", "d"),
+    ];
+
+    expect(compareExports(older, newer)).toEqual({
+      sharedRowCount: 1,
+      matchedRowCount: 1,
+    });
+  });
+
+  it("finds a shared row whose fingerprint changed", () => {
+    const older = [row("2026-10-02", "a"), row("2026-10-03", "b")];
+    const newer = [row("2026-10-02", "a"), row("2026-10-03", "changed")];
+
+    expect(compareExports(older, newer)).toEqual({
+      sharedRowCount: 2,
+      matchedRowCount: 1,
+    });
+  });
+
+  it("keeps accounts apart", () => {
+    const older = [row("2026-10-02", "a")];
+    const newer = [
+      transaction({
+        accountId: "acct-2",
+        postedOn: "2026-10-02",
+        fingerprint: "a",
+      }),
+    ];
+
+    expect(compareExports(older, newer)).toEqual({
+      sharedRowCount: 0,
+      matchedRowCount: 0,
+    });
+  });
+
+  it("matches an account's real synthetic rows with themselves", async () => {
+    const transactions = await readTransactions(files, accounts);
+
+    const { sharedRowCount, matchedRowCount } = compareExports(
+      transactions,
+      transactions,
+    );
+
+    expect(sharedRowCount).toBe(transactions.length);
+    expect(matchedRowCount).toBe(sharedRowCount);
+  });
+});
+
 describe("checkStatement", () => {
   it.each(files.map((file, index) => [index + 1, file] as const))(
     "passes synthetic statement %i",
@@ -192,7 +234,6 @@ describe("checkStatement", () => {
         failure: null,
         countsMatch: true,
         sumsMatch: true,
-        balanceMismatchCount: 0,
         ibanShapedFieldCount: 0,
         missedFieldCount: 0,
       });
@@ -205,7 +246,7 @@ describe("checkStatement", () => {
       { fileName: chaseBankFileName, text },
       accounts,
     );
-    expect(check.balanceMismatchCount).toBe(2);
+    expect(check.failure).toEqual({ code: "balance-mismatch", line: 9 });
   });
 
   it("reports a failure by code and line, with no row text", async () => {
