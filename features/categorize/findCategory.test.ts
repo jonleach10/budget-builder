@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { redactText } from "@/features/import/redact";
 import type { Transaction } from "@/features/import/types";
 import { findCategory, type CategoryRule } from "./findCategory";
 import { findType, type MatchingRule } from "./findType";
+
+// A code point, because the character would be invisible in this file.
+const NO_BREAK_SPACE = String.fromCharCode(0x00a0);
+
+const OTHER_WHITESPACE = [
+  ["a tab", "\t"],
+  ["a no-break space", NO_BREAK_SPACE],
+  ["a run with a no-break space", ` ${NO_BREAK_SPACE} `],
+];
 
 function transaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
@@ -85,7 +95,7 @@ describe("findCategory", () => {
   });
 
   describe.each(["descriptionStartsWith", "descriptionContains"] as const)(
-    "runs of spaces in a %s rule",
+    "whitespace in a %s rule",
     (matchOn) => {
       const rule = (value: string): CategoryRule[] => [
         { matchOn, value, category: "Groceries" },
@@ -124,14 +134,28 @@ describe("findCategory", () => {
         ).toBeUndefined();
       });
 
-      it("doesn't treat a tab as a space", () => {
+      it.each(OTHER_WHITESPACE)("matches %s in the row", (_, whitespace) => {
         expect(
           findCategory(
-            transaction({ description: "EXAMPLE\tMARKET 42" }),
+            transaction({ description: `EXAMPLE${whitespace}MARKET 42` }),
             rule("EXAMPLE MARKET"),
           ),
-        ).toBeUndefined();
+        ).toBe("Groceries");
       });
+
+      it.each(OTHER_WHITESPACE)(
+        "matches %s in a rule copied from the bank text the row was cleaned from",
+        (_, whitespace) => {
+          const copied = `EXAMPLE${whitespace}MARKET`;
+
+          expect(
+            findCategory(
+              transaction({ description: redactText(`${copied} 42`) }),
+              rule(copied),
+            ),
+          ).toBe("Groceries");
+        },
+      );
     },
   );
 
