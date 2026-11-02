@@ -263,7 +263,7 @@ describe("TransactionsScreen", () => {
 
     expect(html).toContain("All rows in October 2026 are hidden");
     expect(html).toContain("Select Show Hidden to see them.");
-    expect(html).toContain("Show Hidden");
+    expect(html).toContain("Search this month");
   });
 
   it("shows a message with no row data when the month can't load", () => {
