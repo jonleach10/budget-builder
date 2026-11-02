@@ -63,7 +63,8 @@ export function databaseClient(
       gte: (column: string, value: string) => keep(column, ">=", value),
       lte: (column: string, value: string) => keep(column, "<=", value),
       lt: (column: string, value: string) => keep(column, "<", value),
-      is(column: string, _value: null) {
+      /** The app only ever tests for null this way. */
+      is(column: string) {
         conditions.push(`${column} is null`);
         return builder;
       },
