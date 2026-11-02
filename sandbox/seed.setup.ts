@@ -32,6 +32,12 @@ const DE_BUDGET: Record<string, number> = {
   Insurance: 4_500,
 };
 
+const SCHEMA_ATTEMPTS = 100;
+const SCHEMA_WAIT_MS = 200;
+
+/** PostgREST's codes for a database it can't reach yet or a schema it hasn't read. */
+const SCHEMA_LOADING = new Set(["PGRST000", "PGRST001", "PGRST002", "PGRST205"]);
+
 /** Made up, and the same for every day, so no call reaches the rates service. */
 const EUR_TO_USD = 1.08;
 
@@ -74,6 +80,16 @@ function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} isn't set. Use npm run sandbox:seed.`);
   return value;
+}
+
+/** PostgREST reloads the schema a moment after `db reset` has returned. */
+async function waitForSchema(client: SupabaseClient): Promise<void> {
+  for (let attempt = 0; attempt < SCHEMA_ATTEMPTS; attempt += 1) {
+    const { error } = await client.from("settings").select("user_id").limit(1);
+    if (!SCHEMA_LOADING.has(error?.code ?? "")) return;
+    await new Promise((resolve) => setTimeout(resolve, SCHEMA_WAIT_MS));
+  }
+  throw new Error("The local API never loaded the schema.");
 }
 
 async function createOwner(url: string, secretKey: string): Promise<void> {
@@ -150,6 +166,7 @@ setup("seed the fake owner's data", async () => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   await signInWithMfa(client);
+  await waitForSchema(client);
 
   check(await client.from("settings").insert({ base_currency: "USD" }));
   check(

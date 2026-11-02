@@ -14,7 +14,8 @@
     "sandbox:seed": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON sandbox/cli.ts seed",
     "sandbox:dev": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON sandbox/cli.ts dev",
     "sandbox:shot": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON sandbox/cli.ts shot",
-    "sandbox:flows": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON sandbox/cli.ts flows"
+    "sandbox:flows": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON sandbox/cli.ts flows",
+    "sandbox:start": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON sandbox/cli.ts start"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.3.1",

@@ -8,6 +8,13 @@
 - `npm run test`
 - `npm run build`
 
+The local sandbox runs the app on local Supabase with synthetic rows. Run it from a worktree with no `.env.local`:
+
+- `npm run sandbox:start` starts everything from cold, and stays running
+- `npm run sandbox:flows` resets the rows and runs the browser checks
+- `npm run sandbox:shot -- <path> [--phone] [--full]` saves a screenshot
+- `npm run sandbox:down` stops it and frees its memory
+
 ## Product
 
 A budget for joint money across Chase accounts in the US and Commerzbank accounts in Germany. It has a USD budget, a EUR budget and a combined USD view. One user. CSV import only.
@@ -26,7 +33,7 @@ A budget for joint money across Chase accounts in the US and Commerzbank account
 - Business logic never lives in routes or components.
 - Every new table has row-level security, with policies tested.
 - Never commit, log or send to analytics any real statement data, account numbers or transaction text. Test fixtures are synthetic.
-- No transaction data goes to AI services.
+- No transaction data goes to AI services. Claude views screens only through the local sandbox, never the app on port 3000 or anything showing real rows.
 - UI work follows the project's `midnight-glass` skill, and interface text follows the `voice` skill.
 
 ## One-way doors

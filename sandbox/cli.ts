@@ -103,7 +103,15 @@ function shot(path: string | undefined, ...flags: (string | undefined)[]): void 
   });
 }
 
+/** Everything from a cold start. Stays running, because the dev server does. */
+function start(): void {
+  up();
+  seed();
+  dev();
+}
+
 const COMMANDS: Record<string, (...args: (string | undefined)[]) => void> = {
+  start,
   up,
   down,
   seed,
