@@ -790,10 +790,11 @@ describe("no edit", () => {
 
 describe("setting a row to transfer by hand", () => {
   it.each([
-    ["with no type, which never reached review", {}],
-    ["with a category", categorized("manual")],
+    ["in review, with no type", {}],
+    ["that never reached review, with a rule's category", categorized("rule")],
+    ["the owner already categorized", categorized("manual")],
     ["of another type", { type: "'income'" }],
-    ["hidden", { hidden: "true" }],
+    ["that's hidden", { hidden: "true" }],
   ])("works on a row %s, with no pair", async (_name, extra) => {
     await addRow(ROW, extra);
 
