@@ -231,6 +231,45 @@ describe("importing a statement into the real schema", () => {
     expect(stored[0].transfer_pair_id).toBe(stored[1].transfer_pair_id);
   });
 
+  it("pairs a numbered transfer across two uploads when its text has a past category", async () => {
+    await addSavingsAccount(db);
+    await importCsv(
+      db,
+      oneRowFile(
+        `DEBIT,09/07/2026,"Online Transfer to  SAV ...4444 transaction#: 11111111111",-100.00,ACCT_XFER,900.00,,`,
+      ),
+    );
+    await commitAs(db, withMfa(OWNER), (tx) =>
+      tx.query(
+        `update public.transactions
+         set type = 'spending', category_id = $1, category_source = 'manual'
+         where fingerprint <> 'seeded'`,
+        [OWNER.categoryId],
+      ),
+    );
+
+    await importCsv(
+      db,
+      oneRowFile(
+        `DEBIT,10/07/2026,"Online Transfer to  SAV ...4444 transaction#: 12345678901",-100.00,ACCT_XFER,800.00,,`,
+      ),
+    );
+    await importCsv(
+      db,
+      oneRowFile(
+        `CREDIT,10/08/2026,"Online Transfer from  CHK ...1111 transaction#: 12345678901",100.00,ACCT_XFER,1100.00,,`,
+      ),
+      SAVINGS_FILE_NAME,
+    );
+
+    const october = (await readStored(db)).filter(
+      (row) => row.category_source !== "manual",
+    );
+    expect(october.map((row) => row.type)).toEqual(["transfer", "transfer"]);
+    expect(october[0].transfer_pair_id).not.toBeNull();
+    expect(october[0].transfer_pair_id).toBe(october[1].transfer_pair_id);
+  });
+
   it("leaves a stored row alone when the owner gave it another type", async () => {
     await addSavingsAccount(db);
     await importCsv(

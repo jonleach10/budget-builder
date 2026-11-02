@@ -217,15 +217,21 @@ describe("importStatements", () => {
     ]);
   });
 
-  it("pairs with a stored row 7 days past the upload's dates", async () => {
-    const { result, rpc } = numberedTransfer("2026-10-14");
+  it.each([
+    ["before", "2026-09-30"],
+    ["past", "2026-10-14"],
+  ])("pairs with a stored row 7 days %s the upload's dates", async (_, storedOn) => {
+    const { result, rpc } = numberedTransfer(storedOn);
     await result;
 
     expect(sentTo(rpc).p_pairs).toHaveLength(1);
   });
 
-  it("doesn't pair with a stored row 8 days past the upload's dates", async () => {
-    const { result, rpc } = numberedTransfer("2026-10-15");
+  it.each([
+    ["before", "2026-09-29"],
+    ["past", "2026-10-15"],
+  ])("doesn't pair with a stored row 8 days %s the upload's dates", async (_, storedOn) => {
+    const { result, rpc } = numberedTransfer(storedOn);
     await result;
 
     expect(sentTo(rpc).p_pairs).toEqual([]);

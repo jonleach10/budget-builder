@@ -21,6 +21,7 @@ import {
   pastCategories,
   type CategorizedRow,
 } from "@/features/categorize/pastCategories";
+import { hasText } from "@/features/categorize/text";
 import type { TransactionType } from "@/features/categorize/transactionType";
 import { addDays } from "@/features/fx/dates";
 import {
@@ -157,7 +158,9 @@ export function storedRowWindow(
  * category from the `categorize` chain. Anything left undecided reaches review.
  *
  * Only a spending row can hold a category, so a merchant with a confirmed
- * category is spending even when the bank's type says nothing.
+ * category is spending even when the bank's type says nothing. A row with a
+ * transfer number is left out of that step, because its other side may arrive
+ * in a later upload, and a stored `spending` row can't pair.
  *
  * A pair is only sent if it holds a new row, so an import never changes rows
  * it didn't bring, and importing a file again changes nothing.
@@ -192,9 +195,12 @@ export function classifyImport({
     if (transfers.has(keyOf(row))) return "transfer";
     if (uncertain.has(keyOf(row))) return undefined;
 
+    const type = defaultType(row);
+    if (type !== undefined || hasText(row.transferNumber)) return type;
+
     const hasPastCategory =
       lookUp(pastCategoryByMerchant, merchantKey(row)) !== undefined;
-    return defaultType(row) ?? (hasPastCategory ? "spending" : undefined);
+    return hasPastCategory ? "spending" : undefined;
   }
 
   const idsByName = new Map(categories.map(({ id, name }) => [name, id]));

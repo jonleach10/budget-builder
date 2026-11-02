@@ -203,6 +203,17 @@ describe("classifyImport with past categories", () => {
     expect(decisions).toEqual([{}]);
   });
 
+  it("leaves a numbered row open to pairing when its merchant is confirmed", () => {
+    const { decisions } = classify({
+      transactions: [
+        row("a", { bankType: "ACCT_XFER", transferNumber: "12345678901" }),
+      ],
+      confirmed: [manual("old", GROCERIES.id)],
+    });
+
+    expect(decisions).toEqual([{}]);
+  });
+
   it("gives a mixed merchant's row no type when the bank gives none", () => {
     const { decisions } = classify({
       transactions: [row("a", { bankType: "Direct debit" })],
