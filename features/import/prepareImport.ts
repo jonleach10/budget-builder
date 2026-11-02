@@ -7,8 +7,8 @@ import type { Money } from "@/lib/money";
 import type { ParsedStatement, Transaction } from "./types";
 
 // The combined view is USD only, and `base_amount_minor` is locked at import.
-const BASE_CURRENCY = "USD";
-const RATED_CURRENCY = "EUR";
+export const BASE_CURRENCY = "USD";
+export const RATED_CURRENCY = "EUR";
 const SAME_CURRENCY_RATE = "1";
 
 // Matches `findRate`'s lookback, so a rate for the first of a month can be found.

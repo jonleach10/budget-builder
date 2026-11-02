@@ -2,18 +2,18 @@ import { useTransition } from "react";
 import { unstable_rethrow } from "next/navigation";
 import type { ActionResult } from "@/lib/actionResult";
 
-const NO_REPLY: ActionResult = {
+const NO_REPLY = {
   ok: false,
   message: "The server can't be reached. Check your connection and try again.",
-};
+} as const;
 
 /** Runs a server action and always ends with a result the screen can show. */
 export function useServerAction() {
   const [pending, startTransition] = useTransition();
 
-  function run(
-    action: () => Promise<ActionResult>,
-    onResult: (result: ActionResult) => void,
+  function run<Result extends ActionResult>(
+    action: () => Promise<Result>,
+    onResult: (result: Result | typeof NO_REPLY) => void,
   ) {
     startTransition(async () => {
       try {
