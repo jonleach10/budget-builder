@@ -1,5 +1,5 @@
 import type { Transaction } from "@/features/import/types";
-import { hasText, ignoreCase } from "./text";
+import { forTextMatch, hasText } from "./text";
 
 export type MatchOn =
   | "ppdId"
@@ -23,12 +23,12 @@ function matches(rule: RuleCondition, transaction: Transaction): boolean {
     case "orderingPartyId":
       return transaction.orderingPartyId === rule.value;
     case "descriptionStartsWith":
-      return ignoreCase(transaction.description).startsWith(
-        ignoreCase(rule.value),
+      return forTextMatch(transaction.description).startsWith(
+        forTextMatch(rule.value),
       );
     case "descriptionContains":
-      return ignoreCase(transaction.description).includes(
-        ignoreCase(rule.value),
+      return forTextMatch(transaction.description).includes(
+        forTextMatch(rule.value),
       );
   }
 }

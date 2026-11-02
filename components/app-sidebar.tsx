@@ -29,9 +29,9 @@ import { LogOutButton } from "@/features/auth/LogOutButton"
 const items = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "Budget", url: "/budget", icon: Wallet },
-  { title: "Transactions", icon: List },
-  { title: "Review Inbox", icon: Inbox },
-  { title: "Import", icon: Upload },
+  { title: "Transactions", url: "/transactions", icon: List },
+  { title: "Review Inbox", url: "/review", icon: Inbox },
+  { title: "Import", url: "/import", icon: Upload },
   { title: "Rules", url: "/rules", icon: SlidersHorizontal },
   { title: "Settings", url: "/settings", icon: Settings },
 ]
@@ -52,22 +52,12 @@ export function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  {item.url ? (
-                    <SidebarMenuButton asChild isActive={pathname === item.url}>
-                      <Link
-                        href={item.url}
-                        onClick={() => setOpenMobile(false)}
-                      >
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  ) : (
-                    <SidebarMenuButton disabled>
+                  <SidebarMenuButton asChild isActive={pathname === item.url}>
+                    <Link href={item.url} onClick={() => setOpenMobile(false)}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  )}
+                    </Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

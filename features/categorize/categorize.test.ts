@@ -192,6 +192,65 @@ describe("categorize", () => {
 
   });
 
+  describe("a Spending rule with no category as the first match", () => {
+    const noCategory: CategoryRule = { ...rule, category: null };
+    const lowerRule: CategoryRule = {
+      matchOn: "descriptionStartsWith",
+      value: "EXAMPLE",
+      category: "From lower rule",
+    };
+
+    it("sends the row to review past every lower step", () => {
+      const ctx = {
+        ...everyStep,
+        manualCategory: undefined,
+        categoryRules: [noCategory, lowerRule],
+      };
+
+      expect(categorize(transaction(), "spending", ctx)).toStrictEqual({
+        status: "needs-review",
+        suggestedCategory: "From bank category",
+      });
+    });
+
+    it.each(["", "   ", "\t\n"])("treats a category of %j the same", (category) => {
+      const ctx = {
+        ...everyStep,
+        manualCategory: undefined,
+        categoryRules: [{ ...rule, category }],
+        bankCategoryMap: {},
+      };
+
+      expect(categorize(transaction(), "spending", ctx)).toStrictEqual({
+        status: "needs-review",
+      });
+    });
+
+    it("still loses to a manual category", () => {
+      const ctx = { ...everyStep, categoryRules: [noCategory, lowerRule] };
+
+      expect(categorize(transaction(), "spending", ctx)).toStrictEqual({
+        status: "categorized",
+        category: "From manual",
+        source: "manual",
+      });
+    });
+
+    it("still loses to a higher rule with a category", () => {
+      const ctx = {
+        ...everyStep,
+        manualCategory: undefined,
+        categoryRules: [lowerRule, noCategory],
+      };
+
+      expect(categorize(transaction(), "spending", ctx)).toStrictEqual({
+        status: "categorized",
+        category: "From lower rule",
+        source: "rule",
+      });
+    });
+  });
+
   describe("a blank category counts as no match", () => {
     const blanks = ["", "   ", "\t\n"];
 
@@ -201,19 +260,6 @@ describe("categorize", () => {
       expect(categorize(transaction(), "spending", ctx)).toMatchObject({
         status: "categorized",
         source: "rule",
-      });
-    });
-
-    it.each(blanks)("moves on from a rule giving %j", (category) => {
-      const ctx = {
-        ...everyStep,
-        manualCategory: undefined,
-        categoryRules: [{ ...rule, category }],
-      };
-
-      expect(categorize(transaction(), "spending", ctx)).toMatchObject({
-        status: "categorized",
-        source: "history",
       });
     });
 

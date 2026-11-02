@@ -4,14 +4,18 @@ import { hasText } from "./text";
 
 /** Plain data, so a rule can be saved as JSON. */
 export type CategoryRule = RuleCondition & {
-  category: string;
+  category: string | null;
 };
 
-/** A rule with a blank category counts as no match, so a later rule can win. */
+/**
+ * Gives undefined when no rule matches. Gives null when the first match has no
+ * category, which means the row goes to review and nothing lower can decide it.
+ */
 export function findCategory(
   transaction: Transaction,
   rules: readonly CategoryRule[],
-): string | undefined {
-  const usable = rules.filter((rule) => hasText(rule.category));
-  return firstMatchingRule(transaction, usable)?.category;
+): string | null | undefined {
+  const rule = firstMatchingRule(transaction, rules);
+  if (rule === undefined) return undefined;
+  return hasText(rule.category) ? rule.category : null;
 }

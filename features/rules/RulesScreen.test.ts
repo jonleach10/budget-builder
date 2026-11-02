@@ -72,13 +72,13 @@ describe("RulesScreen", () => {
     expect(html.match(/aria-label="Move CORNER MARKET down"/g)).toHaveLength(2);
   });
 
-  it("says a lower rule can give the category when the first match has none", () => {
+  it("says the first match wins and a rule with no category means review", () => {
     const html = render([TEXT_RULE]);
 
     expect(html).toContain(
-      "The first match gives the type. If it has no category, a lower rule can give one.",
+      "The first match wins. If it has no category, the row goes to review.",
     );
-    expect(html).not.toContain("The first match wins");
+    expect(html).not.toContain("a lower rule can give one");
   });
 
   it("says rules apply to future imports", () => {
