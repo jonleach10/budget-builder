@@ -1,3 +1,4 @@
+import { needsReview } from "@/features/categorize/needsReview";
 import type { TransactionType } from "@/features/categorize/transactionType";
 import type { Money } from "@/lib/money";
 import { createBudget, type Budget, type Country } from "./budget";
@@ -76,22 +77,28 @@ export function toLedger(
     });
 }
 
-/** A row with no type has no category, so compareBudget counts it for review. */
+/**
+ * A row that needs review goes in with no category, so compareBudget counts it.
+ * The ledger has no hidden rows, because toLedger left them out.
+ */
 export function toBudgetEntries(
   ledger: readonly LedgerRow[],
   country: Country,
 ): BudgetEntry[] {
-  return ledger
-    .filter(
-      (row) =>
-        row.country === country &&
-        (row.type === "spending" || row.type === null),
-    )
-    .map((row) => ({
-      postedOn: row.postedOn,
-      category: row.type === null ? null : row.category,
-      amount: row.amount,
-    }));
+  return ledger.flatMap((row) => {
+    if (row.country !== country) return [];
+
+    const review = needsReview({ ...row, hidden: false });
+    if (!review && row.type !== "spending") return [];
+
+    return [
+      {
+        postedOn: row.postedOn,
+        category: review ? null : row.category,
+        amount: row.amount,
+      },
+    ];
+  });
 }
 
 export function toBudget(
