@@ -32,6 +32,8 @@ function storedRow(
     ordering_party_id: null,
     transfer_number: null,
     balance_minor: null,
+    base_amount_minor: -1199,
+    base_currency: "USD",
     type: null,
     category_id: null,
     category_source: null,
@@ -120,6 +122,7 @@ describe("readStoredTransactions", () => {
       ordering_party_id: "ORDER0001",
       transfer_number: "T0001",
       balance_minor: 120000,
+      base_amount_minor: -5420,
       type: "spending",
       category_id: "cat-1",
       category_source: "manual",
@@ -152,6 +155,7 @@ describe("readStoredTransactions", () => {
         orderingPartyId: "ORDER0001",
         transferNumber: "T0001",
         balance: { minor: 120000, currency: "USD" },
+        base: { minor: -5420, currency: "USD" },
         type: "spending",
         categoryId: "cat-1",
         categorySource: "manual",
@@ -173,6 +177,22 @@ describe("readStoredTransactions", () => {
     expect(transaction.original).toBeUndefined();
     expect(transaction.balance).toBeUndefined();
     expect(transaction.ppdId).toBeUndefined();
+  });
+
+  it("keeps a foreign row's base amount apart from its own amount", async () => {
+    const [transaction] = await readStoredTransactions(
+      fakeClient([
+        storedRow({
+          amount_minor: -1200,
+          currency: "EUR",
+          base_amount_minor: -1314,
+          base_currency: "USD",
+        }),
+      ]),
+    );
+
+    expect(transaction.amount).toEqual({ minor: -1200, currency: "EUR" });
+    expect(transaction.base).toEqual({ minor: -1314, currency: "USD" });
   });
 
   it("keeps a balance of zero", async () => {

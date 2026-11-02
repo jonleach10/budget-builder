@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CategorySource } from "@/features/categorize/pastCategories";
 import type { TransactionType } from "@/features/categorize/transactionType";
+import type { Money } from "@/lib/money";
 import { readAllRows, type RowQuery } from "@/lib/readAllRows";
 import type { OriginalAmount, Transaction } from "./types";
 
@@ -8,8 +9,9 @@ export const STORED_COLUMNS =
   "id, account_id, fingerprint, posted_on, purchased_on, amount_minor, " +
   "currency, description, purpose, original_amount_minor, original_currency, " +
   "original_rate, bank_type, bank_category, ppd_id, ordering_party_id, " +
-  "transfer_number, balance_minor, type, category_id, category_source, " +
-  "suggested_category_id, note, hidden, possible_duplicate, transfer_pair_id";
+  "transfer_number, balance_minor, base_amount_minor, base_currency, type, " +
+  "category_id, category_source, suggested_category_id, note, hidden, " +
+  "possible_duplicate, transfer_pair_id";
 
 /** A row of the transactions table, with the columns `STORED_COLUMNS` reads. */
 export type StoredTransactionRow = {
@@ -31,6 +33,8 @@ export type StoredTransactionRow = {
   ordering_party_id: string | null;
   transfer_number: string | null;
   balance_minor: number | null;
+  base_amount_minor: number;
+  base_currency: string;
   type: string | null;
   category_id: string | null;
   category_source: string | null;
@@ -44,6 +48,8 @@ export type StoredTransactionRow = {
 /** A stored row: what the bank said, plus what's been decided about it. */
 export type StoredTransaction = Transaction & {
   id: string;
+  /** The USD amount locked at import. A parsed row doesn't have one yet. */
+  base: Money;
   type: TransactionType | null;
   categoryId: string | null;
   categorySource: CategorySource | null;
@@ -81,6 +87,7 @@ export function toStoredTransaction(
     orderingPartyId: row.ordering_party_id ?? undefined,
     transferNumber: row.transfer_number ?? undefined,
     balance: balance === null ? undefined : { minor: balance, currency },
+    base: { minor: row.base_amount_minor, currency: row.base_currency },
     type: row.type as TransactionType | null,
     categoryId: row.category_id,
     categorySource: row.category_source as CategorySource | null,

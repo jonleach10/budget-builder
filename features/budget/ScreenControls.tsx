@@ -32,6 +32,33 @@ function MonthLink({
   );
 }
 
+/** The month lives in the URL, so these are links, not state. */
+export function MonthControl({
+  month,
+  hrefFor,
+}: {
+  month: string;
+  hrefFor: (month: string) => string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-1 md:inline-flex">
+      <MonthLink
+        href={hrefFor(addMonths(month, -1))}
+        label="Previous month"
+        icon={ChevronLeft}
+      />
+      <span className="min-w-28 text-center text-body-sm font-medium text-foreground">
+        {monthName(month)}
+      </span>
+      <MonthLink
+        href={hrefFor(addMonths(month, 1))}
+        label="Next month"
+        icon={ChevronRight}
+      />
+    </div>
+  );
+}
+
 /** The month and view live in the URL, so these are links, not state. */
 export function ScreenControls({
   path,
@@ -41,22 +68,13 @@ export function ScreenControls({
   params: ScreenParams;
 }) {
   const { month, view } = params;
-  const monthHref = (count: number) =>
-    screenHref(path, { month: addMonths(month, count), view });
 
   return (
     <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:flex-wrap md:items-center">
-      <div className="flex items-center justify-between gap-1 md:inline-flex">
-        <MonthLink
-          href={monthHref(-1)}
-          label="Previous month"
-          icon={ChevronLeft}
-        />
-        <span className="min-w-28 text-center text-body-sm font-medium text-foreground">
-          {monthName(month)}
-        </span>
-        <MonthLink href={monthHref(1)} label="Next month" icon={ChevronRight} />
-      </div>
+      <MonthControl
+        month={month}
+        hrefFor={(target) => screenHref(path, { month: target, view })}
+      />
 
       <nav
         aria-label="Budget view"

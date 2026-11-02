@@ -17,10 +17,10 @@ import type {
   BudgetLine,
   BudgetScreenData,
   ReadyBudgetScreen,
-  TransactionLine,
 } from "./budgetScreenData";
 import { ScreenControls } from "./ScreenControls";
 import {
+  AmountWithOriginal,
   EmptyPanel,
   InfoNotice,
   Meter,
@@ -107,19 +107,6 @@ function AmountCell({
       />
       <FieldError message={error} />
     </div>
-  );
-}
-
-function AmountWithOriginal({ line }: { line: TransactionLine }) {
-  return (
-    <>
-      <div className="tabular-nums">{line.amount}</div>
-      {line.original !== null && (
-        <div className="text-caption text-muted-foreground tabular-nums">
-          {line.original}
-        </div>
-      )}
-    </>
   );
 }
 

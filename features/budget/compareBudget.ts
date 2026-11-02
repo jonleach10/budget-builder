@@ -1,3 +1,4 @@
+import { hasNoCategory } from "@/features/categorize/needsReview";
 import { sumMinor, type Money } from "@/lib/money";
 import { currencyFor, isMonth, type Budget } from "./budget";
 import { BudgetError } from "./errors";
@@ -66,13 +67,14 @@ export function compareBudget(
       throw new BudgetError("entry-currency-mismatch");
     }
     if (monthOf(entry.postedOn) !== budget.month) continue;
-    if (!entry.category?.trim()) {
+    const category = entry.category ?? "";
+    if (hasNoCategory(category)) {
       needsReview += 1;
       continue;
     }
-    const values = outflows.get(entry.category) ?? [];
+    const values = outflows.get(category) ?? [];
     values.push(-entry.amount.minor);
-    outflows.set(entry.category, values);
+    outflows.set(category, values);
   }
 
   const categories = [...outflows].map(([category, values]) => {
