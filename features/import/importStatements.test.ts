@@ -175,8 +175,33 @@ describe("importStatements when it can't finish", () => {
 
     await expect(result).resolves.toEqual({
       ok: false,
-      message: `${name} is for an account Budget Builder doesn't know. Nothing was stored. Check the file, then import it again.`,
+      message: `Budget Builder can't match ${name} to one account. Nothing was stored. Check the account's last four digits, and that a Chase file has its original file name, then import it again.`,
     });
+  });
+
+  it("says a file name matters when a Chase file was renamed", async () => {
+    const name = "october-checking.csv";
+    const { result, rpc } = run([csv(name, loadFixture(chaseBankFileName))]);
+
+    await expect(result).resolves.toEqual({
+      ok: false,
+      message: `Budget Builder can't match ${name} to one account. Nothing was stored. Check the account's last four digits, and that a Chase file has its original file name, then import it again.`,
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("says a Commerzbank file has no rows, not that its account is unknown", async () => {
+    const [header] = loadFixture(commerzbankFileName).split("\n");
+    const { result, rpc } = run([
+      csv(chaseCardFileName),
+      csv(commerzbankFileName, `${header}\n`),
+    ]);
+
+    await expect(result).resolves.toEqual({
+      ok: false,
+      message: `${commerzbankFileName} has no rows, so Budget Builder can't tell which account it's for. Nothing was stored. Remove the file from the list, then import again.`,
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("names the format problem when the account has another format", async () => {
@@ -232,7 +257,7 @@ describe("importStatements when it can't finish", () => {
 
     await expect(result).resolves.toEqual({
       ok: false,
-      message: `${commerzbankFileName} has rows from more than one account. Nothing was stored. Export each account to its own file, then import them.`,
+      message: `${commerzbankFileName} has rows from more than one account, starting at line 9. Nothing was stored. Export each account to its own file, then import them.`,
     });
   });
 

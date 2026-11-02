@@ -268,7 +268,7 @@ describe("commerzbank statements", () => {
 
     it("fails with no rows to read an IBAN from", async () => {
       const error = await parse(`${header}\n`).catch((e) => e);
-      expect(error.code).toBe("unknown-account");
+      expect(error.code).toBe("no-rows");
     });
 
     it("fails on an account nobody registered", async () => {

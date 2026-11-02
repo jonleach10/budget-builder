@@ -3,6 +3,7 @@ export type StatementErrorCode =
   | "unknown-account"
   | "account-format-mismatch"
   | "mixed-accounts"
+  | "no-rows"
   | "malformed-row"
   | "invalid-date"
   | "invalid-amount"
@@ -24,6 +25,8 @@ function messageFor(code: StatementErrorCode, line?: number): string {
       return "The account for this file is set up for a different statement format. Change the account's format, or import a statement for that account.";
     case "mixed-accounts":
       return "This file has rows from more than one account. Export each account to its own file, then import them one at a time.";
+    case "no-rows":
+      return "This file has no rows, so Budget Builder can't tell which account it's for. Leave it out, or export a period that has rows.";
     case "malformed-row":
       return `${where} doesn't have the expected columns. ${EXPORT_AGAIN}`;
     case "invalid-date":

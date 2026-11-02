@@ -20,11 +20,15 @@ function fileMessage(fileName: string, { code, line }: StatementError): string {
     case "unknown-format":
       return `${fileName} isn't a format Budget Builder can read. ${NOTHING_STORED} Export a CSV from Chase or Commerzbank.`;
     case "unknown-account":
-      return `${fileName} is for an account Budget Builder doesn't know. ${NOTHING_STORED} Check the file, then import it again.`;
+      return `Budget Builder can't match ${fileName} to one account. ${NOTHING_STORED} Check the account's last four digits, and that a Chase file has its original file name, then import it again.`;
     case "account-format-mismatch":
       return `${fileName} doesn't match the statement format set for its account. ${NOTHING_STORED} Check the account's format, then import the file again.`;
-    case "mixed-accounts":
-      return `${fileName} has rows from more than one account. ${NOTHING_STORED} Export each account to its own file, then import them.`;
+    case "mixed-accounts": {
+      const where = line === undefined ? "" : `, starting at line ${line}`;
+      return `${fileName} has rows from more than one account${where}. ${NOTHING_STORED} Export each account to its own file, then import them.`;
+    }
+    case "no-rows":
+      return `${fileName} has no rows, so Budget Builder can't tell which account it's for. ${NOTHING_STORED} Remove the file from the list, then import again.`;
     case "malformed-row":
     case "invalid-date":
     case "invalid-amount":
