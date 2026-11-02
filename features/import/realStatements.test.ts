@@ -5,6 +5,7 @@ import {
   compareExports,
   readStatementFiles,
   readTransactions,
+  reviewCounts,
   type ExportComparison,
   type StatementCheck,
 } from "./realStatementsProof";
@@ -57,6 +58,29 @@ describe.skipIf(!dir)("real statements", () => {
         expect(check.missedFieldCount).toBe(0);
       });
     });
+  });
+});
+
+describe.skipIf(!dir)("the first import of these statements", () => {
+  let counts: Awaited<ReturnType<typeof reviewCounts>>;
+
+  beforeAll(async () => {
+    counts = await reviewCounts(files, accounts);
+  });
+
+  it("reports what it would send to review, as counts", () => {
+    console.info(JSON.stringify(counts, null, 2));
+    expect(Object.keys(counts).length > 0).toBe(true);
+  });
+
+  it("finds no text damaged by a wrong encoding", () => {
+    for (const format of Object.values(counts)) {
+      expect(format.replacementCharacters).toBe(0);
+    }
+  });
+
+  it("finds no Chase bank row with a blank balance", () => {
+    expect(counts["chase-bank"]?.blankBalances ?? 0).toBe(0);
   });
 });
 

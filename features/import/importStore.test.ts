@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { addDays } from "@/features/fx/dates";
 import { ReadRowsError } from "@/lib/readAllRows";
 import { fakeImportClient } from "./__fixtures__/fakeImportClient";
-import { readImportAccounts, readSavedRates } from "./importStore";
+import {
+  readImportAccounts,
+  readImportCategories,
+  readImportRules,
+  readSavedRates,
+} from "./importStore";
 
 const rate = (rate_date: string, value: string, quote = "USD") => ({
   rate_date,
@@ -33,6 +38,45 @@ describe("readImportAccounts", () => {
     const { client } = fakeImportClient({ failingTable: "accounts" });
 
     await expect(readImportAccounts(client)).rejects.toBeInstanceOf(
+      ReadRowsError,
+    );
+  });
+});
+
+describe("readImportRules", () => {
+  it("gives each rule as stored", async () => {
+    const rule = {
+      id: "rule-1",
+      match_on: "descriptionContains",
+      value: "SYNTHETIC",
+      position: 0,
+      type: "income",
+      category_id: null,
+    };
+    const { client } = fakeImportClient({ rules: [rule] });
+
+    await expect(readImportRules(client)).resolves.toEqual([rule]);
+  });
+
+  it("throws the fixed error when the read fails", async () => {
+    const { client } = fakeImportClient({ failingTable: "rules" });
+
+    await expect(readImportRules(client)).rejects.toBeInstanceOf(ReadRowsError);
+  });
+});
+
+describe("readImportCategories", () => {
+  it("gives each category's ID and name", async () => {
+    const category = { id: "category-1", name: "Groceries" };
+    const { client } = fakeImportClient({ categories: [category] });
+
+    await expect(readImportCategories(client)).resolves.toEqual([category]);
+  });
+
+  it("throws the fixed error when the read fails", async () => {
+    const { client } = fakeImportClient({ failingTable: "categories" });
+
+    await expect(readImportCategories(client)).rejects.toBeInstanceOf(
       ReadRowsError,
     );
   });

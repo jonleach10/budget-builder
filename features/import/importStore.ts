@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RatesByDate } from "@/features/fx/findRate";
+import type { RuleRow } from "@/features/rules/rules";
 import { readAllRows, type RowQuery } from "@/lib/readAllRows";
 import { BASE_CURRENCY, RATED_CURRENCY } from "./prepareImport";
 import type { Account, StatementFormat } from "./types";
@@ -12,6 +13,8 @@ type AccountRow = {
 };
 
 type RateRow = { rate_date: string; rate: string };
+
+export type ImportCategory = { id: string; name: string };
 
 /** Throws `ReadRowsError` if the read fails. */
 export async function readImportAccounts(
@@ -33,6 +36,32 @@ export async function readImportAccounts(
     format: row.format,
     currency: row.currency,
   }));
+}
+
+/** Throws `ReadRowsError` if the read fails. */
+export function readImportRules(client: SupabaseClient): Promise<RuleRow[]> {
+  return readAllRows(
+    () =>
+      client
+        .from("rules")
+        .select(
+          "id, match_on, value, position, type, category_id",
+        ) as unknown as RowQuery<RuleRow>,
+    ["id"],
+  );
+}
+
+/** Throws `ReadRowsError` if the read fails. */
+export function readImportCategories(
+  client: SupabaseClient,
+): Promise<ImportCategory[]> {
+  return readAllRows(
+    () =>
+      client
+        .from("categories")
+        .select("id, name") as unknown as RowQuery<ImportCategory>,
+    ["id"],
+  );
 }
 
 /** Gives `prepareImport` its reader. Throws `ReadRowsError` if a read fails. */

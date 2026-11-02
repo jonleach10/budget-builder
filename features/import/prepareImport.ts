@@ -65,6 +65,8 @@ export type PrepareImportInput = {
 
 export type PreparedImport = {
   rows: ImportRow[];
+  /** The parsed rows behind `rows`, in the same order. */
+  transactions: Transaction[];
   /** Rates that aren't saved yet. */
   rates: ImportRate[];
   /** Pending rows in the files, plus rows dated after today. */
@@ -215,6 +217,7 @@ export async function prepareImport({
 
   return {
     rows: transactions.map((row) => toImportRow(row, rates)),
+    transactions,
     rates: Object.entries(newRates).map(toImportRate),
     ignoredPendingCount: statements.reduce(
       (total, statement) => total + statement.ignoredPendingCount,
