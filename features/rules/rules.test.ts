@@ -101,8 +101,33 @@ describe("toCategoryRules", () => {
     ]);
   });
 
-  it("leaves out rules with only a type", () => {
+  it("leaves out rules giving a type other than Spending", () => {
     expect(toCategoryRules([typeRule], CATEGORIES)).toEqual([]);
+  });
+
+  it("keeps a Spending rule with no category in its place", () => {
+    const rows = [
+      row({
+        id: "x",
+        position: 1,
+        value: "RIVERSIDE CAFE",
+        type: "spending",
+      }),
+      categoryRule,
+    ];
+
+    expect(toCategoryRules(rows, CATEGORIES)).toEqual([
+      {
+        matchOn: "descriptionContains",
+        value: "CORNER MARKET",
+        category: "Groceries",
+      },
+      {
+        matchOn: "descriptionContains",
+        value: "RIVERSIDE CAFE",
+        category: null,
+      },
+    ]);
   });
 
   it("skips a row pointing at an unknown category, instead of throwing", () => {

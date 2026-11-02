@@ -93,17 +93,20 @@ export function toMatchingRules(rows: readonly RuleRow[]): MatchingRule[] {
   });
 }
 
+/** Keeps Spending with no category, which sends a matching row to review. */
 export function toCategoryRules(
   rows: readonly RuleRow[],
   categories: readonly NamedCategory[],
 ): CategoryRule[] {
   const names = new Map(categories.map(({ id, name }) => [id, name]));
 
-  return inPositionOrder(rows).flatMap((row) => {
-    const category = names.get(row.category_id ?? "");
-    return category === undefined
-      ? []
-      : [{ matchOn: row.match_on, value: row.value, category }];
+  return inPositionOrder(rows).flatMap((row): CategoryRule[] => {
+    const condition = { matchOn: row.match_on, value: row.value };
+    if (row.category_id === null) {
+      return row.type === "spending" ? [{ ...condition, category: null }] : [];
+    }
+    const category = names.get(row.category_id);
+    return category === undefined ? [] : [{ ...condition, category }];
   });
 }
 

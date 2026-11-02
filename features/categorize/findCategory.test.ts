@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { redactText } from "@/features/import/redact";
 import type { Transaction } from "@/features/import/types";
 import { findCategory, type CategoryRule } from "./findCategory";
 import { findType, type MatchingRule } from "./findType";
+
+// A code point, because the character would be invisible in this file.
+const NO_BREAK_SPACE = String.fromCharCode(0x00a0);
+
+const OTHER_WHITESPACE = [
+  ["a tab", "\t"],
+  ["a no-break space", NO_BREAK_SPACE],
+  ["a run with a no-break space", ` ${NO_BREAK_SPACE} `],
+];
 
 function transaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
@@ -84,6 +94,71 @@ describe("findCategory", () => {
     expect(findCategory(transaction({ description }), rules)).toBe("Rent");
   });
 
+  describe.each(["descriptionStartsWith", "descriptionContains"] as const)(
+    "whitespace in a %s rule",
+    (matchOn) => {
+      const rule = (value: string): CategoryRule[] => [
+        { matchOn, value, category: "Groceries" },
+      ];
+
+      it("matches a run in the row where the rule has one space", () => {
+        expect(
+          findCategory(
+            transaction({ description: "EXAMPLE     MARKET 42" }),
+            rule("EXAMPLE MARKET"),
+          ),
+        ).toBe("Groceries");
+      });
+
+      it("matches one space in the row where the rule has a run", () => {
+        expect(findCategory(transaction(), rule("EXAMPLE   MARKET"))).toBe(
+          "Groceries",
+        );
+      });
+
+      it("still ignores case", () => {
+        expect(
+          findCategory(
+            transaction({ description: "EXAMPLE    MARKET 42" }),
+            rule("example market"),
+          ),
+        ).toBe("Groceries");
+      });
+
+      it("still needs a space where the rule has one", () => {
+        expect(
+          findCategory(
+            transaction({ description: "EXAMPLEMARKET 42" }),
+            rule("EXAMPLE MARKET"),
+          ),
+        ).toBeUndefined();
+      });
+
+      it.each(OTHER_WHITESPACE)("matches %s in the row", (_, whitespace) => {
+        expect(
+          findCategory(
+            transaction({ description: `EXAMPLE${whitespace}MARKET 42` }),
+            rule("EXAMPLE MARKET"),
+          ),
+        ).toBe("Groceries");
+      });
+
+      it.each(OTHER_WHITESPACE)(
+        "matches %s in a rule copied from the bank text the row was cleaned from",
+        (_, whitespace) => {
+          const copied = `EXAMPLE${whitespace}MARKET`;
+
+          expect(
+            findCategory(
+              transaction({ description: redactText(`${copied} 42`) }),
+              rule(copied),
+            ),
+          ).toBe("Groceries");
+        },
+      );
+    },
+  );
+
   it("matches IDs exactly", () => {
     const rules: CategoryRule[] = [
       { matchOn: "ppdId", value: "ppd0001", category: "Groceries" },
@@ -120,24 +195,31 @@ describe("findCategory", () => {
     ).toBeUndefined();
   });
 
-  describe("a blank category", () => {
-    it.each(["", "   ", "\t\n"])("never comes back as %j", (category) => {
+  describe("a first match with no category", () => {
+    it.each([null, "", "   ", "\t\n"])("gives null for %j", (category) => {
       const rules: CategoryRule[] = [
         { matchOn: "descriptionContains", value: "MARKET", category },
       ];
 
-      expect(findCategory(transaction(), rules)).toBeUndefined();
+      expect(findCategory(transaction(), rules)).toBeNull();
     });
 
-    it("lets a later rule match instead", () => {
+    it("stops a later rule from giving one", () => {
       const rules: CategoryRule[] = [
-        { matchOn: "ppdId", value: "PPD0001", category: "  " },
+        { matchOn: "ppdId", value: "PPD0001", category: null },
         { matchOn: "descriptionContains", value: "MARKET", category: "Dining" },
       ];
 
-      expect(findCategory(transaction({ ppdId: "PPD0001" }), rules)).toBe(
-        "Dining",
-      );
+      expect(findCategory(transaction({ ppdId: "PPD0001" }), rules)).toBeNull();
+    });
+
+    it("has no say when it doesn't match", () => {
+      const rules: CategoryRule[] = [
+        { matchOn: "ppdId", value: "PPD0001", category: null },
+        { matchOn: "descriptionContains", value: "MARKET", category: "Dining" },
+      ];
+
+      expect(findCategory(transaction(), rules)).toBe("Dining");
     });
   });
 

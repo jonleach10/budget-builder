@@ -30,6 +30,9 @@ describe("AppSidebar", () => {
   it.each([
     ["Overview", "/"],
     ["Budget", "/budget"],
+    ["Transactions", "/transactions"],
+    ["Review Inbox", "/review"],
+    ["Import", "/import"],
     ["Rules", "/rules"],
     ["Settings", "/settings"],
   ])("links %s to its route", (label, href) => {
@@ -38,14 +41,9 @@ describe("AppSidebar", () => {
     );
   });
 
-  it.each(["Transactions", "Review Inbox", "Import"])(
-    "keeps %s unavailable",
-    (label) => {
-      expect(html).toMatch(
-        new RegExp(`<button[^>]*disabled=""[^>]*>(?:(?!</button>).)*${label}`),
-      );
-    },
-  );
+  it("has no unavailable screens left", () => {
+    expect(html).not.toMatch(/<button[^>]*disabled=""/);
+  });
 
   it("marks the current screen", () => {
     expect(html).toMatch(/data-active="true"[^>]*href="\/budget"/);

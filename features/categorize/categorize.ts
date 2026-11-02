@@ -25,9 +25,10 @@ export type CategoryResult =
 
 /**
  * The type comes first, so a spending row is the only kind that reaches the
- * steps. A blank category at any step counts as no match. A mixed merchant
- * skips the bank type map, so its rows go to review unless JL's own category
- * or rule decides them.
+ * steps. A blank category counts as no match, except from a rule: a first match
+ * with no category ends the chain, because JL chose to review those rows. A
+ * mixed merchant skips the bank type map, so its rows go to review unless JL's
+ * own category or rule decides them.
  */
 export function categorize(
   transaction: Transaction,
@@ -39,14 +40,21 @@ export function categorize(
 
   const key = merchantKey(transaction);
   const isMixed = key !== undefined && context.mixedMerchants.includes(key);
+  const ruleCategory = findCategory(transaction, context.categoryRules);
+  const ruleSaysReview = ruleCategory === null;
 
   const steps: [CategorySource, string | null | undefined][] = [
     ["manual", context.manualCategory],
-    ["rule", findCategory(transaction, context.categoryRules)],
-    ["history", lookUp(context.pastCategories, key)],
+    ["rule", ruleCategory],
+    [
+      "history",
+      ruleSaysReview ? undefined : lookUp(context.pastCategories, key),
+    ],
     [
       "bank-type",
-      isMixed ? undefined : lookUp(context.bankTypeMap, transaction.bankType),
+      ruleSaysReview || isMixed
+        ? undefined
+        : lookUp(context.bankTypeMap, transaction.bankType),
     ],
   ];
 
