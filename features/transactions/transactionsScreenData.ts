@@ -5,7 +5,7 @@ import { needsReview } from "@/features/categorize/needsReview";
 import type { TransactionType } from "@/features/categorize/transactionType";
 import type { StoredTransaction } from "@/features/import/storedTransactions";
 import { TYPE_OPTIONS } from "@/features/rules/rules";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, type Money } from "@/lib/money";
 
 export type TransactionLine = {
   id: string;
@@ -57,6 +57,12 @@ function byNewest(a: StoredTransaction, b: StoredTransaction): number {
   return b.postedOn.localeCompare(a.postedOn) || a.id.localeCompare(b.id);
 }
 
+/** Both banks print the original with no sign, so it takes the row's. */
+function signedLike(original: Money, amount: Money): Money {
+  const minor = Math.abs(original.minor);
+  return { ...original, minor: amount.minor < 0 ? -minor : minor };
+}
+
 /**
  * Only one amount goes under the first. A foreign row shows what its account
  * holds, as Budget's Combined view does, so a bank-recorded original on that row
@@ -72,7 +78,7 @@ function amountsOf({
   }
   return {
     amount: formatMoney(amount),
-    original: original ? formatMoney(original.amount) : null,
+    original: original ? formatMoney(signedLike(original.amount, amount)) : null,
   };
 }
 

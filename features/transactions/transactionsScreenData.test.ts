@@ -9,6 +9,13 @@ import {
   type CategoryRow,
   type TransactionRow,
 } from "@/features/budget/rows";
+import {
+  accounts,
+  chaseBankFileName,
+  loadFixture,
+  passThroughHash,
+} from "@/features/import/__fixtures__/load";
+import { parseStatement } from "@/features/import/parseStatement";
 import type { StoredTransaction } from "@/features/import/storedTransactions";
 import {
   buildTransactionsScreen,
@@ -138,13 +145,46 @@ describe("buildTransactionsScreen", () => {
     expect(line.original).toBe("-€12.00");
   });
 
-  it("keeps a USD row's bank-recorded original under its amount", () => {
+  it("gives a USD row's unsigned bank-recorded original the row's money-out sign", () => {
     const line = oneLine({
-      original: { amount: { minor: -1200, currency: "EUR" }, rate: "1.08" },
+      original: { amount: { minor: 1200, currency: "EUR" }, rate: "1.08" },
     });
 
     expect(line.amount).toBe("-$40.00");
     expect(line.original).toBe("-€12.00");
+  });
+
+  it("keeps a refund's bank-recorded original as money in", () => {
+    const line = oneLine({
+      amount: { minor: 4000, currency: "USD" },
+      base: { minor: 4000, currency: "USD" },
+      original: { amount: { minor: 1200, currency: "EUR" }, rate: "1.08" },
+    });
+
+    expect(line.amount).toBe("$40.00");
+    expect(line.original).toBe("€12.00");
+  });
+
+  it("shows a Chase foreign purchase as the adapter parses it with money out on both lines", async () => {
+    const { transactions } = await parseStatement({
+      fileName: chaseBankFileName,
+      text: loadFixture(chaseBankFileName),
+      accounts,
+      hash: passThroughHash,
+    });
+    const parsed = transactions.find(
+      ({ original }) => original?.amount.currency === "EUR",
+    );
+    if (parsed === undefined) throw new Error("fixture has no foreign row");
+
+    const line = oneLine({
+      ...parsed,
+      accountId: "acc-us",
+      base: parsed.amount,
+    });
+
+    expect(line.amount).toBe("-$13.34");
+    expect(line.original).toBe("-€11.90");
   });
 
   it("shows a EUR row's own amount, not its bank-recorded original, under the USD amount", () => {
@@ -152,7 +192,7 @@ describe("buildTransactionsScreen", () => {
       accountId: "acc-de",
       amount: { minor: -9200, currency: "EUR" },
       base: { minor: -9940, currency: "USD" },
-      original: { amount: { minor: -10000, currency: "USD" }, rate: "1.087" },
+      original: { amount: { minor: 10000, currency: "USD" }, rate: "1.087" },
     });
 
     expect(line.amount).toBe("-$99.40");
