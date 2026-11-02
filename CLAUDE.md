@@ -57,12 +57,15 @@ The rules above, plus:
 - No `any` without a reason.
 - The change matches its issue's acceptance criteria.
 - A change that touches a one-way door names it under Merge Danger.
+- A UI-facing PR has a sandbox screenshot in its Demo section that shows the change itself.
 
 ## PR policy
 
 Claude works in local sessions only. No Claude workflow, token or bot runs on GitHub, and GitHub Actions holds no secrets. Claude may open PRs from a local session. Claude never approves or merges. Only the owner does.
 
 PRs follow `.github/pull_request_template.md`. Claude opens a PR only with proof of testing to put in its Testing done section.
+
+A PR is UI-facing if it touches `app/`, `components/` or a `.tsx` file. Its Demo section needs a screenshot that proves the code changed: the changed screen, in the state the change affects, at the PR's head commit. Take it with `sandbox:shot`, or from a sandbox flow if the change only shows after a click. Screenshots hold synthetic rows only. Attach them with `--attach` on `gh pr create` or `gh pr edit`, which needs `gh` 2.99.0 or later.
 
 Commits have no `Co-Authored-By` lines. PR descriptions have no "Generated with Claude Code" line or session link.
 

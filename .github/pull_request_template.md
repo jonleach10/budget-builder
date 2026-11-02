@@ -43,4 +43,6 @@ or context that reviewers should know.
 Document any known issues, limitations, or pending concerns.
 
 ## Demo
-Include relevant screenshots, GIFs, or video links demonstrating the changes.
+Required for a UI-facing PR: a screenshot that proves the code changed, showing the
+changed screen in the state the change affects. Take it from the local sandbox, so
+it holds synthetic rows only. Never use a screenshot of real data.
