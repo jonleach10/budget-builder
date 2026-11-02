@@ -48,12 +48,24 @@ describe("commerzbank statements", () => {
       amount: { minor: -4250, currency: "EUR" },
       description: "Example Insurance",
       purpose: "Policy 88",
-      bankType: "Direct debit",
+      bankType: "Debit",
       bankCategory: "Insurance",
       orderingPartyId: "DE00ZZZ00001234567",
       fingerprint: expect.any(String),
       repeatIndex: 0,
     });
+  });
+
+  it("keeps the bank's type labels as they are", async () => {
+    const { transactions } = await parse(loadFixture(commerzbankFileName));
+    expect(transactions.map((t) => t.bankType)).toEqual([
+      "Transfer",
+      "Debit",
+      "Debit",
+      "Transfer",
+      "Transfer (realtime)",
+      "Interest/charges",
+    ]);
   });
 
   it("ignores pending rows and counts them", async () => {
