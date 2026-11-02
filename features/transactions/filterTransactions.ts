@@ -1,4 +1,5 @@
 import { monthName } from "@/features/budget/months";
+import { forTextMatch } from "@/features/categorize/text";
 import type { TransactionType } from "@/features/categorize/transactionType";
 import type { TransactionLine } from "./transactionsScreenData";
 
@@ -40,8 +41,8 @@ export function clearFilters(filters: TransactionFilters): TransactionFilters {
 
 /** The title and bank text hold the label and description between them. */
 function matchesSearch(line: TransactionLine, term: string): boolean {
-  return [line.title, line.bankText, line.purpose].some((text) =>
-    text?.toLowerCase().includes(term),
+  return [line.title, line.bankText, line.purpose].some(
+    (text) => text !== null && forTextMatch(text).includes(term),
   );
 }
 
@@ -50,7 +51,7 @@ export function filterLines(
   filters: TransactionFilters,
 ): TransactionLine[] {
   const { accountId, type, categoryId, needsReview, showHidden } = filters;
-  const term = filters.search.trim().toLowerCase();
+  const term = forTextMatch(filters.search.trim());
   const category = showsCategoryFilter(filters) ? categoryId : "";
 
   return lines.filter(

@@ -174,6 +174,30 @@ describe("filterLines", () => {
       ).toEqual(["de"]);
     });
 
+    it("finds capitals with SS when the search is written with ß", () => {
+      const german = [line({ id: "de", title: "BEISPIEL STRASSE 12" })];
+
+      expect(
+        idsOf(filterLines(german, filters({ search: "beispiel straße" }))),
+      ).toEqual(["de"]);
+    });
+
+    it("finds a ß in the text when the search is in capitals", () => {
+      const german = [line({ id: "de", purpose: "Miete Beispiel Straße" })];
+
+      expect(
+        idsOf(filterLines(german, filters({ search: "BEISPIEL STRASSE" }))),
+      ).toEqual(["de"]);
+    });
+
+    it("finds a row when the search has the spacing of the bank file", () => {
+      const us = [line({ id: "us", title: "SHOP *EXAMPLE.COM" })];
+
+      expect(
+        idsOf(filterLines(us, filters({ search: "SHOP   *EXAMPLE.COM" }))),
+      ).toEqual(["us"]);
+    });
+
     it("treats a search of only spaces as no search", () => {
       expect(found("   ")).toEqual(["bank", "purpose", "label", "plain"]);
     });
