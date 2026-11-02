@@ -70,7 +70,7 @@ function isMatchOn(value: string): value is MatchOn {
   return MATCH_OPTIONS.some((option) => option.value === value);
 }
 
-function isTransactionType(value: string): value is TransactionType {
+export function isTransactionType(value: unknown): value is TransactionType {
   return TYPE_OPTIONS.some((option) => option.value === value);
 }
 

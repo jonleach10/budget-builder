@@ -1,89 +1,17 @@
-import type { PGlite, Transaction } from "@electric-sql/pglite";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PGlite } from "@electric-sql/pglite";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadFixture } from "@/features/import/__fixtures__/load";
 import {
   importStatements,
   type ImportResult,
 } from "@/features/import/importStatements";
+import { databaseClient } from "./databaseClient";
 import { commitAs, createTestDatabase, OWNER, runAs, withMfa } from "./harness";
 
 const FILE_NAME = "Chase1111_Activity_20261031.csv";
 const SAVINGS_FILE_NAME = "Chase4444_Activity_20261031.csv";
 const SAVINGS_ACCOUNT_ID = "00000000-0000-4000-8000-0000000000a3";
 const TODAY = "2026-10-31";
-
-// PGlite turns a date into a Date object. Supabase's API sends it as text.
-const DATE_TYPE = 1082;
-
-type Reply = { data: unknown; error: unknown };
-
-/**
- * Answers the calls an import makes from the real tables and function, as this
- * session. Each call is its own transaction, as each API request is, and a
- * failed one comes back as a reply.
- */
-function databaseClient(db: PGlite): SupabaseClient {
-  async function ask(work: (tx: Transaction) => Promise<unknown>): Promise<Reply> {
-    try {
-      return { data: await commitAs(db, withMfa(OWNER), work), error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
-  }
-
-  function from(table: string) {
-    let columns = "";
-    const conditions: string[] = [];
-    const values: string[] = [];
-
-    function keep(column: string, operator: string, value: string) {
-      values.push(value);
-      conditions.push(`${column}::text ${operator} $${values.length}`);
-      return builder;
-    }
-
-    const builder = {
-      select(list: string) {
-        columns = list;
-        return builder;
-      },
-      eq: (column: string, value: string) => keep(column, "=", value),
-      gte: (column: string, value: string) => keep(column, ">=", value),
-      lte: (column: string, value: string) => keep(column, "<=", value),
-      order: () => builder,
-      range: () => builder,
-      then(onDone: (reply: Reply) => unknown) {
-        const where = conditions.length ? `where ${conditions.join(" and ")}` : "";
-        return ask(async (tx) => {
-          const read = await tx.query(
-            `select ${columns} from public.${table} ${where}`,
-            values,
-            { parsers: { [DATE_TYPE]: (value) => value } },
-          );
-          return read.rows;
-        }).then(onDone);
-      },
-    };
-    return builder;
-  }
-
-  return {
-    from,
-    rpc: (_name: string, args: Record<string, unknown>) =>
-      ask(async (tx) => {
-        const { rows: reply } = await tx.query<{ counts: unknown }>(
-          `select public.import_transactions($1::jsonb, $2::jsonb, $3::jsonb) as counts`,
-          [
-            JSON.stringify(args.p_rows),
-            JSON.stringify(args.p_rates),
-            JSON.stringify(args.p_pairs),
-          ],
-        );
-        return reply[0].counts;
-      }),
-  } as unknown as SupabaseClient;
-}
 
 type StoredRow = {
   fingerprint: string;
