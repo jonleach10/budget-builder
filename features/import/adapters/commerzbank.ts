@@ -153,7 +153,7 @@ export const commerzbank: StatementAdapter = {
   detect: (headerRow) => headerRow === HEADER,
   lastFour({ text }) {
     const rows = readRows(text);
-    if (rows.length === 0) return null;
+    if (rows.length === 0) throw new StatementError("no-rows");
 
     const [{ iban }] = rows;
     const other = rows.find((row) => row.iban !== iban);
