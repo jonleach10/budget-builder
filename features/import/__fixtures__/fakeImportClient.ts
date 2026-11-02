@@ -8,11 +8,11 @@ type Row = Record<string, unknown>;
 
 type Reply = { data: unknown; error: unknown };
 
-export type FakeImportData = {
-  accounts?: readonly Row[];
-  fx_rates?: readonly Row[];
+type Table = "accounts" | "categories" | "fx_rates" | "rules" | "transactions";
+
+export type FakeImportData = Partial<Record<Table, readonly Row[]>> & {
   /** A table whose reads fail, the way a failed request does. */
-  failingTable?: "accounts" | "fx_rates";
+  failingTable?: Table;
   rpcReply?: Reply;
 };
 
@@ -29,7 +29,7 @@ export function fakeImportClient(data: FakeImportData = {}) {
     async (): Promise<Reply> => data.rpcReply ?? { data: STORED, error: null },
   );
 
-  function from(table: "accounts" | "fx_rates") {
+  function from(table: Table) {
     const filters: ((row: Row) => boolean)[] = [];
     let first = 0;
     let last = Number.MAX_SAFE_INTEGER;

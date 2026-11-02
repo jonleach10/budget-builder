@@ -37,13 +37,76 @@ function ratesReply() {
   );
 }
 
+/** A stored bank row that can pay the card fixture's 250.00 payment. */
+function storedRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "stored-1",
+    account_id: "bank-1",
+    fingerprint: "v1:stored",
+    posted_on: "2026-10-04",
+    purchased_on: null,
+    amount_minor: -25000,
+    currency: "USD",
+    description: "SYNTHETIC PAYMENT",
+    purpose: null,
+    original_amount_minor: null,
+    original_currency: null,
+    original_rate: null,
+    bank_type: null,
+    bank_category: null,
+    ppd_id: null,
+    ordering_party_id: null,
+    transfer_number: null,
+    balance_minor: null,
+    type: null,
+    category_id: null,
+    category_source: null,
+    suggested_category_id: null,
+    note: null,
+    hidden: false,
+    possible_duplicate: false,
+    transfer_pair_id: null,
+    ...overrides,
+  };
+}
+
+/**
+ * One numbered transfer on 2026-10-07, and its other side stored in savings.
+ * Number pairing has no date limit, so only the stored-row window can stop it.
+ */
+function numberedTransfer(storedOn: string) {
+  const [header] = loadFixture(chaseBankFileName).split("\n");
+  const transfer = `DEBIT,10/07/2026,"Online Transfer to  SAV ...4444 transaction#: 12345678901",-100.00,ACCT_XFER,900.00,,`;
+
+  return run([csv(chaseBankFileName, `${header}\n${transfer}\n`)], {
+    accounts: [
+      ...ACCOUNT_ROWS,
+      {
+        id: "savings-1",
+        last_four: "4444",
+        format: "chase-bank",
+        currency: "USD",
+      },
+    ],
+    transactions: [
+      storedRow({
+        account_id: "savings-1",
+        posted_on: storedOn,
+        amount_minor: 10000,
+        transfer_number: "12345678901",
+      }),
+    ],
+  });
+}
+
 function run(
   files: readonly StatementFile[],
   data: FakeImportData = {},
   fetch: typeof globalThis.fetch = ratesReply(),
+  today = TODAY,
 ) {
   const { client, rpc } = fakeImportClient({ accounts: ACCOUNT_ROWS, ...data });
-  const result = importStatements({ files, client, fetch, today: TODAY });
+  const result = importStatements({ files, client, fetch, today });
   return { result, rpc };
 }
 
@@ -53,6 +116,11 @@ function sentTo(rpc: ReturnType<typeof fakeImportClient>["rpc"]) {
     { p_rows: { account_id: string }[]; p_rates: unknown[]; p_pairs: unknown[] },
   ];
   return { name, ...args };
+}
+
+function typesSent(rpc: ReturnType<typeof fakeImportClient>["rpc"]) {
+  const rows = sentTo(rpc).p_rows as { type?: string }[];
+  return rows.map((row) => row.type);
 }
 
 describe("importStatements", () => {
@@ -93,13 +161,144 @@ describe("importStatements", () => {
     expect(sent.p_pairs).toEqual([]);
   });
 
-  it("gives rows no type, so each one reaches review", async () => {
+  it("stores each row with its type, in the order of the file", async () => {
     const { result, rpc } = run([csv(chaseCardFileName)]);
     await result;
 
+    expect(typesSent(rpc)).toEqual([
+      "spending",
+      "spending",
+      "spending",
+      "spending",
+      // A card payment with no bank row to pair with.
+      "transfer",
+      "spending",
+      "spending",
+      // An adjustment has no default type, so it reaches review.
+      undefined,
+    ]);
+  });
+
+  it("gives a row the category from a rule", async () => {
+    const { result, rpc } = run([csv(chaseCardFileName)], {
+      categories: [{ id: "category-1", name: "Groceries" }],
+      rules: [
+        {
+          id: "rule-1",
+          match_on: "descriptionContains",
+          value: "EXAMPLE MARKET",
+          position: 0,
+          type: null,
+          category_id: "category-1",
+        },
+      ],
+    });
+    await result;
+
     const [row] = sentTo(rpc).p_rows as Record<string, unknown>[];
-    expect(row.type).toBeUndefined();
-    expect(row.category_id).toBeUndefined();
+    expect(row).toMatchObject({
+      type: "spending",
+      category_id: "category-1",
+      category_source: "rule",
+    });
+  });
+
+  it("pairs a row with a stored row from an earlier upload", async () => {
+    const { result, rpc } = run([csv(chaseCardFileName)], {
+      transactions: [storedRow()],
+    });
+    await result;
+
+    expect(sentTo(rpc).p_pairs).toEqual([
+      {
+        moneyOut: { accountId: "bank-1", fingerprint: "v1:stored" },
+        moneyIn: { accountId: "card-1", fingerprint: expect.any(String) },
+      },
+    ]);
+  });
+
+  it.each([
+    ["before", "2026-09-30"],
+    ["past", "2026-10-14"],
+  ])("pairs with a stored row 7 days %s the upload's dates", async (_, storedOn) => {
+    const { result, rpc } = numberedTransfer(storedOn);
+    await result;
+
+    expect(sentTo(rpc).p_pairs).toHaveLength(1);
+  });
+
+  it.each([
+    ["before", "2026-09-29"],
+    ["past", "2026-10-15"],
+  ])("doesn't pair with a stored row 8 days %s the upload's dates", async (_, storedOn) => {
+    const { result, rpc } = numberedTransfer(storedOn);
+    await result;
+
+    expect(sentTo(rpc).p_pairs).toEqual([]);
+  });
+
+  it("learns from a confirmed row of any date", async () => {
+    const { result, rpc } = run([csv(chaseCardFileName)], {
+      categories: [{ id: "category-1", name: "Groceries" }],
+      transactions: [
+        storedRow({
+          posted_on: "2024-01-01",
+          amount_minor: -1000,
+          description: "EXAMPLE MARKET #1234",
+          type: "spending",
+          category_id: "category-1",
+          category_source: "manual",
+        }),
+      ],
+    });
+    await result;
+
+    const [row] = sentTo(rpc).p_rows as Record<string, unknown>[];
+    expect(row).toMatchObject({
+      category_id: "category-1",
+      category_source: "history",
+    });
+  });
+
+  it("gives a confirmed merchant's category to a row the bank gives no type", async () => {
+    const orderingPartyId = "DE00ZZZ00001234567";
+    const { result, rpc } = run([csv(commerzbankFileName)], {
+      categories: [{ id: "category-1", name: "Insurance" }],
+      transactions: [
+        storedRow({
+          account_id: "euro-1",
+          posted_on: "2024-01-01",
+          amount_minor: -4250,
+          currency: "EUR",
+          ordering_party_id: orderingPartyId,
+          type: "spending",
+          category_id: "category-1",
+          category_source: "manual",
+        }),
+      ],
+    });
+    await result;
+
+    const rows = sentTo(rpc).p_rows as Record<string, unknown>[];
+    expect(
+      rows.find((row) => row.ordering_party_id === orderingPartyId),
+    ).toMatchObject({
+      type: "spending",
+      category_id: "category-1",
+      category_source: "history",
+    });
+  });
+
+  it("reads nothing more when every row waits for its date", async () => {
+    const { result, rpc } = run(
+      [csv(chaseCardFileName)],
+      { failingTable: "rules" },
+      ratesReply(),
+      "2020-01-01",
+    );
+
+    await expect(result).resolves.toMatchObject({ ok: true });
+    expect(sentTo(rpc).p_rows).toEqual([]);
   });
 
   it("reuses saved rates and fetches nothing when each weekday has one", async () => {
@@ -276,6 +475,9 @@ describe("importStatements when it can't finish", () => {
   it.each([
     ["accounts", { failingTable: "accounts" }],
     ["saved rates", { failingTable: "fx_rates" }],
+    ["rules", { failingTable: "rules" }],
+    ["categories", { failingTable: "categories" }],
+    ["stored rows", { failingTable: "transactions" }],
     [
       "the database call",
       { rpcReply: { data: null, error: { message: "SYNTHETIC SECRET ROW TEXT" } } },

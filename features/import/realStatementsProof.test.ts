@@ -15,6 +15,7 @@ import {
   readRawAmounts,
   readStatementFiles,
   readTransactions,
+  reviewCounts,
 } from "./realStatementsProof";
 import type { Transaction } from "./types";
 
@@ -31,6 +32,99 @@ function transaction(overrides: Partial<Transaction>): Transaction {
     ...overrides,
   };
 }
+
+describe("reviewCounts", () => {
+  const withFile = (fileName: string, change: (text: string) => string) =>
+    files.map((file) =>
+      file.fileName === fileName
+        ? { ...file, text: change(file.text) }
+        : file,
+    );
+
+  it("counts what the first import would send to review, per format", async () => {
+    await expect(reviewCounts(files, accounts)).resolves.toEqual({
+      "chase-bank": {
+        rows: 10,
+        // Fees get a category, so they're the only rows that stay out.
+        sentToReview: 8,
+        merchantGroups: 7,
+        noMerchantKey: 0,
+        placeholders: 0,
+        blankBalances: 0,
+        replacementCharacters: 0,
+      },
+      "chase-card": {
+        rows: 8,
+        // The late fee has a category and the card payment is a transfer.
+        sentToReview: 6,
+        merchantGroups: 4,
+        noMerchantKey: 0,
+        placeholders: 0,
+        blankBalances: 0,
+        replacementCharacters: 0,
+      },
+      commerzbank: {
+        rows: 6,
+        // No Commerzbank type has a default yet.
+        sentToReview: 6,
+        merchantGroups: 6,
+        noMerchantKey: 0,
+        placeholders: 0,
+        blankBalances: 0,
+        replacementCharacters: 0,
+      },
+    });
+  });
+
+  it("counts a row in two files once", async () => {
+    const counts = await reviewCounts(
+      [...files, { ...files[0], fileName: "Chase1111_Activity_20261101.csv" }],
+      accounts,
+    );
+
+    expect(counts["chase-bank"]?.rows).toBe(10);
+  });
+
+  it("counts a redacted row, which has no merchant to group by", async () => {
+    const counts = await reviewCounts(
+      withFile(chaseBankFileName, (text) =>
+        text.replace(
+          "ODP TRANSFER TO CHECKING  ...1111",
+          "CARD 4111 1111 1111 1111",
+        ),
+      ),
+      accounts,
+    );
+
+    expect(counts["chase-bank"]).toMatchObject({
+      sentToReview: 8,
+      merchantGroups: 6,
+      noMerchantKey: 1,
+      placeholders: 1,
+    });
+  });
+
+  it("counts a Chase bank row with a blank balance", async () => {
+    const counts = await reviewCounts(
+      withFile(chaseBankFileName, (text) => text.replace(",3355.51,", ",,")),
+      accounts,
+    );
+
+    expect(counts["chase-bank"]?.blankBalances).toBe(1);
+  });
+
+  it("counts characters a wrong encoding destroyed", async () => {
+    const replacement = String.fromCodePoint(0xfffd);
+    const counts = await reviewCounts(
+      withFile(commerzbankFileName, (text) =>
+        text.replace("Example Landlord", `Example Stra${replacement}e`),
+      ),
+      accounts,
+    );
+
+    expect(counts.commerzbank?.replacementCharacters).toBe(1);
+  });
+});
 
 describe("readStatementFiles", () => {
   it("reads every csv in the folder", () => {

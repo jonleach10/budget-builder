@@ -1,13 +1,16 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import Papa from "papaparse";
+import { merchantKey } from "@/features/categorize/pastCategories";
 import { parseMoney, sumMinor } from "@/lib/money";
+import { classifyImport, type RowDecision } from "./classifyImport";
 import { StatementError } from "./errors";
 import { sha256Hex } from "./fingerprint";
 import { parseStatement } from "./parseStatement";
-import { redactIdentifier } from "./redact";
+import { REDACTED, redactIdentifier } from "./redact";
 import type {
   Account,
+  ParsedStatement,
   StatementFormat,
   StatementSource,
   Transaction,
@@ -28,6 +31,22 @@ export type StatementCheck = {
 };
 
 export type RawAmounts = { dataRowCount: number; bookedSum: number };
+
+type FormatRow = { row: Transaction; format: StatementFormat };
+
+// What a decoder leaves where it can't read a byte.
+const REPLACEMENT_CHARACTER = String.fromCodePoint(0xfffd);
+
+/** What the first import would do, for one statement format. */
+export type ReviewCounts = {
+  rows: number;
+  sentToReview: number;
+  merchantGroups: number;
+  noMerchantKey: number;
+  placeholders: number;
+  blankBalances: number;
+  replacementCharacters: number;
+};
 
 export type ExportComparison = {
   sharedRowCount: number;
@@ -280,6 +299,83 @@ function failed(failure: StatementCheck["failure"]): StatementCheck {
     ibanShapedFieldCount: 0,
     missedFieldCount: 0,
   };
+}
+
+function isSentToReview({ type, category_id }: RowDecision): boolean {
+  return (
+    type === undefined || (type === "spending" && category_id === undefined)
+  );
+}
+
+function countReplacementCharacters(text: string): number {
+  return text.split(REPLACEMENT_CHARACTER).length - 1;
+}
+
+/** A row in two files counts once, because the import stores it once. */
+function uniqueRows(statements: readonly ParsedStatement[]): FormatRow[] {
+  const rows = statements.flatMap(({ format, transactions }) =>
+    transactions.map(
+      (row): [string, FormatRow] => [
+        JSON.stringify([row.accountId, row.fingerprint]),
+        { row, format },
+      ],
+    ),
+  );
+  return [...new Map(rows).values()];
+}
+
+/**
+ * Sizes the first import with nothing stored yet: no rules, no past categories
+ * and one category, for the fees the bank's type names. The last two counts
+ * look for damage that couldn't be undone once rows are stored: text decoded
+ * with the wrong encoding, and Chase bank rows that may still be pending.
+ */
+export async function reviewCounts(
+  files: readonly StatementSource[],
+  accounts: readonly Account[],
+): Promise<Partial<Record<StatementFormat, ReviewCounts>>> {
+  const statements = await Promise.all(
+    files.map((file) => parseStatement({ ...file, accounts, hash: sha256Hex })),
+  );
+  const rows = uniqueRows(statements);
+  const { decisions } = classifyImport({
+    transactions: rows.map(({ row }) => row),
+    storedNearby: [],
+    confirmed: [],
+    accounts,
+    rules: [],
+    categories: [{ id: "fees", name: "Fees" }],
+  });
+
+  const counts: Partial<Record<StatementFormat, ReviewCounts>> = {};
+  for (const format of new Set(statements.map((statement) => statement.format))) {
+    const inFormat = rows.filter((row) => row.format === format);
+    const merchantKeys = rows
+      .filter((row, index) => row.format === format && isSentToReview(decisions[index]))
+      .map(({ row }) => merchantKey(row));
+
+    counts[format] = {
+      rows: inFormat.length,
+      sentToReview: merchantKeys.length,
+      merchantGroups: new Set(merchantKeys.filter((key) => key !== undefined))
+        .size,
+      noMerchantKey: merchantKeys.filter((key) => key === undefined).length,
+      placeholders: inFormat.filter(({ row }) =>
+        row.description.includes(REDACTED),
+      ).length,
+      blankBalances:
+        format === "chase-bank"
+          ? inFormat.filter(({ row }) => row.balance === undefined).length
+          : 0,
+      replacementCharacters: files
+        .filter((_, index) => statements[index].format === format)
+        .reduce(
+          (total, file) => total + countReplacementCharacters(file.text),
+          0,
+        ),
+    };
+  }
+  return counts;
 }
 
 export async function checkStatement(
