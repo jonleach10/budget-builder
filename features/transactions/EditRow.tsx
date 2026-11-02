@@ -113,13 +113,13 @@ export function EditRowFields({
 
       <div className="space-y-1.5">
         <Label htmlFor={`${fieldId}-label`} className={LABEL}>
-          Your Label
+          Label
         </Label>
         <Input
           id={`${fieldId}-label`}
           className={glassField}
           maxLength={LABEL_LIMIT}
-          placeholder="Name of the payee"
+          placeholder="Corner Market"
           autoComplete="off"
           value={form.label}
           aria-describedby={`${fieldId}-label-hint`}

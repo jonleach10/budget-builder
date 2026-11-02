@@ -111,19 +111,21 @@ function use(id: string, row: TransactionLine, value: string) {
   return onChange;
 }
 
+const LABEL_FIELD = ">Label</label>";
+
 describe("the bank's fields", () => {
   it("show above the editable ones", () => {
     const html = renderFields(line());
 
     expect(html.indexOf("Bank Text")).toBeGreaterThan(-1);
-    expect(html.indexOf("Bank Text")).toBeLessThan(html.indexOf("Your Label"));
+    expect(html.indexOf("Bank Text")).toBeLessThan(html.indexOf(LABEL_FIELD));
     expect(html.indexOf("Bank Category")).toBeLessThan(
-      html.indexOf("Your Label"),
+      html.indexOf(LABEL_FIELD),
     );
   });
 
   it("are read-only", () => {
-    const [bankFields] = renderFields(line()).split("Your Label");
+    const [bankFields] = renderFields(line()).split(LABEL_FIELD);
 
     expect(bankFields).not.toMatch(/<(input|select|textarea)/);
   });
@@ -177,12 +179,12 @@ describe("the bank's fields", () => {
 });
 
 describe("the editable fields", () => {
-  it("offer Your Label, capped at 100 characters", () => {
+  it("offer Label, capped at 100 characters", () => {
     const html = renderFields(line());
 
-    expect(html).toContain(">Your Label</label>");
+    expect(html).toContain(LABEL_FIELD);
     expect(html).toContain('maxLength="100"');
-    expect(html).toContain('placeholder="Name of the payee"');
+    expect(html).toContain('placeholder="Corner Market"');
     expect(html).toContain(
       "Shows first on this row. The bank text stays under it.",
     );
