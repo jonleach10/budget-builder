@@ -78,6 +78,8 @@ describe("buildTransactionsScreen", () => {
       title: "SAMPLE GROCER",
       bankText: null,
       purpose: null,
+      bankType: null,
+      bankCategory: null,
       accountId: "acc-us",
       account: "Joint Checking",
       type: "spending",
@@ -88,8 +90,15 @@ describe("buildTransactionsScreen", () => {
       original: null,
       needsReview: false,
       paired: false,
+      pairedWith: null,
       hidden: false,
     });
+  });
+
+  it("keeps the bank's type and category, which Edit Row shows", () => {
+    expect(
+      oneLine({ bankType: "DEBIT_CARD", bankCategory: "Groceries" }),
+    ).toMatchObject({ bankType: "DEBIT_CARD", bankCategory: "Groceries" });
   });
 
   it("puts the newest rows first, and settles a tie by ID", () => {
@@ -222,6 +231,46 @@ describe("buildTransactionsScreen", () => {
         .paired,
     ).toBe(true);
     expect(oneLine({ transferPairId: null }).paired).toBe(false);
+  });
+
+  it("says which row a paired row goes with, by account and amount", () => {
+    const paired: Partial<StoredTransaction> = {
+      type: "transfer",
+      categoryId: null,
+      transferPairId: "pair-1",
+    };
+    const lines = screen([
+      row({
+        ...paired,
+        id: "out",
+        amount: { minor: -81240, currency: "USD" },
+        base: { minor: -81240, currency: "USD" },
+      }),
+      row({
+        ...paired,
+        id: "in",
+        accountId: "acc-de",
+        amount: { minor: 75000, currency: "EUR" },
+        base: { minor: 81240, currency: "USD" },
+      }),
+    ]).lines;
+
+    expect(lines.find(({ id }) => id === "out")?.pairedWith).toBe(
+      "Girokonto, $812.40",
+    );
+    expect(lines.find(({ id }) => id === "in")?.pairedWith).toBe(
+      "Joint Checking, -$812.40",
+    );
+  });
+
+  it("names no other row when it's in another month", () => {
+    const line = oneLine({
+      type: "transfer",
+      categoryId: null,
+      transferPairId: "pair-1",
+    });
+
+    expect(line).toMatchObject({ paired: true, pairedWith: null });
   });
 
   it("keeps hidden rows, so Show Hidden can bring them in", () => {

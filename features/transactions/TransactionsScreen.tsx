@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Link as ChainLink, List } from "lucide-react";
 import { PageFrame } from "@/components/page-frame";
+import { OutlineButton } from "@/components/ui/action-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,8 @@ import { MonthControl } from "@/features/budget/ScreenControls";
 import { AmountWithOriginal, EmptyPanel } from "@/features/budget/ScreenParts";
 import { TYPE_OPTIONS } from "@/features/rules/rules";
 import { cn } from "@/lib/utils";
+import { CheckField } from "./CheckField";
+import { EditRowDialog } from "./EditRow";
 import {
   clearFilters,
   NO_FILTERS,
@@ -32,28 +35,6 @@ const GHOST_PILL =
 
 function monthHref(month: string): string {
   return `/transactions?${new URLSearchParams({ month })}`;
-}
-
-function CheckFilter({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="inline-flex min-h-11 items-center gap-2 text-body-sm whitespace-nowrap text-moon-mist md:min-h-9">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="size-[18px] accent-primary outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
-      {label}
-    </label>
-  );
 }
 
 export function TransactionFiltersBar({
@@ -131,12 +112,12 @@ export function TransactionFiltersBar({
         </NativeSelect>
       )}
       <div className="flex items-center justify-between gap-3 md:contents">
-        <CheckFilter
+        <CheckField
           label="Needs Review"
           checked={filters.needsReview}
           onChange={(needsReview) => onChange({ ...filters, needsReview })}
         />
-        <CheckFilter
+        <CheckField
           label="Show Hidden"
           checked={filters.showHidden}
           onChange={(showHidden) => onChange({ ...filters, showHidden })}
@@ -189,13 +170,38 @@ function CategoryCell({ line }: { line: TransactionLine }) {
   return line.category === null ? <Muted text="-" /> : line.category;
 }
 
-function TransactionTable({ lines }: { lines: readonly TransactionLine[] }) {
+type EditRow = (id: string) => void;
+
+export function EditButton({
+  line,
+  onEdit,
+}: {
+  line: TransactionLine;
+  onEdit: EditRow;
+}) {
+  return (
+    <OutlineButton
+      aria-label={`Edit ${line.title}`}
+      className="md:h-8 md:px-3"
+      onClick={() => onEdit(line.id)}>
+      Edit
+    </OutlineButton>
+  );
+}
+
+function TransactionTable({
+  lines,
+  onEdit,
+}: {
+  lines: readonly TransactionLine[];
+  onEdit: EditRow;
+}) {
   return (
     <section
       aria-label="Transactions"
       className="hidden overflow-hidden rounded-2xl bg-card shadow-glass md:block">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] table-fixed text-body-sm">
+        <table className="w-full min-w-[860px] table-fixed text-body-sm">
           <caption className="sr-only">
             Transactions for the month, newest first
           </caption>
@@ -216,8 +222,11 @@ function TransactionTable({ lines }: { lines: readonly TransactionLine[] }) {
               <th scope="col" className="w-36 px-2 py-2.5 text-left font-medium">
                 Category
               </th>
-              <th scope="col" className="w-36 py-2.5 pr-6 pl-2 text-right font-medium">
+              <th scope="col" className="w-36 px-2 py-2.5 text-right font-medium">
                 Amount
+              </th>
+              <th scope="col" className="w-[88px] py-2.5 pr-6 pl-2 text-right font-medium">
+                Actions
               </th>
             </tr>
           </thead>
@@ -244,8 +253,11 @@ function TransactionTable({ lines }: { lines: readonly TransactionLine[] }) {
                 <td className="px-2 py-2.5 [overflow-wrap:anywhere]">
                   <CategoryCell line={line} />
                 </td>
-                <td className="py-2.5 pr-6 pl-2 text-right">
+                <td className="px-2 py-2.5 text-right">
                   <AmountWithOriginal line={line} />
+                </td>
+                <td className="py-1.5 pr-6 pl-2 text-right">
+                  <EditButton line={line} onEdit={onEdit} />
                 </td>
               </tr>
             ))}
@@ -256,7 +268,13 @@ function TransactionTable({ lines }: { lines: readonly TransactionLine[] }) {
   );
 }
 
-function TransactionCards({ lines }: { lines: readonly TransactionLine[] }) {
+function TransactionCards({
+  lines,
+  onEdit,
+}: {
+  lines: readonly TransactionLine[];
+  onEdit: EditRow;
+}) {
   return (
     <section
       aria-label="Transactions"
@@ -275,8 +293,11 @@ function TransactionCards({ lines }: { lines: readonly TransactionLine[] }) {
                 <AmountWithOriginal line={line} />
               </div>
             </div>
-            <div className="text-caption text-muted-foreground [overflow-wrap:anywhere]">
-              {`${line.date} · ${line.account}`}
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 text-caption text-muted-foreground [overflow-wrap:anywhere]">
+                {`${line.date} · ${line.account}`}
+              </div>
+              <EditButton line={line} onEdit={onEdit} />
             </div>
             <div className="flex flex-wrap gap-1.5 empty:hidden">
               {line.needsReview && <Badge>Needs Review</Badge>}
@@ -337,17 +358,19 @@ export function MonthRows({
   empty,
   filters,
   onChange,
+  onEdit,
 }: {
   lines: readonly TransactionLine[];
   empty: Exclude<EmptyState, { kind: "month" }> | null;
   filters: TransactionFilters;
   onChange: (filters: TransactionFilters) => void;
+  onEdit: EditRow;
 }) {
   if (empty === null) {
     return (
       <>
-        <TransactionTable lines={lines} />
-        <TransactionCards lines={lines} />
+        <TransactionTable lines={lines} onEdit={onEdit} />
+        <TransactionCards lines={lines} onEdit={onEdit} />
       </>
     );
   }
@@ -384,11 +407,14 @@ function ReadyTransactions({
 }) {
   // Not keyed by month, so the filters carry over from one month to the next.
   const [filters, setFilters] = useState(NO_FILTERS);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const { lines, subtitle, empty } = transactionsView(
     screen.lines,
     filters,
     month,
   );
+  // Looked up each time, so a save that partly lands shows what's now stored.
+  const editing = screen.lines.find(({ id }) => id === editingId) ?? null;
 
   return (
     <PageFrame
@@ -410,6 +436,12 @@ function ReadyTransactions({
             empty={empty}
             filters={filters}
             onChange={setFilters}
+            onEdit={setEditingId}
+          />
+          <EditRowDialog
+            line={editing}
+            categories={screen.categories}
+            onClose={() => setEditingId(null)}
           />
         </>
       )}
