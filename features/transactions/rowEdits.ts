@@ -73,9 +73,16 @@ const ONLY_PAIR_REMOVED: ActionResult = {
 /** What `clearPair` leaves on a row. */
 const IN_REVIEW = { type: null, category_id: null, transfer_pair_id: null };
 
-/** Counts whole characters, so the cap can't cut one in half. */
+const READER_CHARACTERS = new Intl.Segmenter("en", { granularity: "grapheme" });
+
+/** Counts what a reader sees as one character, so the cap can't cut one in half. */
 export function cleanLabel(text: string): string | null {
-  const capped = [...text.trim()].slice(0, LABEL_LIMIT).join("").trimEnd();
+  const characters = [...READER_CHARACTERS.segment(text.trim())];
+  const capped = characters
+    .slice(0, LABEL_LIMIT)
+    .map(({ segment }) => segment)
+    .join("")
+    .trimEnd();
   return capped === "" ? null : capped;
 }
 

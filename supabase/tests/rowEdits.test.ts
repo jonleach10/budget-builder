@@ -511,14 +511,19 @@ describe("a label", () => {
     });
   });
 
-  it("isn't cut through the middle of a character at the cap", async () => {
+  it.each([
+    ["an emoji", [0x1f6d2]],
+    ["a flag", [0x1f1e9, 0x1f1ea]],
+    ["a decomposed umlaut", [0x75, 0x308]],
+    ["a joined emoji", [0x1f469, 0x200d, 0x1f467]],
+  ])("counts %s as one character at the cap", async (_name, codePoints) => {
     await addRow(ROW);
-    const emoji = String.fromCodePoint(0x1f6d2);
+    const character = String.fromCodePoint(...codePoints);
 
-    await save(ROW, { label: `${"a".repeat(99)}${emoji}${emoji}` });
+    await save(ROW, { label: `${"a".repeat(99)}${character}${character}` });
 
     await expect(decisionsOn(ROW)).resolves.toMatchObject({
-      note: `${"a".repeat(99)}${emoji}`,
+      note: `${"a".repeat(99)}${character}`,
     });
   });
 
@@ -693,8 +698,11 @@ describe("an edit that can't be saved", () => {
     ["a blank category", { categoryId: "" }],
     ["a label that isn't text", { label: 1 }],
     ["a hidden value that isn't true or false", { hidden: "true" }],
-    ["a type and a category that disagree", { type: "income", categoryId: "c" }],
-    ["no type and a category", { type: null, categoryId: "c" }],
+    [
+      "a type and a category that disagree",
+      { type: "income", categoryId: OWNER.categoryId },
+    ],
+    ["no type and a category", { type: null, categoryId: OWNER.categoryId }],
     ["no edit at all", null],
     ["text in place of an edit", "income"],
   ])("is refused: %s", async (_name, edit) => {
