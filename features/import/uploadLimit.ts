@@ -52,5 +52,5 @@ export function uploadRefusal(sizes: readonly number[]): string | null {
   const total = totalSize(sizes);
   if (total <= MAX_UPLOAD_BYTES) return null;
 
-  return `These files total ${formatSize(total)}, and the limit is ${formatSize(MAX_UPLOAD_BYTES)}. Nothing was sent. Import fewer files at once.`;
+  return `This upload is ${formatSize(total)}, and the limit is ${formatSize(MAX_UPLOAD_BYTES)}. Nothing was sent. Import fewer files at once, or export a shorter period.`;
 }

@@ -29,7 +29,10 @@ describe("ImportScreen", () => {
   const html = renderToStaticMarkup(createElement(ImportScreen));
 
   it("starts with a drop area and nothing to import", () => {
-    expect(html).toContain("Drop CSV files here");
+    expect(html).toContain("Drop CSV Files Here");
+    expect(html).toContain(
+      "Add files for several accounts at once. All of them are imported, or none are.",
+    );
     expect(html).toContain("Choose Files");
     expect(html).toContain("0 KB of 1 MB");
     expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>Import<\/button>/);
@@ -45,7 +48,7 @@ describe("ImportScreen", () => {
   });
 
   it("hides the import form on a phone and says Import works on a laptop", () => {
-    expect(html).toContain("Import works on a laptop");
+    expect(html).toContain("Import Works on a Laptop");
     expect(html).toMatch(/class="[^"]*\bhidden md:block[^"]*"/);
     expect(html).toMatch(/class="[^"]*md:hidden[^"]*"/);
     expect(html).toContain('href="/review"');
@@ -66,8 +69,8 @@ describe("ImportFinished", () => {
   });
 
   it("names the files imported", () => {
-    expect(finished(3)).toContain("3 files imported. Nothing was overwritten.");
-    expect(finished(1)).toContain("1 file imported. Nothing was overwritten.");
+    expect(finished(3)).toContain("Imported 3 files. Nothing was overwritten.");
+    expect(finished(1)).toContain("Imported 1 file. Nothing was overwritten.");
   });
 
   it("offers the next steps", () => {

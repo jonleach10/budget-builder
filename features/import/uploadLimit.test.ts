@@ -62,13 +62,19 @@ describe("uploadRefusal", () => {
 
   it("refuses one byte over, without calling it the same size as the limit", () => {
     expect(uploadRefusal([600_000, 400_001])).toBe(
-      "These files total 1.1 MB, and the limit is 1 MB. Nothing was sent. Import fewer files at once.",
+      "This upload is 1.1 MB, and the limit is 1 MB. Nothing was sent. Import fewer files at once, or export a shorter period.",
     );
   });
 
-  it("gives the approved text for a set of 1.4 MB", () => {
+  it("gives the same text for a set of 1.4 MB", () => {
     expect(uploadRefusal([1_000_000, 400_000])).toBe(
-      "These files total 1.4 MB, and the limit is 1 MB. Nothing was sent. Import fewer files at once.",
+      "This upload is 1.4 MB, and the limit is 1 MB. Nothing was sent. Import fewer files at once, or export a shorter period.",
+    );
+  });
+
+  it("gives a fix that works when one file is over the limit", () => {
+    expect(uploadRefusal([1_400_000])).toBe(
+      "This upload is 1.4 MB, and the limit is 1 MB. Nothing was sent. Import fewer files at once, or export a shorter period.",
     );
   });
 });

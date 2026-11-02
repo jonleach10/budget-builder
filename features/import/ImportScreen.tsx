@@ -106,10 +106,11 @@ function ChooseFiles({
         }}>
         <IconTile icon={Upload} />
         <p className="text-body-sm font-medium text-ice-highlight">
-          Drop CSV files here
+          Drop CSV Files Here
         </p>
         <p className="text-caption text-muted-foreground">
-          Add several accounts at once. All of them are stored, or none are.
+          Add files for several accounts at once. All of them are imported, or
+          none are.
         </p>
         <input
           ref={input}
@@ -192,7 +193,7 @@ export function ImportFinished({
           Import Finished
         </h2>
         <p className="text-body-sm text-muted-foreground">
-          {files} imported. Nothing was overwritten.
+          Imported {files}. Nothing was overwritten.
         </p>
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-4">
@@ -220,7 +221,7 @@ function LaptopOnly() {
       <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
         <IconTile icon={Laptop} />
         <p className="text-body-sm font-medium text-ice-highlight">
-          Import works on a laptop
+          Import Works on a Laptop
         </p>
         <p className="text-caption text-muted-foreground">
           Open Budget Builder on a laptop to add CSV files. You can review rows

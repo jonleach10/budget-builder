@@ -149,7 +149,7 @@ describe("importStatements when it can't finish", () => {
     await expect(result).resolves.toEqual({
       ok: false,
       message:
-        "These files total 1.4 MB, and the limit is 1 MB. Nothing was sent. Import fewer files at once.",
+        "This upload is 1.4 MB, and the limit is 1 MB. Nothing was sent. Import fewer files at once, or export a shorter period.",
     });
     expect(text).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
