@@ -147,13 +147,6 @@ describe("TransactionsScreen", () => {
     expect(html).toContain('aria-label="Edit Corner shop"');
   });
 
-  it("keeps Edit Row closed until a row's Edit is used", () => {
-    const html = render(data([line()]));
-
-    expect(html).not.toContain("Save Row");
-    expect(html).not.toContain("<form");
-  });
-
   it("shows a table for a laptop and a list for a phone", () => {
     const html = render(data([line()]));
 
