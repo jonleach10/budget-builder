@@ -33,9 +33,11 @@ function stored(
   fingerprint: string,
   overrides: Partial<StoredTransaction> = {},
 ): StoredTransaction {
+  const bankRow = row(fingerprint);
   return {
-    ...row(fingerprint),
+    ...bankRow,
     id: `id-${fingerprint}`,
+    base: bankRow.amount,
     type: null,
     categoryId: null,
     categorySource: null,

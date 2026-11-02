@@ -332,14 +332,16 @@ function NoResults({
   );
 }
 
-function MonthRows({
+export function MonthRows({
   lines,
   empty,
-  onClear,
+  filters,
+  onChange,
 }: {
   lines: readonly TransactionLine[];
   empty: Exclude<EmptyState, { kind: "month" }> | null;
-  onClear: () => void;
+  filters: TransactionFilters;
+  onChange: (filters: TransactionFilters) => void;
 }) {
   if (empty === null) {
     return (
@@ -358,7 +360,7 @@ function MonthRows({
         type="button"
         variant="ghost"
         className={GHOST_PILL}
-        onClick={onClear}>
+        onClick={() => onChange(clearFilters(filters))}>
         Clear Filters
       </Button>
     </NoResults>
@@ -406,7 +408,8 @@ function ReadyTransactions({
           <MonthRows
             lines={lines}
             empty={empty}
-            onClear={() => setFilters(clearFilters(filters))}
+            filters={filters}
+            onChange={setFilters}
           />
         </>
       )}

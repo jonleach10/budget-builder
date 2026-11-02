@@ -21,8 +21,9 @@ export type TransactionLine = {
   typeLabel: string | null;
   categoryId: string | null;
   category: string | null;
+  /** The USD amount, which for a foreign row is the base amount from import. */
   amount: string;
-  /** The amount in the currency the bank says it was paid in, when different. */
+  /** The one amount under it: a foreign row's own, or a bank-recorded original. */
   original: string | null;
   needsReview: boolean;
   paired: boolean;
@@ -56,6 +57,25 @@ function byNewest(a: StoredTransaction, b: StoredTransaction): number {
   return b.postedOn.localeCompare(a.postedOn) || a.id.localeCompare(b.id);
 }
 
+/**
+ * Only one amount goes under the first. A foreign row shows what its account
+ * holds, as Budget's Combined view does, so a bank-recorded original on that row
+ * stays out of the list.
+ */
+function amountsOf({
+  amount,
+  base,
+  original,
+}: StoredTransaction): Pick<TransactionLine, "amount" | "original"> {
+  if (amount.currency !== base.currency) {
+    return { amount: formatMoney(base), original: formatMoney(amount) };
+  }
+  return {
+    amount: formatMoney(amount),
+    original: original ? formatMoney(original.amount) : null,
+  };
+}
+
 export function buildTransactionsScreen({
   rows,
   accounts,
@@ -84,8 +104,7 @@ export function buildTransactionsScreen({
       typeLabel: row.type === null ? null : (TYPE_LABELS.get(row.type) ?? null),
       categoryId: row.categoryId,
       category,
-      amount: formatMoney(row.amount),
-      original: row.original ? formatMoney(row.original.amount) : null,
+      ...amountsOf(row),
       needsReview: needsReview({
         hidden: row.hidden,
         type: row.type,

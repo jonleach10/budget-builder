@@ -33,6 +33,8 @@ function storedRow(id: string, posted_on = "2026-10-05"): StoredTransactionRow {
     ordering_party_id: null,
     transfer_number: null,
     balance_minor: null,
+    base_amount_minor: -1199,
+    base_currency: "USD",
     type: "spending",
     category_id: "cat-groceries",
     category_source: "manual",

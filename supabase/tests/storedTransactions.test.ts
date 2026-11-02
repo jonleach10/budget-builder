@@ -30,6 +30,29 @@ const EVERY_FIELD: Transaction = {
   balance: { minor: 120000, currency: "USD" },
 };
 
+/** A row on a euro account, so its base amount differs from its own. */
+const EURO_ROW: Transaction = {
+  accountId: OWNER.accountId,
+  fingerprint: "round-trip-euro",
+  postedOn: "2026-10-05",
+  amount: { minor: -1200, currency: "EUR" },
+  description: "SYNTHETIC BAKERY",
+};
+
+/** Every weekday a row posted on 2026-10-05 needs, so nothing is fetched. */
+const SAVED_RATES = Object.fromEntries(
+  [
+    "2026-09-24",
+    "2026-09-25",
+    "2026-09-28",
+    "2026-09-29",
+    "2026-09-30",
+    "2026-10-01",
+    "2026-10-02",
+    "2026-10-05",
+  ].map((date) => [date, "1.095"]),
+);
+
 let db: PGlite;
 
 beforeAll(async () => {
@@ -46,7 +69,7 @@ async function importAndRead(row: Transaction) {
         ignoredPendingCount: 0,
       },
     ],
-    readSavedRates: async () => ({}),
+    readSavedRates: async () => SAVED_RATES,
     fetch: globalThis.fetch,
     today: "2026-10-31",
   });
@@ -70,6 +93,19 @@ describe("a stored row read back", () => {
     const [stored] = await importAndRead(EVERY_FIELD);
 
     expect(stored).toMatchObject(EVERY_FIELD);
+  });
+
+  it("keeps the base amount import locked", async () => {
+    const [stored] = await importAndRead(EVERY_FIELD);
+
+    expect(stored.base).toEqual({ minor: -5420, currency: "USD" });
+  });
+
+  it("keeps a euro row's base amount in USD, apart from its own amount", async () => {
+    const [stored] = await importAndRead(EURO_ROW);
+
+    expect(stored.amount).toEqual({ minor: -1200, currency: "EUR" });
+    expect(stored.base).toEqual({ minor: -1314, currency: "USD" });
   });
 
   it("arrives with nothing decided about it yet", async () => {

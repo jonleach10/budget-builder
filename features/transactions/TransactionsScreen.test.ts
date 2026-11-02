@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { NO_FILTERS, type TransactionFilters } from "./filterTransactions";
 import {
+  MonthRows,
   TransactionFiltersBar,
   TransactionsScreen,
 } from "./TransactionsScreen";
@@ -74,7 +75,19 @@ type ControlElement = ReactElement<{
   "aria-label"?: string;
   children?: ReactNode;
   onChange: (event: { target: { value: string } }) => void;
+  onClick: () => void;
 }>;
+
+/** Finds a button by its text, the same way. */
+function buttonsNamed(node: ReactNode, name: string): ControlElement[] {
+  return Children.toArray(node).flatMap((child) => {
+    if (!isValidElement(child)) return [];
+    const element = child as ControlElement;
+    return element.props.children === name
+      ? [element]
+      : buttonsNamed(element.props.children, name);
+  });
+}
 
 /** Finds a control by name, so a test can use it with no browser. */
 function controlsNamed(node: ReactNode, name: string): ControlElement[] {
@@ -143,10 +156,14 @@ describe("TransactionsScreen", () => {
     expect(render(data([line()]))).toContain("CORNER MARKET");
   });
 
-  it("shows the other amount under the row's amount", () => {
-    const html = render(data([line({ original: "-€12.00" })]));
+  it("shows the USD amount first, with the other amount muted under it", () => {
+    const html = render(
+      data([line({ amount: "-$13.14", original: "-€12.00" })]),
+    );
 
-    expect(html).toContain("-€12.00");
+    expect(html).toMatch(
+      /-\$13\.14<\/div><div class="[^"]*text-muted-foreground[^"]*">-€12\.00</,
+    );
   });
 
   it("shows Needs Review for a row with no type", () => {
@@ -256,6 +273,31 @@ describe("TransactionsScreen", () => {
       "This month can&#x27;t be loaded. Reload the page to try again.",
     );
     expect(html).toContain("October 2026");
+  });
+});
+
+describe("MonthRows", () => {
+  it("clears the filters when Clear Filters is used, keeping Show Hidden", () => {
+    const onChange = vi.fn();
+    const rows = MonthRows({
+      lines: [],
+      empty: { kind: "filters", title: "No rows match these filters" },
+      filters: {
+        ...NO_FILTERS,
+        search: "cafe",
+        accountId: "acc-card",
+        type: "spending",
+        categoryId: "cat-dining",
+        needsReview: true,
+        showHidden: true,
+      },
+      onChange,
+    });
+
+    const [clear] = buttonsNamed(rows, "Clear Filters");
+    clear.props.onClick();
+
+    expect(onChange).toHaveBeenCalledWith({ ...NO_FILTERS, showHidden: true });
   });
 });
 

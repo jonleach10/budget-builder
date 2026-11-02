@@ -33,6 +33,7 @@ function row(extra: Partial<StoredTransaction> = {}): StoredTransaction {
     fingerprint: "fingerprint-1",
     postedOn: "2026-10-03",
     amount: { minor: -4000, currency: "USD" },
+    base: { minor: -4000, currency: "USD" },
     description: "SAMPLE GROCER",
     type: "spending",
     categoryId: "cat-groceries",
@@ -119,22 +120,43 @@ describe("buildTransactionsScreen", () => {
     expect(oneLine({ purpose: "Card payment" }).purpose).toBe("Card payment");
   });
 
-  it("shows the amount in the row's own currency", () => {
-    const line = oneLine({
-      accountId: "acc-de",
-      amount: { minor: -1200, currency: "EUR" },
-    });
+  it("shows a USD row's amount with nothing under it", () => {
+    const line = oneLine();
 
-    expect(line.amount).toBe("-€12.00");
+    expect(line.amount).toBe("-$40.00");
     expect(line.original).toBeNull();
   });
 
-  it("shows the amount the bank says it was paid in under the amount", () => {
+  it("shows a EUR row's USD amount first, with the bank's amount under it", () => {
+    const line = oneLine({
+      accountId: "acc-de",
+      amount: { minor: -1200, currency: "EUR" },
+      base: { minor: -1314, currency: "USD" },
+    });
+
+    expect(line.amount).toBe("-$13.14");
+    expect(line.original).toBe("-€12.00");
+  });
+
+  it("keeps a USD row's bank-recorded original under its amount", () => {
     const line = oneLine({
       original: { amount: { minor: -1200, currency: "EUR" }, rate: "1.08" },
     });
 
+    expect(line.amount).toBe("-$40.00");
     expect(line.original).toBe("-€12.00");
+  });
+
+  it("shows a EUR row's own amount, not its bank-recorded original, under the USD amount", () => {
+    const line = oneLine({
+      accountId: "acc-de",
+      amount: { minor: -9200, currency: "EUR" },
+      base: { minor: -9940, currency: "USD" },
+      original: { amount: { minor: -10000, currency: "USD" }, rate: "1.087" },
+    });
+
+    expect(line.amount).toBe("-$99.40");
+    expect(line.original).toBe("-€92.00");
   });
 
   it("gives a row with no type no type label", () => {
@@ -205,8 +227,8 @@ describe("buildTransactionsScreen", () => {
       amount_minor: line.amount.minor,
       currency: line.amount.currency,
       description: line.description,
-      base_amount_minor: line.amount.minor,
-      base_currency: line.amount.currency,
+      base_amount_minor: line.base.minor,
+      base_currency: line.base.currency,
       type: line.type,
       category_id: line.categoryId,
       hidden: line.hidden,
