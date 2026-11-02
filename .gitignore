@@ -44,6 +44,12 @@ yarn-error.log*
 # supabase link writes the project ID here
 supabase/.temp
 
+# local sandbox: the fake owner's TOTP secret, its session and test output
+sandbox/.owner-totp
+sandbox/.session.json
+sandbox/.results
+sandbox/.shots
+
 # typescript
 Budget Builder.code-workspace
 .vscode/settings.json
