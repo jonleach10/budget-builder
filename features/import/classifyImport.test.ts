@@ -175,7 +175,7 @@ describe("classifyImport with past categories", () => {
 
   it("makes a confirmed merchant's row spending when the bank gives no type", () => {
     const { decisions } = classify({
-      transactions: [row("a", { bankType: "Direct debit" })],
+      transactions: [row("a", { bankType: "Transfer" })],
       confirmed: [manual("old", GROCERIES.id)],
     });
 
@@ -190,7 +190,7 @@ describe("classifyImport with past categories", () => {
 
   it("sends a confirmed merchant's row to review when it may be a transfer", () => {
     const { decisions } = classify({
-      transactions: [row("a", { bankType: "Direct debit" })],
+      transactions: [row("a", { bankType: "Transfer" })],
       storedNearby: [
         stored("b", {
           accountId: "savings-1",
@@ -216,7 +216,7 @@ describe("classifyImport with past categories", () => {
 
   it("gives a mixed merchant's row no type when the bank gives none", () => {
     const { decisions } = classify({
-      transactions: [row("a", { bankType: "Direct debit" })],
+      transactions: [row("a", { bankType: "Transfer" })],
       confirmed: [manual("one", GROCERIES.id), manual("two", FEES.id)],
     });
 

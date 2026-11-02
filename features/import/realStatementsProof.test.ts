@@ -65,7 +65,8 @@ describe("reviewCounts", () => {
       },
       commerzbank: {
         rows: 6,
-        // No Commerzbank type has a default yet.
+        // Debit rows default to spending, but with no history they have no
+        // category. The other types give no type. So every row goes to review.
         sentToReview: 6,
         merchantGroups: 6,
         noMerchantKey: 0,
