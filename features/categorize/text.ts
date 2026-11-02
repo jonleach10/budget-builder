@@ -10,7 +10,8 @@ export function ignoreCase(text: string): string {
  * For comparing typed text with a row, in a text rule or a Transactions search.
  * Merchant keys don't read this: they use `ignoreCase`, so two descriptions that
  * differ by spaces stay two merchants. Collapses what `redactText` collapses, so
- * text copied from a bank file matches the row cleaned from that text.
+ * spacing in text copied from a bank file doesn't stop it matching. Pasted text
+ * can still miss its row for other reasons, such as a redacted IBAN.
  */
 export function forTextMatch(text: string): string {
   return ignoreCase(text).replace(/\s+/g, " ");
