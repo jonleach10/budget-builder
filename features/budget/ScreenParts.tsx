@@ -61,6 +61,23 @@ export function RemainingAmount({
   );
 }
 
+export function AmountWithOriginal({
+  line,
+}: {
+  line: { amount: string; original: string | null };
+}) {
+  return (
+    <>
+      <div className="tabular-nums">{line.amount}</div>
+      {line.original !== null && (
+        <div className="text-caption text-muted-foreground tabular-nums">
+          {line.original}
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Glass with the faint grid, which is only for screens with no figures. */
 export function EmptyPanel({
   title,

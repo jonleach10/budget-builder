@@ -40,11 +40,13 @@ async function readList<Row>(query: PromiseLike<ListReply>): Promise<Row[]> {
   return data as Row[];
 }
 
-function readAccounts(client: SupabaseClient): Promise<AccountRow[]> {
+export function readAccounts(client: SupabaseClient): Promise<AccountRow[]> {
   return readList(client.from("accounts").select("id, name, country"));
 }
 
-async function readCategories(client: SupabaseClient): Promise<CategoryRow[]> {
+export async function readCategories(
+  client: SupabaseClient,
+): Promise<CategoryRow[]> {
   return inPositionOrder(
     await readList<CategoryRow>(
       client.from("categories").select("id, name, position"),
@@ -118,7 +120,9 @@ async function hasAnyTransaction(client: SupabaseClient): Promise<boolean> {
  * Gives null if the screen can't be built, so it never claims there's nothing
  * to show. These errors carry fixed messages and no row data.
  */
-async function orNull<Screen>(load: () => Promise<Screen>): Promise<Screen | null> {
+export async function orNull<Screen>(
+  load: () => Promise<Screen>,
+): Promise<Screen | null> {
   try {
     return await load();
   } catch (error) {
