@@ -173,6 +173,45 @@ describe("classifyImport with past categories", () => {
     ]);
   });
 
+  it("makes a confirmed merchant's row spending when the bank gives no type", () => {
+    const { decisions } = classify({
+      transactions: [row("a", { bankType: "Direct debit" })],
+      confirmed: [manual("old", GROCERIES.id)],
+    });
+
+    expect(decisions).toEqual([
+      {
+        type: "spending",
+        category_id: GROCERIES.id,
+        category_source: "history",
+      },
+    ]);
+  });
+
+  it("sends a confirmed merchant's row to review when it may be a transfer", () => {
+    const { decisions } = classify({
+      transactions: [row("a", { bankType: "Direct debit" })],
+      storedNearby: [
+        stored("b", {
+          accountId: "savings-1",
+          amount: { minor: 2500, currency: "USD" },
+        }),
+      ],
+      confirmed: [manual("old", GROCERIES.id)],
+    });
+
+    expect(decisions).toEqual([{}]);
+  });
+
+  it("gives a mixed merchant's row no type when the bank gives none", () => {
+    const { decisions } = classify({
+      transactions: [row("a", { bankType: "Direct debit" })],
+      confirmed: [manual("one", GROCERIES.id), manual("two", FEES.id)],
+    });
+
+    expect(decisions).toEqual([{}]);
+  });
+
   it("learns nothing from a stored row the owner didn't confirm", () => {
     const { decisions } = classify({
       transactions: [row("a", { bankType: "DEBIT_CARD" })],

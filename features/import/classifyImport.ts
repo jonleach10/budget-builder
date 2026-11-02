@@ -1,4 +1,8 @@
-import { bankCategoryMap, bankTypeMap } from "@/features/categorize/bankMaps";
+import {
+  bankCategoryMap,
+  bankTypeMap,
+  lookUp,
+} from "@/features/categorize/bankMaps";
 import {
   categorize,
   type CategoryContext,
@@ -12,6 +16,7 @@ import {
   type RowId,
 } from "@/features/categorize/pairTransfers";
 import {
+  merchantKey,
   mixedMerchants,
   pastCategories,
   type CategorizedRow,
@@ -148,8 +153,11 @@ export function storedRowWindow(
 
 /**
  * Decides what's stored with each row, doing no reading or writing. The type
- * comes from rules, then pairing, then the bank, and the category from the
- * `categorize` chain. Anything left undecided reaches review.
+ * comes from rules, then pairing, then the bank, then a past category, and the
+ * category from the `categorize` chain. Anything left undecided reaches review.
+ *
+ * Only a spending row can hold a category, so a merchant with a confirmed
+ * category is spending even when the bank's type says nothing.
  *
  * A pair is only sent if it holds a new row, so an import never changes rows
  * it didn't bring, and importing a file again changes nothing.
@@ -175,19 +183,24 @@ export function classifyImport({
   );
   const transfers = transferKeys(pairing);
   const uncertain = keysOf(pairing.uncertain.flatMap(({ rows }) => rows));
+  const history = confirmed.map(withCategoryName(categories));
+  const pastCategoryByMerchant = pastCategories(history);
 
   function typeOf(row: Transaction): TransactionType | undefined {
     const ruleType = ruleTypeOf(row);
     if (ruleType !== undefined) return ruleType;
     if (transfers.has(keyOf(row))) return "transfer";
-    return uncertain.has(keyOf(row)) ? undefined : defaultType(row);
+    if (uncertain.has(keyOf(row))) return undefined;
+
+    const hasPastCategory =
+      lookUp(pastCategoryByMerchant, merchantKey(row)) !== undefined;
+    return defaultType(row) ?? (hasPastCategory ? "spending" : undefined);
   }
 
   const idsByName = new Map(categories.map(({ id, name }) => [name, id]));
-  const history = confirmed.map(withCategoryName(categories));
   const context: CategoryContext = {
     categoryRules: toCategoryRules(rules, categories),
-    pastCategories: pastCategories(history),
+    pastCategories: pastCategoryByMerchant,
     mixedMerchants: mixedMerchants(history),
     bankTypeMap,
     bankCategoryMap,

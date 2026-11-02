@@ -70,6 +70,35 @@ function storedRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/**
+ * One numbered transfer on 2026-10-07, and its other side stored in savings.
+ * Number pairing has no date limit, so only the stored-row window can stop it.
+ */
+function numberedTransfer(storedOn: string) {
+  const [header] = loadFixture(chaseBankFileName).split("\n");
+  const transfer = `DEBIT,10/07/2026,"Online Transfer to  SAV ...4444 transaction#: 12345678901",-100.00,ACCT_XFER,900.00,,`;
+
+  return run([csv(chaseBankFileName, `${header}\n${transfer}\n`)], {
+    accounts: [
+      ...ACCOUNT_ROWS,
+      {
+        id: "savings-1",
+        last_four: "4444",
+        format: "chase-bank",
+        currency: "USD",
+      },
+    ],
+    transactions: [
+      storedRow({
+        account_id: "savings-1",
+        posted_on: storedOn,
+        amount_minor: 10000,
+        transfer_number: "12345678901",
+      }),
+    ],
+  });
+}
+
 function run(
   files: readonly StatementFile[],
   data: FakeImportData = {},
@@ -188,10 +217,15 @@ describe("importStatements", () => {
     ]);
   });
 
-  it("doesn't pair with a stored row far from the upload's dates", async () => {
-    const { result, rpc } = run([csv(chaseCardFileName)], {
-      transactions: [storedRow({ posted_on: "2026-08-01" })],
-    });
+  it("pairs with a stored row 7 days past the upload's dates", async () => {
+    const { result, rpc } = numberedTransfer("2026-10-14");
+    await result;
+
+    expect(sentTo(rpc).p_pairs).toHaveLength(1);
+  });
+
+  it("doesn't pair with a stored row 8 days past the upload's dates", async () => {
+    const { result, rpc } = numberedTransfer("2026-10-15");
     await result;
 
     expect(sentTo(rpc).p_pairs).toEqual([]);
@@ -215,6 +249,35 @@ describe("importStatements", () => {
 
     const [row] = sentTo(rpc).p_rows as Record<string, unknown>[];
     expect(row).toMatchObject({
+      category_id: "category-1",
+      category_source: "history",
+    });
+  });
+
+  it("gives a confirmed merchant's category to a row the bank gives no type", async () => {
+    const orderingPartyId = "DE00ZZZ00001234567";
+    const { result, rpc } = run([csv(commerzbankFileName)], {
+      categories: [{ id: "category-1", name: "Insurance" }],
+      transactions: [
+        storedRow({
+          account_id: "euro-1",
+          posted_on: "2024-01-01",
+          amount_minor: -4250,
+          currency: "EUR",
+          ordering_party_id: orderingPartyId,
+          type: "spending",
+          category_id: "category-1",
+          category_source: "manual",
+        }),
+      ],
+    });
+    await result;
+
+    const rows = sentTo(rpc).p_rows as Record<string, unknown>[];
+    expect(
+      rows.find((row) => row.ordering_party_id === orderingPartyId),
+    ).toMatchObject({
+      type: "spending",
       category_id: "category-1",
       category_source: "history",
     });
