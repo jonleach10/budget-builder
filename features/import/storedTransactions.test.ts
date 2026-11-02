@@ -113,7 +113,7 @@ describe("readStoredTransactions", () => {
       amount_minor: -5420,
       currency: "USD",
       purpose: "SYNTHETIC PURPOSE",
-      original_amount_minor: -5000,
+      original_amount_minor: 5000,
       original_currency: "EUR",
       original_rate: "1.084",
       bank_type: "DEBIT_CARD",
@@ -146,7 +146,7 @@ describe("readStoredTransactions", () => {
         description: "SYNTHETIC SHOP",
         purpose: "SYNTHETIC PURPOSE",
         original: {
-          amount: { minor: -5000, currency: "EUR" },
+          amount: { minor: 5000, currency: "EUR" },
           rate: "1.084",
         },
         bankType: "DEBIT_CARD",
@@ -206,12 +206,12 @@ describe("readStoredTransactions", () => {
   it("keeps an original amount that has no rate", async () => {
     const [transaction] = await readStoredTransactions(
       fakeClient([
-        storedRow({ original_amount_minor: -5000, original_currency: "EUR" }),
+        storedRow({ original_amount_minor: 5000, original_currency: "EUR" }),
       ]),
     );
 
     expect(transaction.original).toEqual({
-      amount: { minor: -5000, currency: "EUR" },
+      amount: { minor: 5000, currency: "EUR" },
     });
   });
 

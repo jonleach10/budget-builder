@@ -21,7 +21,7 @@ const EVERY_FIELD: Transaction = {
   amount: { minor: -5420, currency: "USD" },
   description: "SYNTHETIC  SHOP",
   purpose: "SYNTHETIC PURPOSE",
-  original: { amount: { minor: -5000, currency: "EUR" }, rate: "1.084" },
+  original: { amount: { minor: 5000, currency: "EUR" }, rate: "1.084" },
   bankType: "DEBIT_CARD",
   bankCategory: "Shopping",
   ppdId: "PPD0001",
