@@ -1,0 +1,59 @@
+# The local sandbox only. Nothing here reaches the hosted project: scripts use
+# `--workdir sandbox`, and this folder is never linked. Everything the app
+# doesn't use is off, to save memory and image downloads.
+project_id = "budget-builder-sandbox"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+# Same limit as hosted, so reading past 1,000 rows gets exercised for real.
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+# Has to match the hosted project's major version.
+major_version = 17
+
+[db.seed]
+# Rows go in through the real import, not SQL.
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3100"
+additional_redirect_urls = ["http://127.0.0.1:3100"]
+# One user, as on hosted. The sandbox makes its fake owner with the admin API.
+enable_signup = false
+enable_anonymous_sign_ins = false
+
+[auth.email]
+# Despite the name, this turns the email provider on, and passwords need it.
+# `auth.enable_signup` above is what closes signups.
+enable_signup = true
+enable_confirmations = false
+
+# Off by default locally. The fake owner signs in through the real MFA pages.
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = false
+
+[local_smtp]
+enabled = false
+
+[storage]
+enabled = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false
