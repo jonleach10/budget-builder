@@ -29,8 +29,8 @@ export type TransactionLine = {
   original: string | null;
   needsReview: boolean;
   paired: boolean;
-  /** The other row's account and amount, if it's in the same month. */
-  pairedWith: string | null;
+  /** The other row, if it's in the same month. */
+  pairedWith: { account: string; amount: string } | null;
   hidden: boolean;
 };
 
@@ -100,7 +100,7 @@ export function buildTransactionsScreen({
     return account;
   }
 
-  function pairedWith(row: StoredTransaction): string | null {
+  function pairedWith(row: StoredTransaction): TransactionLine["pairedWith"] {
     if (row.transferPairId === null) return null;
 
     const other = rows.find(
@@ -109,7 +109,7 @@ export function buildTransactionsScreen({
     );
     return other === undefined
       ? null
-      : `${accountOf(other).name}, ${amountsOf(other).amount}`;
+      : { account: accountOf(other).name, amount: amountsOf(other).amount };
   }
 
   function toLine(row: StoredTransaction): TransactionLine {

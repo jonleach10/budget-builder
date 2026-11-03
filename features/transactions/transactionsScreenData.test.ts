@@ -255,12 +255,14 @@ describe("buildTransactionsScreen", () => {
       }),
     ]).lines;
 
-    expect(lines.find(({ id }) => id === "out")?.pairedWith).toBe(
-      "Girokonto, $812.40",
-    );
-    expect(lines.find(({ id }) => id === "in")?.pairedWith).toBe(
-      "Joint Checking, -$812.40",
-    );
+    expect(lines.find(({ id }) => id === "out")?.pairedWith).toEqual({
+      account: "Girokonto",
+      amount: "$812.40",
+    });
+    expect(lines.find(({ id }) => id === "in")?.pairedWith).toEqual({
+      account: "Joint Checking",
+      amount: "-$812.40",
+    });
   });
 
   it("names no other row when it's in another month", () => {

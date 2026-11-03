@@ -43,14 +43,30 @@ export function editFrom(line: TransactionLine, form: RowForm): RowEdit {
   };
 }
 
+/** Split at the amount, so a line can't break between its sign and its digits. */
+export type PairWarningText = {
+  before: string;
+  amount: string | null;
+  after: string;
+};
+
 /** Shown before saving. The write path decides the same thing again. */
 export function pairWarning(
   line: TransactionLine,
   form: RowForm,
-): string | null {
+): PairWarningText | null {
   if (!line.paired || form.type === rowForm(line).type) return null;
 
   return line.pairedWith === null
-    ? "Changing the type removes this row's pair. The other row goes back to review."
-    : `Changing the type removes this row's pair with ${line.pairedWith}. That row goes back to review.`;
+    ? {
+        before:
+          "Changing the type removes this row's pair. The other row goes back to review.",
+        amount: null,
+        after: "",
+      }
+    : {
+        before: `Changing the type removes this row's pair with ${line.pairedWith.account}, `,
+        amount: line.pairedWith.amount,
+        after: ". That row goes back to review.",
+      };
 }

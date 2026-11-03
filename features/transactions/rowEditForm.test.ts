@@ -39,7 +39,7 @@ const PAIRED = line({
   categoryId: null,
   category: null,
   paired: true,
-  pairedWith: "US Checking, -$812.40",
+  pairedWith: { account: "US Checking", amount: "-$812.40" },
 });
 
 function edited(row: TransactionLine, changes: Partial<RowForm>) {
@@ -158,9 +158,11 @@ describe("pairWarning", () => {
   it("names the other row when the type changes", () => {
     expect(
       pairWarning(PAIRED, withFormType(rowForm(PAIRED), "income")),
-    ).toBe(
-      "Changing the type removes this row's pair with US Checking, -$812.40. That row goes back to review.",
-    );
+    ).toEqual({
+      before: "Changing the type removes this row's pair with US Checking, ",
+      amount: "-$812.40",
+      after: ". That row goes back to review.",
+    });
   });
 
   it("warns about No Type too", () => {
@@ -174,9 +176,12 @@ describe("pairWarning", () => {
 
     expect(
       pairWarning(acrossMonths, withFormType(rowForm(acrossMonths), "income")),
-    ).toBe(
-      "Changing the type removes this row's pair. The other row goes back to review.",
-    );
+    ).toEqual({
+      before:
+        "Changing the type removes this row's pair. The other row goes back to review.",
+      amount: null,
+      after: "",
+    });
   });
 
   it("says nothing on a row with no pair", () => {

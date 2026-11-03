@@ -24,6 +24,7 @@ import {
   pairWarning,
   rowForm,
   withFormType,
+  type PairWarningText,
   type RowForm,
 } from "./rowEditForm";
 import { LABEL_LIMIT } from "./rowEdits";
@@ -77,7 +78,7 @@ function BankFacts({ line }: { line: TransactionLine }) {
 }
 
 /** Always rendered, so a screen reader announces the warning when it appears. */
-function PairWarning({ text }: { text: string | null }) {
+function PairWarning({ text }: { text: PairWarningText | null }) {
   return (
     <div role="status" className="empty:absolute">
       {text !== null && (
@@ -87,7 +88,13 @@ function PairWarning({ text }: { text: string | null }) {
             strokeWidth={1.5}
             aria-hidden="true"
           />
-          <span>{text}</span>
+          <span>
+            {text.before}
+            {text.amount !== null && (
+              <span className="whitespace-nowrap">{text.amount}</span>
+            )}
+            {text.after}
+          </span>
         </p>
       )}
     </div>

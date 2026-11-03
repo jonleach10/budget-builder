@@ -141,6 +141,10 @@ test("a paired row warns first, then breaks the pair on both rows", async ({ pag
 
   await dialog.getByLabel("Type").selectOption({ label: "Spending" });
   await expect(warning).toBeVisible();
+  await expect(dialog.getByRole("status").getByText(/^-\$/)).toHaveCSS(
+    "white-space",
+    "nowrap",
+  );
   await picture(page, "edit-row-pair-warning-laptop");
   await dialog.getByLabel("Type").selectOption({ label: "Transfer" });
   await expect(warning).toBeHidden();

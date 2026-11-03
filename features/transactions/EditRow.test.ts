@@ -53,7 +53,7 @@ const PAIRED = line({
   categoryId: null,
   category: null,
   paired: true,
-  pairedWith: "US Checking, -$812.40",
+  pairedWith: { account: "US Checking", amount: "-$812.40" },
 });
 
 function fieldsProps(row: TransactionLine, form: RowForm = rowForm(row)) {
@@ -292,7 +292,20 @@ describe("a paired row", () => {
     });
 
     expect(html).toContain(
-      "Changing the type removes this row&#x27;s pair with US Checking, -$812.40. That row goes back to review.",
+      'Changing the type removes this row&#x27;s pair with US Checking, <span class="whitespace-nowrap">-$812.40</span>. That row goes back to review.',
+    );
+  });
+
+  it("warns with no amount when the other row is in another month", () => {
+    const acrossMonths = { ...PAIRED, pairedWith: null };
+
+    const html = renderFields(acrossMonths, {
+      ...rowForm(acrossMonths),
+      type: "income",
+    });
+
+    expect(html).toContain(
+      "<span>Changing the type removes this row&#x27;s pair. The other row goes back to review.</span>",
     );
   });
 });
