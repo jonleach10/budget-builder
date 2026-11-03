@@ -15,6 +15,8 @@ export type TransactionLine = {
   /** The bank text, when a label took its place as the title. */
   bankText: string | null;
   purpose: string | null;
+  bankType: string | null;
+  bankCategory: string | null;
   accountId: string;
   account: string;
   type: TransactionType | null;
@@ -27,6 +29,8 @@ export type TransactionLine = {
   original: string | null;
   needsReview: boolean;
   paired: boolean;
+  /** The other row, if it's in the same month. */
+  pairedWith: { account: string; amount: string } | null;
   hidden: boolean;
 };
 
@@ -90,10 +94,25 @@ export function buildTransactionsScreen({
   const accountsById = new Map(accounts.map((row) => [row.id, row]));
   const namesById = new Map(categories.map((row) => [row.id, row.name]));
 
-  function toLine(row: StoredTransaction): TransactionLine {
-    const account = accountsById.get(row.accountId);
+  function accountOf({ accountId }: StoredTransaction): AccountRow {
+    const account = accountsById.get(accountId);
     if (account === undefined) throw new BudgetError("unknown-account");
+    return account;
+  }
 
+  function pairedWith(row: StoredTransaction): TransactionLine["pairedWith"] {
+    if (row.transferPairId === null) return null;
+
+    const other = rows.find(
+      ({ id, transferPairId }) =>
+        transferPairId === row.transferPairId && id !== row.id,
+    );
+    return other === undefined
+      ? null
+      : { account: accountOf(other).name, amount: amountsOf(other).amount };
+  }
+
+  function toLine(row: StoredTransaction): TransactionLine {
     const label = row.note?.trim() || null;
     const category =
       row.categoryId === null ? null : (namesById.get(row.categoryId) ?? null);
@@ -104,8 +123,10 @@ export function buildTransactionsScreen({
       title: label ?? row.description,
       bankText: label === null ? null : row.description,
       purpose: row.purpose ?? null,
+      bankType: row.bankType ?? null,
+      bankCategory: row.bankCategory ?? null,
       accountId: row.accountId,
-      account: account.name,
+      account: accountOf(row).name,
       type: row.type,
       typeLabel: row.type === null ? null : (TYPE_LABELS.get(row.type) ?? null),
       categoryId: row.categoryId,
@@ -117,6 +138,7 @@ export function buildTransactionsScreen({
         category,
       }),
       paired: row.transferPairId !== null,
+      pairedWith: pairedWith(row),
       hidden: row.hidden,
     };
   }

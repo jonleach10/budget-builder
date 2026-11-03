@@ -280,7 +280,7 @@ describe("prepareImport", () => {
             purchasedOn: "2026-10-04",
             purpose: "SYNTHETIC MEMO",
             original: {
-              amount: { minor: -1100, currency: "EUR" },
+              amount: { minor: 1100, currency: "EUR" },
               rate: "1.13",
             },
             bankType: "DEBIT_CARD",
@@ -304,7 +304,7 @@ describe("prepareImport", () => {
         currency: "USD",
         description: "SYNTHETIC SHOP",
         purpose: "SYNTHETIC MEMO",
-        original_amount_minor: -1100,
+        original_amount_minor: 1100,
         original_currency: "EUR",
         original_rate: "1.13",
         bank_type: "DEBIT_CARD",

@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { NO_FILTERS, type TransactionFilters } from "./filterTransactions";
 import {
+  EditButton,
   MonthRows,
   TransactionFiltersBar,
   TransactionsScreen,
@@ -18,6 +19,11 @@ import type {
   TransactionsScreenData,
 } from "./transactionsScreenData";
 
+vi.mock("@/features/auth/requireSession", () => ({
+  requireSession: vi.fn(),
+  serverClient: vi.fn(),
+}));
+
 function line(extra: Partial<TransactionLine> = {}): TransactionLine {
   return {
     id: "t1",
@@ -25,6 +31,8 @@ function line(extra: Partial<TransactionLine> = {}): TransactionLine {
     title: "CORNER MARKET",
     bankText: null,
     purpose: null,
+    bankType: null,
+    bankCategory: null,
     accountId: "acc-card",
     account: "US Card",
     type: "spending",
@@ -35,6 +43,7 @@ function line(extra: Partial<TransactionLine> = {}): TransactionLine {
     original: null,
     needsReview: false,
     paired: false,
+    pairedWith: null,
     hidden: false,
     ...extra,
   };
@@ -124,11 +133,18 @@ describe("TransactionsScreen", () => {
     expect(render(data([line()]))).not.toContain("Budget view");
   });
 
-  it("is read-only, with no Edit action", () => {
+  it("offers Edit on each row, on a laptop and on a phone", () => {
     const html = render(data([line()]));
 
-    expect(html).not.toContain(">Edit<");
-    expect(html).not.toContain("<form");
+    expect(html.match(/aria-label="Edit CORNER MARKET"/g)).toHaveLength(2);
+  });
+
+  it("names the row's label on its Edit action", () => {
+    const html = render(
+      data([line({ title: "Corner shop", bankText: "CORNER MARKET" })]),
+    );
+
+    expect(html).toContain('aria-label="Edit Corner shop"');
   });
 
   it("shows a table for a laptop and a list for a phone", () => {
@@ -136,7 +152,15 @@ describe("TransactionsScreen", () => {
 
     expect(html).toMatch(/<section[^>]*hidden[^>]*md:block[^>]*>/);
     expect(html).toMatch(/<section[^>]*md:hidden[^>]*>/);
-    for (const head of ["Date", "Description", "Account", "Type", "Category", "Amount"]) {
+    for (const head of [
+      "Date",
+      "Description",
+      "Account",
+      "Type",
+      "Category",
+      "Amount",
+      "Actions",
+    ]) {
       expect(html).toContain(`>${head}</th>`);
     }
   });
@@ -292,12 +316,24 @@ describe("MonthRows", () => {
         showHidden: true,
       },
       onChange,
+      onEdit: () => {},
     });
 
     const [clear] = buttonsNamed(rows, "Clear Filters");
     clear.props.onClick();
 
     expect(onChange).toHaveBeenCalledWith({ ...NO_FILTERS, showHidden: true });
+  });
+});
+
+describe("EditButton", () => {
+  it("says which row to edit", () => {
+    const onEdit = vi.fn();
+    const button = EditButton({ line: line({ id: "t7" }), onEdit });
+
+    (button as ControlElement).props.onClick();
+
+    expect(onEdit).toHaveBeenCalledWith("t7");
   });
 });
 

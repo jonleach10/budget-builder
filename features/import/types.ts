@@ -11,13 +11,20 @@ export type Account = {
 
 export type Hash = (input: string) => string | Promise<string>;
 
+/**
+ * Stored unsigned, because both banks print the original with no sign. A reader
+ * that shows it has to give it the row's sign.
+ */
 export type OriginalAmount = {
   amount: Money;
   /** A decimal string with a dot, never a float. */
   rate?: string;
 };
 
-/** A cleaned row, with negative meaning money out on every format. */
+/**
+ * A cleaned row, with negative meaning money out on every format. `original` is
+ * the exception: see `OriginalAmount`.
+ */
 export type StatementRow = {
   postedOn: string;
   purchasedOn?: string;

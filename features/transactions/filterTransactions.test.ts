@@ -17,6 +17,8 @@ function line(extra: Partial<TransactionLine> = {}): TransactionLine {
     title: "SAMPLE GROCER",
     bankText: null,
     purpose: null,
+    bankType: null,
+    bankCategory: null,
     accountId: "acc-us",
     account: "Joint Checking",
     type: "spending",
@@ -27,6 +29,7 @@ function line(extra: Partial<TransactionLine> = {}): TransactionLine {
     original: null,
     needsReview: false,
     paired: false,
+    pairedWith: null,
     hidden: false,
     ...extra,
   };
