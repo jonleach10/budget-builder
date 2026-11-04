@@ -5,6 +5,7 @@ import type { RatesByDate } from "./findRate";
 
 // Frankfurter blends many sources by default, and the product uses the ECB rate.
 const ECB_RATES_URL = "https://api.frankfurter.dev/v2/providers/ecb/rates";
+const REQUEST_TIMEOUT_MS = 8_000;
 
 export type FetchRatesOptions = {
   from: string;
@@ -81,10 +82,16 @@ export async function fetchRates({
 
   // Both catches drop the original error, whose message can hold response text.
   let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    response = await fetch(`${ECB_RATES_URL}?${query}`);
+    response = await fetch(`${ECB_RATES_URL}?${query}`, {
+      signal: controller.signal,
+    });
   } catch {
     throw new FxError("request-failed");
+  } finally {
+    clearTimeout(timeout);
   }
   if (!response.ok) throw new FxError("request-failed");
 

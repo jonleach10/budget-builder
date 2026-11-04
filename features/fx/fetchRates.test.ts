@@ -38,9 +38,11 @@ describe("fetchRates", () => {
     await fetchRates({ ...RANGE, fetch });
 
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(fetch).toHaveBeenCalledWith(
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toBe(
       "https://api.frankfurter.dev/v2/providers/ecb/rates?from=2026-03-05&to=2026-03-06&base=EUR&quotes=USD",
     );
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("returns no rates for an empty response", async () => {
@@ -109,6 +111,48 @@ describe("fetchRates", () => {
       name: "FxError",
       reason: "request-failed",
     });
+  });
+
+  it("times out after eight seconds without retaining the timeout error", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    );
+    const request = fetchRates({ ...RANGE, fetch });
+    const assertion = expect(request).rejects.toMatchObject({
+      name: "FxError",
+      reason: "request-failed",
+    });
+
+    await vi.advanceTimersByTimeAsync(8_000);
+    await assertion;
+    await expect(request).rejects.not.toHaveProperty("cause");
+    vi.useRealTimers();
+  });
+
+  it("returns rates when the request completes before the timeout", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      () =>
+        new Promise<Response>((resolve) => {
+          setTimeout(
+            () => resolve(new Response(JSON.stringify([row("2026-03-05", 1.08)]))),
+            7_999,
+          );
+        }),
+    );
+
+    const request = fetchRates({ ...RANGE, fetch });
+    await vi.advanceTimersByTimeAsync(7_999);
+    await expect(request).resolves.toEqual({ "2026-03-05": "1.08" });
+    expect(fetch.mock.calls[0][1]?.signal?.aborted).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetch.mock.calls[0][1]?.signal?.aborted).toBe(false);
+    vi.useRealTimers();
   });
 
   it("throws unexpected-response for a body that isn't JSON", async () => {
