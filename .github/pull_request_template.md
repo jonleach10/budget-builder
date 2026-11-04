@@ -1,6 +1,5 @@
-# {PR Title}
-
 Closes #{issue-number}
+<!-- No issue? Name the queue item instead, such as: Queue: Q99 -->
 
 ## Type of Task
 - [ ] New feature
@@ -8,41 +7,37 @@ Closes #{issue-number}
 - [ ] Refactoring
 - [ ] UI/UX improvement
 - [ ] Change request
+- [ ] Docs or chore
 
-## Description
-- What was added/modified
-- Why the change was necessary
-- Any technical details worth noting
+## Problem
+<!-- One to three sentences, from the user's side: what was wrong or missing. -->
+
+## Solution
+<!-- What changed, from the user's side, in about five bullets.
+Never a file-by-file list, the history of review rounds or an implementation diary. -->
+
+**Acceptance criteria**
+<!-- Copy the issue's criteria. Tick each one and say where it's proved.
+No issue? Say so in one line. -->
+- [ ]
 
 ## Testing done
-List the tests and commands that were run, with their results.
-Agents must not open a PR without proof of testing.
+<!-- Agents must not open a PR without proof of testing. -->
+- **Lint, typecheck, tests, build**: the result of each
+- **Sandbox flows**: passed out of total, or "Not run"
+- **Owner's Safari check**: the result, or "Not run"
+- **pr-review** at {commit}: {n} findings, {n} fixed, {n} declined
+  - Declined: {finding}: {one-line reason}
+- **Not tested**: what wasn't proved, or "Nothing"
 
-## Evidence
-What a reviewer can check without rerunning anything: the commit the checks
-ran on, screenshots for UI changes, and output for anything CI can't run.
-Don't include real statement data.
+## Proof
+<!-- The commit the proof was taken at, then what applies: sandbox screenshots for a
+UI-facing PR (synthetic rows only, never real data), metrics such as a speed report or
+row counts, and output for anything CI can't run. Docs only: "Not UI-facing." -->
+Taken at {commit}.
 
 ## Merge Danger
-What could go wrong once this merges, or "None".
+<!-- What could go wrong once this merges. A single "None" is fine when all three are none. -->
 - **One-way doors**: any from `CLAUDE.md` that this touches, and why it's safe
 - **Rollback**: how to undo this
 - **Order**: other PRs or steps this depends on
-
-## Impact
-- **UX**: How it affects user experience
-- **Performance**: Any performance implications
-- **Security**: Security-related impacts
-- **Maintenance**: Effects on code maintainability
-
-## Additional Information
-Include any supplementary information, setup instructions,
-or context that reviewers should know.
-
-## Issues
-Document any known issues, limitations, or pending concerns.
-
-## Demo
-Required for a UI-facing PR: a screenshot that proves the code changed, showing the
-changed screen in the state the change affects. Take it from the local sandbox, so
-it holds synthetic rows only. Never use a screenshot of real data.
