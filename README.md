@@ -29,3 +29,7 @@ Rows come from `sandbox/generate.ts` and go through the real import. A fake owne
 
 History
 - January 20th, 2026 => 0.1: first working version
+
+## License
+
+MIT. See [LICENSE](LICENSE).
