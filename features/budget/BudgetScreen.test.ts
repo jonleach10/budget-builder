@@ -53,6 +53,7 @@ function ready(extra: Partial<ReadyBudgetScreen> = {}): ReadyBudgetScreen {
     status: "ready",
     subtitle: "Amounts are in USD. Changes apply to October 2026 only.",
     review: "2 rows need review and aren't in the budget totals.",
+    reviewHref: "/review",
     country: "US",
     currency: "USD",
     setup: { kind: "has-amounts" },
@@ -135,13 +136,19 @@ describe("BudgetScreen", () => {
     expect(html).toContain("-$50.00");
   });
 
-  it("shows the needs-review count as text, not a link", () => {
-    const html = render(ready());
-
-    expect(html).toContain(
-      "2 rows need review and aren&#x27;t in the budget totals.",
+  it("links the needs-review count to the Review inbox", () => {
+    expect(render(ready())).toMatch(
+      /<a[^>]*href="\/review"[^>]*>2 rows need review and aren&#x27;t in the budget totals\.<\/a>/,
     );
-    expect(html).not.toMatch(/<a[^>]*>[^<]*rows need review/);
+  });
+
+  it("shows no link when no rows need review", () => {
+    const html = render(
+      ready({ review: "No rows need review.", reviewHref: null }),
+    );
+
+    expect(html).toContain("No rows need review.");
+    expect(html).not.toContain('href="/review"');
   });
 
   it("shows only the running action as busy", () => {

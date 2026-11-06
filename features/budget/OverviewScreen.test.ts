@@ -36,6 +36,7 @@ function ready(extra: Partial<ReadyOverview> = {}): ReadyOverview {
     status: "ready",
     subtitle: "Amounts are in USD.",
     review: "2 rows need review and aren't in the budget totals.",
+    reviewHref: "/review",
     budgeted: "$7,700.00",
     spent: "$7,434.61",
     remaining: "$265.39",
@@ -136,6 +137,12 @@ describe("OverviewScreen", () => {
 
   it("says so when the month can't be loaded", () => {
     expect(render(null)).toContain("This month can&#x27;t be loaded.");
+  });
+
+  it("links the needs-review count to the Review inbox", () => {
+    expect(render(ready())).toMatch(
+      /<a[^>]*href="\/review"[^>]*>2 rows need review and aren&#x27;t in the budget totals\.<\/a>/,
+    );
   });
 
   it("links to itself, keeping the month and view", () => {

@@ -130,6 +130,14 @@ describe("buildBudgetScreen", () => {
     expect(screen.review).toBe(
       "2 rows need review and aren't in the budget totals.",
     );
+    expect(screen.reviewHref).toBe("/review");
+  });
+
+  it("gives no review link when no rows need review", () => {
+    const screen = ready("us", data({ ledger: [ledgerRow({ id: "a" })] }));
+
+    expect(screen.review).toBe("No rows need review.");
+    expect(screen.reviewHref).toBeNull();
   });
 
   it("makes Combined read-only and notes the rate", () => {

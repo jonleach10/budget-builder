@@ -513,7 +513,7 @@ function ReadyBudget({
         </div>
       }>
       <Notice message={notice} />
-      <InfoNotice text={screen.review} />
+      <InfoNotice text={screen.review} href={screen.reviewHref} />
 
       {setup.kind === "copy" && (
         <EmptyPanel title={setup.title} text={setup.text}>

@@ -8,6 +8,7 @@ import {
   currencyNote,
   firstOfMonth,
   noRateMessage,
+  reviewHref,
   reviewText,
 } from "./screenText";
 import {
@@ -58,6 +59,7 @@ export type ReadyBudgetScreen = {
   status: "ready";
   subtitle: string;
   review: string;
+  reviewHref: string | null;
   /** The country this view edits, or null for Combined, which is read-only. */
   country: Country | null;
   currency: string;
@@ -210,6 +212,7 @@ export function buildBudgetScreen(
     status: "ready",
     subtitle: subtitleFor(view, month, rate),
     review: reviewText(comparison.needsReview),
+    reviewHref: reviewHref(comparison.needsReview),
     country,
     currency,
     setup: monthSetup(view, month, data.amounts),

@@ -8,6 +8,11 @@ export function reviewText(count: number): string {
   return `${count.toLocaleString("en-US")} rows need review and aren't in the budget totals.`;
 }
 
+/** The review text links to the inbox while there's something in it. */
+export function reviewHref(count: number): string | null {
+  return count === 0 ? null : "/review";
+}
+
 export function saveButtonText(running: BudgetAction | null): string {
   return running === "save" ? "Saving..." : "Save Budget";
 }

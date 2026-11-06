@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Info, TriangleAlert } from "lucide-react";
 
 /** The review count and other messages that need no reply. */
-export function InfoNotice({ text }: { text: string }) {
+export function InfoNotice({
+  text,
+  href = null,
+}: {
+  text: string;
+  href?: string | null;
+}) {
   return (
     <div className="flex items-center gap-2.5 rounded-xl bg-frost-wash px-4 py-3 text-body-sm text-moon-mist shadow-hairline">
       <Info
@@ -10,7 +17,15 @@ export function InfoNotice({ text }: { text: string }) {
         strokeWidth={1.5}
         aria-hidden="true"
       />
-      <span>{text}</span>
+      {href === null ? (
+        <span>{text}</span>
+      ) : (
+        <Link
+          href={href}
+          className="rounded-sm text-foreground underline underline-offset-2 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-ring">
+          {text}
+        </Link>
+      )}
     </div>
   );
 }

@@ -143,7 +143,7 @@ function OverviewBody({ screen }: { screen: OverviewScreenData | null }) {
     case "ready":
       return (
         <>
-          <InfoNotice text={screen.review} />
+          <InfoNotice text={screen.review} href={screen.reviewHref} />
           <MonthSummary screen={screen} />
           <TrendCard layout={screen.trend} />
         </>

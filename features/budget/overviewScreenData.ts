@@ -8,6 +8,7 @@ import {
   currencyNote,
   firstOfMonth,
   noRateMessage,
+  reviewHref,
   reviewText,
 } from "./screenText";
 import {
@@ -29,6 +30,7 @@ export type ReadyOverview = {
   status: "ready";
   subtitle: string;
   review: string;
+  reviewHref: string | null;
   budgeted: string;
   spent: string;
   remaining: string;
@@ -102,6 +104,7 @@ export function buildOverviewScreen(
         ? `${scope} Budgets use the ${firstOfMonth(month)} rate, and spending uses each row's saved rate.`
         : scope,
     review: reviewText(needsReview),
+    reviewHref: reviewHref(needsReview),
     budgeted: money(budgeted),
     spent: money(spent),
     remaining: money(remaining),
