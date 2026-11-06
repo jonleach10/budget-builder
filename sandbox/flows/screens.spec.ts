@@ -6,6 +6,8 @@ const SCREENS = [
   ["Overview", "/"],
   ["Budget", "/budget"],
   ["Transactions", "/transactions"],
+  ["Review Inbox", "/review"],
+  ["Review Inbox, No Merchant", "/review?section=no-merchant"],
   ["Import", "/import"],
   ["Rules", "/rules"],
   ["Settings", "/settings"],
