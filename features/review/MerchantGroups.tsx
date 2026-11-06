@@ -46,7 +46,7 @@ export function SuggestionLine({
   return (
     <div
       className={cn(
-        "flex min-h-9 flex-wrap items-center gap-1.5 text-body-sm text-moon-mist empty:hidden md:empty:flex",
+        "flex min-h-9 flex-wrap items-center gap-1.5 text-body-sm text-moon-mist empty:hidden",
         className,
       )}>
       {shown && suggestion !== null && (
@@ -336,7 +336,8 @@ function OpenGroup({
           onChange={setDecision}
         />
         <SuggestionLine
-          className="order-first md:order-none"
+          // Empty, it still holds its grid cell, so Accept stays at the end.
+          className="order-first md:order-none md:empty:flex"
           suggestion={group.suggestion}
           shown={showsUse(decision, group.suggestion)}
           onUse={() =>
