@@ -13,6 +13,7 @@ export async function editRowAction(
   await requireSession();
   const result = await editRow(rowEditStore(await serverClient()), id, edit);
   revalidatePath("/transactions");
+  revalidatePath("/review");
   // Budget and Overview count these rows, and a failed save can still clear a pair.
   revalidatePath("/budget");
   revalidatePath("/");

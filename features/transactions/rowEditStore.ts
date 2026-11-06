@@ -37,5 +37,20 @@ export function rowEditStore(client: SupabaseClient): RowEditStore {
       ).select("id");
       return changedRows(data, error);
     },
+
+    /** A row in review has no category, because a deleted one is set to null. */
+    async updateInReview(ids, type, changes) {
+      const rows = client
+        .from("transactions")
+        .update(changes)
+        .in("id", [...ids])
+        .is("category_id", null)
+        .is("transfer_pair_id", null);
+      const { data, error } = await (
+        type === null ? rows.is("type", null) : rows.eq("type", type)
+      ).select("id");
+      if (error || data === null) return "failed";
+      return data.length;
+    },
   };
 }

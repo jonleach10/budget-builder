@@ -52,6 +52,7 @@ describe("server actions", () => {
     expect(vi.mocked(revalidatePath).mock.calls.flat().sort()).toEqual([
       "/",
       "/budget",
+      "/review",
       "/transactions",
     ]);
   });

@@ -63,6 +63,11 @@ export function databaseClient(
       gte: (column: string, value: string) => keep(column, ">=", value),
       lte: (column: string, value: string) => keep(column, "<=", value),
       lt: (column: string, value: string) => keep(column, "<", value),
+      in(column: string, list: readonly string[]) {
+        values.push(list);
+        conditions.push(`${column}::text = any($${values.length}::text[])`);
+        return builder;
+      },
       /** The app only ever tests for null this way. */
       is(column: string) {
         conditions.push(`${column} is null`);
