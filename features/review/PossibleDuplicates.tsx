@@ -76,7 +76,8 @@ function DuplicateTable({
         <caption className="sr-only">Possible duplicates, newest first</caption>
         <thead className="text-caption text-muted-foreground">
           <tr className="border-b border-border">
-            <th scope="col" className={cn(HEAD, "w-[72px] pl-6")}>Date</th>
+            {/* Wide enough for a date from another year, which shows its year. */}
+            <th scope="col" className={cn(HEAD, "w-[124px] pl-6")}>Date</th>
             <th scope="col" className={HEAD}>Description</th>
             <th scope="col" className={cn(HEAD, "w-32")}>Account</th>
             <th scope="col" className={cn(HEAD, "w-28 text-right")}>Amount</th>
@@ -88,7 +89,9 @@ function DuplicateTable({
         <tbody>
           {rows.map((line) => (
             <tr key={line.id} className="border-b border-border align-top last:border-b-0">
-              <td className="py-2.5 pr-2 pl-6 text-muted-foreground">{line.date}</td>
+              <td className="py-2.5 pr-2 pl-6 whitespace-nowrap text-muted-foreground">
+                {line.date}
+              </td>
               <td className="px-2 py-2.5">
                 <Title line={line} />
               </td>
