@@ -1,5 +1,5 @@
 import type { Transaction } from "@/features/import/types";
-import { forTextMatch, hasText } from "./text";
+import { forTextMatch, hasText, withoutRedacted } from "./text";
 
 export type MatchOn =
   | "ppdId"
@@ -13,23 +13,33 @@ export type RuleCondition = {
   value: string;
 };
 
-function matches(rule: RuleCondition, transaction: Transaction): boolean {
-  // A blank value would be inside every description and match everything.
-  if (!hasText(rule.value)) return false;
+/**
+ * Text as a text rule compares it, without redaction placeholders. Both the row
+ * and the rule's value go through it: a short value such as "RED" can't match
+ * every redacted row, and a value copied from the screen, placeholder and all,
+ * still matches the row it came from.
+ */
+function forRuleMatch(text: string): string {
+  return forTextMatch(withoutRedacted(text));
+}
 
+function matches(rule: RuleCondition, transaction: Transaction): boolean {
   switch (rule.matchOn) {
     case "ppdId":
-      return transaction.ppdId === rule.value;
+      return hasText(rule.value) && transaction.ppdId === rule.value;
     case "orderingPartyId":
-      return transaction.orderingPartyId === rule.value;
+      return hasText(rule.value) && transaction.orderingPartyId === rule.value;
     case "descriptionStartsWith":
-      return forTextMatch(transaction.description).startsWith(
-        forTextMatch(rule.value),
-      );
-    case "descriptionContains":
-      return forTextMatch(transaction.description).includes(
-        forTextMatch(rule.value),
-      );
+    case "descriptionContains": {
+      // A blank value, or one that was only placeholders, would be inside
+      // every description and match everything.
+      const value = forRuleMatch(rule.value);
+      if (!hasText(value)) return false;
+      const description = forRuleMatch(transaction.description);
+      return rule.matchOn === "descriptionStartsWith"
+        ? description.startsWith(value)
+        : description.includes(value);
+    }
   }
 }
 

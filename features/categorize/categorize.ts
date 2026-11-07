@@ -2,6 +2,7 @@ import type { Transaction } from "@/features/import/types";
 import { lookUp, type BankMap } from "./bankMaps";
 import { findCategory, type CategoryRule } from "./findCategory";
 import {
+  isRedactedKey,
   merchantKey,
   type CategorySource,
   type PastCategories,
@@ -28,7 +29,9 @@ export type CategoryResult =
  * steps. A blank category counts as no match, except from a rule: a first match
  * with no category ends the chain, because JL chose to review those rows. A
  * mixed merchant skips the bank type map, so its rows go to review unless JL's
- * own category or rule decides them.
+ * own category or rule decides them. A redacted merchant's past category is
+ * only ever a suggestion, ahead of the bank category's, because the removed
+ * number may have told two payees apart.
  */
 export function categorize(
   transaction: Transaction,
@@ -42,14 +45,13 @@ export function categorize(
   const isMixed = key !== undefined && context.mixedMerchants.includes(key);
   const ruleCategory = findCategory(transaction, context.categoryRules);
   const ruleSaysReview = ruleCategory === null;
+  const pastCategory = lookUp(context.pastCategories, key);
+  const pastOnlySuggests = isRedactedKey(key);
 
   const steps: [CategorySource, string | null | undefined][] = [
     ["manual", context.manualCategory],
     ["rule", ruleCategory],
-    [
-      "history",
-      ruleSaysReview ? undefined : lookUp(context.pastCategories, key),
-    ],
+    ["history", ruleSaysReview || pastOnlySuggests ? undefined : pastCategory],
     [
       "bank-type",
       ruleSaysReview || isMixed
@@ -62,10 +64,9 @@ export function categorize(
     if (hasText(category)) return { status: "categorized", category, source };
   }
 
-  const suggestedCategory = lookUp(
-    context.bankCategoryMap,
-    transaction.bankCategory,
-  );
+  const suggestedCategory =
+    (pastOnlySuggests ? pastCategory : undefined) ??
+    lookUp(context.bankCategoryMap, transaction.bankCategory);
   return hasText(suggestedCategory)
     ? { status: "needs-review", suggestedCategory }
     : { status: "needs-review" };

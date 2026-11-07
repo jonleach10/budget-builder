@@ -118,6 +118,17 @@ describe("accepting a group", () => {
     }
   });
 
+  it("accepts a group of rows with redacted text as a whole", async () => {
+    const ids = await addGroup(2, { description: "'PAY [REDACTED]'" });
+
+    const result = await accept(ids, { categoryId: OWNER.categoryId });
+
+    expect(result).toEqual({ ok: true, notice: "2 rows were saved." });
+    for (const row of await decisionsOn(ids)) {
+      expect(row).toMatchObject(SPENDING_GROCERIES);
+    }
+  });
+
   it("says 1 row for a group of one", async () => {
     const ids = await addGroup(1);
 

@@ -1,6 +1,6 @@
 import { REDACTED } from "@/features/import/redact";
 import type { Transaction } from "@/features/import/types";
-import { hasText, ignoreCase } from "./text";
+import { hasText, ignoreCase, withoutRedacted } from "./text";
 
 export type CategorySource = "manual" | "rule" | "history" | "bank-type";
 
@@ -14,18 +14,38 @@ export type CategorizedRow = {
 /** Plain data: one category per merchant, under the key from `merchantKey`. */
 export type PastCategories = Readonly<Record<string, string>>;
 
+const REDACTED_PREFIX = "redacted:";
+
 /**
  * Each part has its own prefix, so an ID never meets a description with the
- * same text. A row with nothing to identify it has no key, because rows with
- * a blank or redacted description aren't one merchant: the placeholder hides
- * whatever told them apart.
+ * same text. A redacted description is keyed on the text left around the
+ * placeholder, under its own prefix, because the placeholder may hide two
+ * payees: its past category only suggests (see `isRedactedKey`). A row with no
+ * letter or digit left, or a blank description, has no key.
  */
 export function merchantKey(transaction: Transaction): string | undefined {
   const { ppdId, orderingPartyId, description } = transaction;
   if (hasText(ppdId)) return `ppdId:${ppdId}`;
   if (hasText(orderingPartyId)) return `orderingPartyId:${orderingPartyId}`;
-  if (!hasText(description) || description.includes(REDACTED)) return undefined;
-  return `description:${ignoreCase(description)}`;
+  if (!hasText(description)) return undefined;
+  if (!description.includes(REDACTED)) {
+    return `description:${ignoreCase(description)}`;
+  }
+  const rest = withoutRedacted(description);
+  return NAMES_SOMETHING.test(rest)
+    ? `${REDACTED_PREFIX}${ignoreCase(rest)}`
+    : undefined;
+}
+
+/**
+ * A letter or digit. Text that redaction left as only punctuation, such as the
+ * "/" between two numbers, names no merchant, so it would group any payees.
+ */
+const NAMES_SOMETHING = /[\p{L}\p{N}]/u;
+
+/** A key from redacted text, whose past category may suggest but never decide. */
+export function isRedactedKey(key: string | undefined): boolean {
+  return key?.startsWith(REDACTED_PREFIX) ?? false;
 }
 
 function confirmedCategories(

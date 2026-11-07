@@ -1,3 +1,5 @@
+import { REDACTED } from "@/features/import/redact";
+
 /**
  * Upper case, because that folds "ß" to "SS" and lower case leaves it alone.
  * Upper case leaves the capital "ẞ" alone, so that one is folded by hand.
@@ -15,6 +17,14 @@ export function ignoreCase(text: string): string {
  */
 export function forTextMatch(text: string): string {
   return ignoreCase(text).replace(/\s+/g, " ");
+}
+
+/**
+ * The text with every redaction placeholder taken out, for keying and matching
+ * only. Stored text keeps its placeholders.
+ */
+export function withoutRedacted(text: string): string {
+  return text.replaceAll(REDACTED, " ").replace(/\s+/g, " ").trim();
 }
 
 export function hasText(value: string | null | undefined): value is string {

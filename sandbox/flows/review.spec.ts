@@ -98,6 +98,45 @@ test("a row changed on its own teaches a suggestion, which only Use fills in", a
   await expect(page.getByRole("row").filter({ hasText: "SAMPLE TRANSIT" })).toHaveCount(0);
 });
 
+test("a redacted group asks for its rows to be checked, and can be accepted whole", async ({ page }) => {
+  const redacted = "Erstattung \\[REDACTED\\]";
+  const reminder = "Redacted text. Check the rows before you accept.";
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await groupButton(page, redacted).click();
+  // innerText leaves out the line hidden at this width, so each check proves its own.
+  await expect(groupButton(page, redacted)).toContainText(/\d+ rows? · Redacted text/, {
+    useInnerText: true,
+  });
+  await expect(groupButton(page, redacted)).not.toContainText(reminder, {
+    useInnerText: true,
+  });
+  await groupButton(page, redacted).evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await picture(page, "review-redacted-group-phone");
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.reload();
+  await groupButton(page, redacted).click();
+  await expect(groupButton(page, redacted)).toContainText(reminder, { useInnerText: true });
+  await expect(groupButton(page, redacted)).not.toContainText(/rows? · Redacted text/, {
+    useInnerText: true,
+  });
+  await groupButton(page, redacted).evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await picture(page, "review-redacted-group-laptop");
+
+  const before = await rowsLeft(page);
+  const accept = page.getByRole("button", { name: /^Accept \d+ Rows?$/ });
+  const count = Number((await accept.textContent())?.match(/\d+/)?.[0]);
+  await page.getByLabel("Category").selectOption({ label: "Shopping" });
+  await accept.click();
+
+  await expect(page.getByRole("status")).toHaveText(`${count} rows were saved.`);
+  await page.reload();
+  await expect(groupButton(page, redacted)).toHaveCount(0);
+  expect(await rowsLeft(page)).toBe(before - count);
+});
+
 test("a No Merchant row takes a label on its own, and stays to be decided", async ({ page }) => {
   await page.getByRole("link", { name: /^No Merchant/ }).click();
   await expect(page).toHaveURL(/section=no-merchant/);

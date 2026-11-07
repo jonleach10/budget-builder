@@ -86,13 +86,29 @@ describe("reviewCounts", () => {
     expect(counts["chase-bank"]?.rows).toBe(10);
   });
 
-  it("counts a redacted row, which has no merchant to group by", async () => {
+  it("groups a redacted row by the text left around the number", async () => {
     const counts = await reviewCounts(
       withFile(chaseBankFileName, (text) =>
         text.replace(
           "ODP TRANSFER TO CHECKING  ...1111",
           "CARD 4111 1111 1111 1111",
         ),
+      ),
+      accounts,
+    );
+
+    expect(counts["chase-bank"]).toMatchObject({
+      sentToReview: 8,
+      merchantGroups: 7,
+      noMerchantKey: 0,
+      placeholders: 1,
+    });
+  });
+
+  it("counts a row holding only a redacted number, which has no merchant", async () => {
+    const counts = await reviewCounts(
+      withFile(chaseBankFileName, (text) =>
+        text.replace("ODP TRANSFER TO CHECKING  ...1111", "4111 1111 1111 1111"),
       ),
       accounts,
     );
