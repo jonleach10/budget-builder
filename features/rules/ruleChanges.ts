@@ -15,13 +15,14 @@ type PlacedRule = ValidRule & { position: number };
 export type RuleStore = {
   /** Null means the read failed, which is different from having no rules. */
   list(): Promise<readonly RuleRow[] | null>;
-  insert(rule: PlacedRule): Promise<WriteResult>;
+  /** Gives the new rule's ID, or null if it wasn't stored. */
+  insert(rule: PlacedRule): Promise<{ id: string } | null>;
   update(id: string, changes: Partial<PlacedRule>): Promise<WriteResult>;
   remove(id: string): Promise<WriteResult>;
 };
 
 const OK: ActionResult = { ok: true };
-const NOT_SAVED: ActionResult = {
+const NOT_SAVED: ActionResult & { ok: false } = {
   ok: false,
   message: "The rule wasn't saved. Try again.",
 };
@@ -43,18 +44,31 @@ function groupOf(rows: readonly RuleRow[], rule: Pick<RuleRow, "match_on">) {
   return rows.filter((row) => isIdRule(row) === isIdRule(rule));
 }
 
+/** A new rule goes last in its group, so every rule there is tried before it. */
+export function positionFor(
+  rows: readonly RuleRow[],
+  rule: Pick<RuleRow, "match_on">,
+): number {
+  return nextPosition(groupOf(rows, rule));
+}
+
+export type AddRuleResult =
+  | { ok: true; id: string }
+  | { ok: false; message: string };
+
 export async function addRule(
   store: RuleStore,
   form: RuleForm,
-): Promise<ActionResult> {
+): Promise<AddRuleResult> {
   const check = validateRule(ruleFromForm(form));
   if (!check.ok) return check;
 
   const rows = await store.list();
   if (rows === null) return NOT_SAVED;
 
-  const position = nextPosition(groupOf(rows, check.rule));
-  return outcome(await store.insert({ ...check.rule, position }), NOT_SAVED);
+  const position = positionFor(rows, check.rule);
+  const inserted = await store.insert({ ...check.rule, position });
+  return inserted === null ? NOT_SAVED : { ok: true, id: inserted.id };
 }
 
 /** A rule keeps its place, unless its new match puts it in the other group. */

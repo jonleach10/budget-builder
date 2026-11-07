@@ -15,8 +15,12 @@ export function ruleStore(client: SupabaseClient): RuleStore {
     },
 
     async insert(rule) {
-      const { error } = await client.from("rules").insert(rule);
-      return error ? "failed" : "done";
+      const { data, error } = await client
+        .from("rules")
+        .insert(rule)
+        .select("id")
+        .single();
+      return error || data === null ? null : { id: (data as { id: string }).id };
     },
 
     async update(id, changes) {

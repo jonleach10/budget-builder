@@ -61,7 +61,7 @@ function fakeStore(
 ) {
   return {
     list: vi.fn(async () => rows),
-    insert: vi.fn<RuleStore["insert"]>(async () => "done"),
+    insert: vi.fn<RuleStore["insert"]>(async () => ({ id: "rule-new" })),
     update: vi.fn<RuleStore["update"]>(async () => "done"),
     remove: vi.fn<RuleStore["remove"]>(async () => "done"),
   } satisfies RuleStore;
@@ -77,7 +77,7 @@ describe("addRule", () => {
   it("stores the checked rule at the end of its group", async () => {
     const store = fakeStore();
 
-    expect(await addRule(store, FORM)).toEqual({ ok: true });
+    expect(await addRule(store, FORM)).toEqual({ ok: true, id: "rule-new" });
 
     expect(store.insert).toHaveBeenCalledWith({
       match_on: "descriptionContains",
@@ -117,7 +117,7 @@ describe("addRule", () => {
 
   it("reports a failed write", async () => {
     const store = fakeStore();
-    store.insert.mockResolvedValue("failed");
+    store.insert.mockResolvedValue(null);
 
     expect(await addRule(store, FORM)).toEqual(SAVE_FAILED);
   });

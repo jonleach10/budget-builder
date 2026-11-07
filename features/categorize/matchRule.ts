@@ -13,6 +13,12 @@ export type RuleCondition = {
   value: string;
 };
 
+/** The parts of a row a rule reads. A label never reaches a rule. */
+export type RuleTarget = Pick<
+  Transaction,
+  "description" | "ppdId" | "orderingPartyId"
+>;
+
 /**
  * Text as a text rule compares it, without redaction placeholders. Both the row
  * and the rule's value go through it: a short value such as "RED" can't match
@@ -23,7 +29,11 @@ function forRuleMatch(text: string): string {
   return forTextMatch(withoutRedacted(text));
 }
 
-function matches(rule: RuleCondition, transaction: Transaction): boolean {
+/** Whether one rule matches the row, whatever other rules come before it. */
+export function matchesRule(
+  rule: RuleCondition,
+  transaction: RuleTarget,
+): boolean {
   switch (rule.matchOn) {
     case "ppdId":
       return hasText(rule.value) && transaction.ppdId === rule.value;
@@ -49,12 +59,12 @@ function isIdRule(rule: RuleCondition): boolean {
 
 /** Tries every ID rule before any text rule. List order decides within each. */
 export function firstMatchingRule<Rule extends RuleCondition>(
-  transaction: Transaction,
+  transaction: RuleTarget,
   rules: readonly Rule[],
 ): Rule | undefined {
   const idRules = rules.filter(isIdRule);
   const textRules = rules.filter((rule) => !isIdRule(rule));
   return [...idRules, ...textRules].find((rule) =>
-    matches(rule, transaction),
+    matchesRule(rule, transaction),
   );
 }

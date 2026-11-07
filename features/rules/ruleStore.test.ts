@@ -14,6 +14,7 @@ function fakeClient(replies: Readonly<Record<string, Reply>>) {
       update: () => builder,
       delete: () => builder,
       eq: () => builder,
+      single: () => builder,
       then: (resolve: (value: typeof reply) => unknown) => resolve(reply),
     };
     return builder;
@@ -36,6 +37,26 @@ describe("ruleStore", () => {
     const client = fakeClient({ rules: { error: { code: "57014" } } });
 
     expect(await ruleStore(client).list()).toBeNull();
+  });
+
+  const NEW_RULE = {
+    match_on: "ppdId" as const,
+    value: "000111222",
+    position: 0,
+    type: "income" as const,
+    category_id: null,
+  };
+
+  it("gives a new rule's ID, so the inbox can undo adding it", async () => {
+    const client = fakeClient({ rules: { data: { id: "rule-9" } } });
+
+    expect(await ruleStore(client).insert(NEW_RULE)).toEqual({ id: "rule-9" });
+  });
+
+  it("gives null when an insert fails", async () => {
+    const client = fakeClient({ rules: { error: { code: "23514" } } });
+
+    expect(await ruleStore(client).insert(NEW_RULE)).toBeNull();
   });
 
   it("reports an update that matched no row", async () => {
