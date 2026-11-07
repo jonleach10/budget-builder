@@ -173,6 +173,20 @@ describe("accepting a group", () => {
     ]);
   });
 
+  it("leaves a row the owner hid since the inbox loaded", async () => {
+    const [hidden, ...rest] = await addGroup(3);
+    await db.exec(`update public.transactions set hidden = true where id = '${hidden}'`);
+
+    const result = await accept([hidden, ...rest], {
+      categoryId: OWNER.categoryId,
+    });
+
+    expect(result).toEqual({ ok: true, notice: "2 rows were saved." });
+    await expect(decisionsOn([hidden])).resolves.toMatchObject([
+      { type: null, category_id: null },
+    ]);
+  });
+
   it("leaves a row that was given a type since the inbox loaded", async () => {
     const [changed] = await addGroup(1, { type: "'income'" });
 
@@ -196,6 +210,7 @@ describe("accepting a group", () => {
       rows: await readStoredTransactions(databaseClient(db)),
       accounts: [{ id: OWNER.accountId, name: "Checking", country: "US" }],
       categories: [{ id: OWNER.categoryId, name: "Groceries", position: 0 }],
+      thisMonth: "2026-11",
     });
 
     // The seeded row is the same merchant, and still in review.
