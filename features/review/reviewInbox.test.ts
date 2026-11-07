@@ -273,6 +273,50 @@ describe("buildReviewInbox", () => {
     });
   });
 
+  describe("redacted text", () => {
+    it("groups rows by the text left around the placeholder, with a reminder", () => {
+      const groups = inbox([
+        row({ id: "one", description: "ERSTATTUNG [REDACTED]" }),
+        row({ id: "two", description: "Erstattung [REDACTED]" }),
+      ]).groups;
+
+      expect(groups).toHaveLength(1);
+      expect(groups[0]).toMatchObject({
+        count: 2,
+        detail: "Redacted text. Check the rows before you accept.",
+      });
+    });
+
+    it("suggests the category the owner confirmed for that text", () => {
+      const [group] = inbox([
+        confirmed("cat-groceries", { description: "PAY [REDACTED]" }),
+        row({ description: "PAY [REDACTED]" }),
+      ]).groups;
+
+      expect(group.suggestion).toEqual({
+        categoryId: "cat-groceries",
+        name: "Groceries",
+      });
+    });
+
+    it("suggests nothing when the owner gave that text two categories", () => {
+      const [group] = inbox([
+        confirmed("cat-groceries", { description: "PAY [REDACTED]" }),
+        confirmed("cat-dining", { description: "PAY [REDACTED]" }),
+        row({ description: "PAY [REDACTED]" }),
+      ]).groups;
+
+      expect(group.suggestion).toBeNull();
+    });
+
+    it("leaves a row holding only the placeholder in No Merchant", () => {
+      const result = inbox([row({ id: "only", description: "[REDACTED]" })]);
+
+      expect(result.groups).toEqual([]);
+      expect(result.noMerchant.map(({ line }) => line.id)).toEqual(["only"]);
+    });
+  });
+
   describe("No Merchant", () => {
     it("holds rows with no merchant key, one at a time, newest first", () => {
       const result = inbox([
@@ -292,11 +336,7 @@ describe("buildReviewInbox", () => {
 
     it("marks a row whose text lost a number at import", () => {
       const result = inbox([
-        row({
-          id: "redacted",
-          description: "ONLINE PAYMENT [REDACTED]",
-          postedOn: "2026-10-09",
-        }),
+        row({ id: "redacted", description: "[REDACTED]", postedOn: "2026-10-09" }),
         row({ id: "blank", description: "", postedOn: "2026-10-01" }),
       ]);
 

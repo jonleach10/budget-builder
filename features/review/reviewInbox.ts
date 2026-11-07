@@ -4,6 +4,7 @@ import type { AccountRow, CategoryRow } from "@/features/budget/rows";
 import { lookUp } from "@/features/categorize/bankMaps";
 import { needsReview } from "@/features/categorize/needsReview";
 import {
+  isRedactedKey,
   merchantKey,
   mixedMerchants,
   pastCategories,
@@ -76,9 +77,17 @@ export function rowsText(count: number): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? "row" : "rows"}`;
 }
 
-function detailOf({ ppdId, orderingPartyId }: StoredTransaction): string {
+/**
+ * What the group's rows share. Redacted text may hide two payees, so that group
+ * asks the owner to check its rows instead.
+ */
+function detailOf(
+  key: string,
+  { ppdId, orderingPartyId }: StoredTransaction,
+): string {
   if (ppdId?.trim()) return `PPD ID ${ppdId}`;
   if (orderingPartyId?.trim()) return `Ordering Party ID ${orderingPartyId}`;
+  if (isRedactedKey(key)) return "Redacted text. Check the rows before you accept.";
   return "Same bank text";
 }
 
@@ -202,7 +211,7 @@ export function buildReviewInbox({
     return {
       key,
       name: group[0].description,
-      detail: detailOf(group[0]),
+      detail: detailOf(key, group[0]),
       count: group.length,
       countText,
       total: totalOf(group),
