@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AccountRow, CategoryRow } from "@/features/budget/rows";
+import type { PairingAccount } from "@/features/categorize/pairTransfers";
 import type { StoredTransaction } from "@/features/import/storedTransactions";
 import { buildReviewInbox, type ReviewInbox } from "./reviewInbox";
 import { ReviewScreen } from "./ReviewScreen";
@@ -19,6 +20,11 @@ vi.mock("@/hooks/use-server-action", () => ({
 const ACCOUNTS: AccountRow[] = [
   { id: "acc-card", name: "US Card", country: "US" },
   { id: "acc-de", name: "DE Giro", country: "DE" },
+];
+
+const PAIRING_ACCOUNTS: PairingAccount[] = [
+  { id: "acc-card", format: "chase-card" },
+  { id: "acc-de", format: "commerzbank" },
 ];
 
 const CATEGORIES: CategoryRow[] = [
@@ -66,6 +72,7 @@ function inbox(rows: readonly StoredTransaction[] = ROWS): ReviewInbox {
   return buildReviewInbox({
     rows,
     accounts: ACCOUNTS,
+    pairingAccounts: PAIRING_ACCOUNTS,
     categories: CATEGORIES,
     thisMonth: "2026-11",
   });

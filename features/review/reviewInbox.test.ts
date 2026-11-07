@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AccountRow, CategoryRow } from "@/features/budget/rows";
 import { needsReview } from "@/features/categorize/needsReview";
+import type { PairingAccount } from "@/features/categorize/pairTransfers";
 import { merchantKey } from "@/features/categorize/pastCategories";
 import type { StoredTransaction } from "@/features/import/storedTransactions";
 import { buildReviewInbox, type ReviewInbox } from "./reviewInbox";
@@ -8,6 +9,15 @@ import { buildReviewInbox, type ReviewInbox } from "./reviewInbox";
 const ACCOUNTS: AccountRow[] = [
   { id: "acc-us", name: "Joint Checking", country: "US" },
   { id: "acc-de", name: "Girokonto", country: "DE" },
+  { id: "acc-savings", name: "Joint Savings", country: "US" },
+  { id: "acc-card", name: "Joint Card", country: "US" },
+];
+
+const PAIRING_ACCOUNTS: PairingAccount[] = [
+  { id: "acc-us", format: "chase-bank" },
+  { id: "acc-de", format: "commerzbank" },
+  { id: "acc-savings", format: "chase-bank" },
+  { id: "acc-card", format: "chase-card" },
 ];
 
 const CATEGORIES: CategoryRow[] = [
@@ -57,9 +67,36 @@ function inbox(rows: readonly StoredTransaction[]): ReviewInbox {
   return buildReviewInbox({
     rows,
     accounts: ACCOUNTS,
+    pairingAccounts: PAIRING_ACCOUNTS,
     categories: CATEGORIES,
     thisMonth: "2026-11",
   });
+}
+
+/** Money leaving checking, in review, for a transfer test. */
+function moneyOut(extra: Partial<StoredTransaction> = {}): StoredTransaction {
+  return row({
+    description: "ONLINE TRANSFER",
+    amount: { minor: -50000, currency: "USD" },
+    base: { minor: -50000, currency: "USD" },
+    ...extra,
+  });
+}
+
+/** Money reaching savings, in review, for a transfer test. */
+function moneyIn(extra: Partial<StoredTransaction> = {}): StoredTransaction {
+  return row({
+    accountId: "acc-savings",
+    postedOn: "2026-10-04",
+    description: "ONLINE TRANSFER",
+    amount: { minor: 50000, currency: "USD" },
+    base: { minor: 50000, currency: "USD" },
+    ...extra,
+  });
+}
+
+function matchIds(result: ReviewInbox): string[][] {
+  return result.transfers.map((match) => match.rows.map(({ id }) => id));
 }
 
 function groupNames(rows: readonly StoredTransaction[]): string[] {
@@ -511,6 +548,186 @@ describe("buildReviewInbox", () => {
 
     it("isn't empty while a row is left", () => {
       expect(inbox([row()]).empty).toBeNull();
+    });
+
+    it("isn't empty while a possible duplicate is left, with nothing to review", () => {
+      const result = inbox([confirmed("cat-dining", { possibleDuplicate: true })]);
+
+      expect(result.left).toBe(0);
+      expect(result.empty).toBeNull();
+    });
+  });
+
+  describe("possible transfers", () => {
+    it("show opposite amounts on two accounts within 3 days as one match", () => {
+      const result = inbox([
+        moneyOut({ id: "out" }),
+        moneyIn({ id: "in" }),
+      ]);
+
+      expect(result.transfers).toEqual([
+        {
+          key: "in,out",
+          title: "Same Amount Within 3 Days",
+          help: "These rows have opposite amounts on two accounts and no transfer number.",
+          rows: [
+            expect.objectContaining({ id: "in", account: "Joint Savings" }),
+            expect.objectContaining({ id: "out", account: "Joint Checking" }),
+          ],
+          picked: ["in", "out"],
+        },
+      ]);
+    });
+
+    it("keep their rows out of merchant groups and No Merchant, still counted as left", () => {
+      const result = inbox([
+        moneyOut(),
+        moneyIn({ description: "" }),
+        row({ id: "grocer" }),
+      ]);
+
+      expect(result.groups.flatMap((group) => group.rows.map(({ id }) => id))).toEqual([
+        "grocer",
+      ]);
+      expect(result.noMerchant).toEqual([]);
+      expect(result.left).toBe(3);
+    });
+
+    it("hold a card payment with two candidates together, with none picked", () => {
+      const amount = (minor: number) => ({
+        amount: { minor, currency: "USD" },
+        base: { minor, currency: "USD" },
+      });
+      const result = inbox([
+        row({
+          id: "payment",
+          accountId: "acc-card",
+          bankType: "Payment",
+          postedOn: "2026-10-25",
+          description: "PAYMENT THANK YOU",
+          ...amount(81240),
+        }),
+        row({ id: "bank-a", postedOn: "2026-10-24", ...amount(-81240) }),
+        row({ id: "bank-b", postedOn: "2026-10-26", ...amount(-81240) }),
+      ]);
+
+      expect(result.transfers).toEqual([
+        expect.objectContaining({
+          title: "Card Payment",
+          help: "A card payment and a bank row have the same amount, within 5 days. Select the two rows that belong together.",
+          picked: [],
+        }),
+      ]);
+      expect(matchIds(result)).toEqual([["bank-b", "payment", "bank-a"]]);
+    });
+
+    it("include a stored transfer row with no pair, next to the rows in review", () => {
+      const result = inbox([
+        moneyOut({ id: "out" }),
+        moneyIn({ id: "in", type: "transfer" }),
+      ]);
+
+      expect(result.transfers[0].rows).toEqual([
+        expect.objectContaining({ id: "in", account: "Joint Savings", amount: "$500.00" }),
+        expect.objectContaining({ id: "out", account: "Joint Checking", amount: "-$500.00" }),
+      ]);
+      expect(result.left).toBe(1);
+    });
+
+    it("leave out a match with no row in review", () => {
+      const result = inbox([
+        moneyOut({ type: "transfer" }),
+        moneyIn({ type: "transfer" }),
+      ]);
+
+      expect(result.transfers).toEqual([]);
+    });
+
+    it("never hold a hidden row", () => {
+      const result = inbox([moneyOut({ id: "out" }), moneyIn({ hidden: true })]);
+
+      expect(result.transfers).toEqual([]);
+      expect(result.groups[0].rows.map(({ id }) => id)).toEqual(["out"]);
+    });
+
+    it("let a row given another type leave the match", () => {
+      const result = inbox([moneyOut({ id: "out" }), moneyIn({ type: "income" })]);
+
+      expect(result.transfers).toEqual([]);
+      expect(result.groups[0].rows.map(({ id }) => id)).toEqual(["out"]);
+    });
+
+    it("show a pair the evidence is sure of, picked, without pairing it", () => {
+      const result = inbox([
+        moneyOut({ id: "out", transferNumber: "TX-1" }),
+        moneyIn({ id: "in", transferNumber: "TX-1" }),
+      ]);
+
+      expect(result.transfers).toEqual([
+        expect.objectContaining({
+          key: "in,out",
+          title: "Same Transfer Number",
+          help: "These rows share a transfer number.",
+          picked: ["in", "out"],
+        }),
+      ]);
+      expect(result.transfers[0].rows.map(({ paired }) => paired)).toEqual([
+        false,
+        false,
+      ]);
+    });
+
+    it("list the newest match first", () => {
+      const result = inbox([
+        moneyOut({ id: "old-out" }),
+        moneyIn({ id: "old-in" }),
+        moneyOut({ id: "new-out", postedOn: "2026-10-20", amount: { minor: -7000, currency: "USD" } }),
+        moneyIn({ id: "new-in", postedOn: "2026-10-21", amount: { minor: 7000, currency: "USD" } }),
+      ]);
+
+      expect(matchIds(result)).toEqual([
+        ["new-in", "new-out"],
+        ["old-in", "old-out"],
+      ]);
+    });
+
+    it("never match EUR and USD rows", () => {
+      const result = inbox([
+        moneyOut(),
+        moneyIn({
+          accountId: "acc-de",
+          amount: { minor: 50000, currency: "EUR" },
+          base: { minor: 54000, currency: "USD" },
+        }),
+      ]);
+
+      expect(result.transfers).toEqual([]);
+    });
+  });
+
+  describe("possible duplicates", () => {
+    it("list flagged rows that aren't hidden, in review or not, newest first", () => {
+      const result = inbox([
+        row({ id: "in-review", possibleDuplicate: true, postedOn: "2026-10-05" }),
+        confirmed("cat-dining", {
+          id: "decided",
+          possibleDuplicate: true,
+          postedOn: "2026-10-11",
+        }),
+        row({ id: "hidden", possibleDuplicate: true, hidden: true }),
+        row({ id: "not-flagged" }),
+      ]);
+
+      expect(result.duplicates).toEqual([
+        expect.objectContaining({ id: "decided", date: "Oct 11", category: "Dining" }),
+        expect.objectContaining({ id: "in-review", date: "Oct 5" }),
+      ]);
+    });
+
+    it("leave a row in review in its merchant group too", () => {
+      const result = inbox([row({ id: "flagged", possibleDuplicate: true })]);
+
+      expect(result.groups[0].rows.map(({ id }) => id)).toEqual(["flagged"]);
     });
   });
 

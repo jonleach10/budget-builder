@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serverClient } from "@/features/auth/requireSession";
+import type { PairingAccount } from "@/features/categorize/pairTransfers";
 import { addDays } from "@/features/fx/dates";
 import { FxError } from "@/features/fx/errors";
 import type { RatesByDate } from "@/features/fx/findRate";
@@ -42,6 +43,13 @@ async function readList<Row>(query: PromiseLike<ListReply>): Promise<Row[]> {
 
 export function readAccounts(client: SupabaseClient): Promise<AccountRow[]> {
   return readList(client.from("accounts").select("id, name, country"));
+}
+
+/** Each account's statement format, with no account digits. */
+export function readPairingAccounts(
+  client: SupabaseClient,
+): Promise<PairingAccount[]> {
+  return readList(client.from("accounts").select("id, format"));
 }
 
 export async function readCategories(

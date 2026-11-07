@@ -67,7 +67,7 @@ function keyOf({ accountId, fingerprint }: RowId): string {
 }
 
 /** Matches the guard in `import_transactions`. */
-function isOpenToPairing(row: StoredTransaction): boolean {
+export function isOpenToPairing(row: StoredTransaction): boolean {
   return (
     row.transferPairId === null && (row.type === null || row.type === "transfer")
   );

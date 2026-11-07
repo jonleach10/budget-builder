@@ -4,12 +4,20 @@ import type { AccountRow, CategoryRow } from "@/features/budget/rows";
 import { lookUp } from "@/features/categorize/bankMaps";
 import { needsReview } from "@/features/categorize/needsReview";
 import {
+  pairTransfers,
+  type PairingAccount,
+  type RowId,
+  type UncertainMatch,
+  type UncertainReason,
+} from "@/features/categorize/pairTransfers";
+import {
   isRedactedKey,
   merchantKey,
   mixedMerchants,
   pastCategories,
   type CategorizedRow,
 } from "@/features/categorize/pastCategories";
+import { isOpenToPairing } from "@/features/import/classifyImport";
 import { REDACTED } from "@/features/import/redact";
 import type { StoredTransaction } from "@/features/import/storedTransactions";
 import {
@@ -46,6 +54,18 @@ export type NoMerchantRow = {
   redacted: boolean;
 };
 
+/** Rows that may be one transfer, for the owner to confirm or type. */
+export type TransferMatch = {
+  /** The rows' IDs, sorted, so it stays the same across loads. */
+  key: string;
+  title: string;
+  help: string;
+  /** Newest first. */
+  rows: TransactionLine[];
+  /** The rows selected when the match opens: both, when there are only two. */
+  picked: string[];
+};
+
 export type InboxEmpty = {
   kind: "done" | "nothing-imported";
   title: string;
@@ -60,6 +80,10 @@ export type ReviewInbox = {
   groups: MerchantGroup[];
   /** Newest first. Each row takes its own decision. */
   noMerchant: NoMerchantRow[];
+  /** Newest first. */
+  transfers: TransferMatch[];
+  /** Rows flagged at import as a repeat in one file, not hidden. Newest first. */
+  duplicates: TransactionLine[];
   categories: { id: string; name: string }[];
   empty: InboxEmpty | null;
 };
@@ -68,6 +92,8 @@ export type ReviewSource = {
   /** Every stored row, so past categories learn from all of them. */
   rows: readonly StoredTransaction[];
   accounts: readonly AccountRow[];
+  /** Each account's statement format, which decides how its rows can pair. */
+  pairingAccounts: readonly PairingAccount[];
   categories: readonly CategoryRow[];
   /** Today's month, so a date from another year shows its year. */
   thisMonth: string;
@@ -116,6 +142,27 @@ function phoneDetailOf(
   return suggestion === null ? countText : `${countText} · Suggested: ${suggestion.name}`;
 }
 
+const MATCH_TEXT: Record<UncertainReason, { title: string; help: string }> = {
+  "transfer-number": {
+    title: "Same Transfer Number",
+    help: "These rows share a transfer number.",
+  },
+  "card-payment": {
+    title: "Card Payment",
+    help: "A card payment and a bank row have the same amount, within 5 days.",
+  },
+  "same-amount": {
+    title: "Same Amount Within 3 Days",
+    help: "These rows have opposite amounts on two accounts and no transfer number.",
+  },
+};
+
+const PICK_TWO = "Select the two rows that belong together.";
+
+function identityOf({ accountId, fingerprint }: RowId): string {
+  return JSON.stringify([accountId, fingerprint]);
+}
+
 function byNewest(a: StoredTransaction, b: StoredTransaction): number {
   return b.postedOn.localeCompare(a.postedOn) || a.id.localeCompare(b.id);
 }
@@ -138,6 +185,7 @@ function largestFirst(a: MerchantGroup, b: MerchantGroup): number {
 export function buildReviewInbox({
   rows,
   accounts,
+  pairingAccounts,
   categories,
   thisMonth,
 }: ReviewSource): ReviewInbox {
@@ -192,8 +240,18 @@ export function buildReviewInbox({
     )
     .sort(byNewest);
 
+  const candidates = rows.filter(
+    (stored) => isOpenToPairing(stored) && !stored.hidden,
+  );
+  // A duplicate stays in totals until hidden, so it's listed whether or not
+  // it needs review.
+  const duplicates = rows
+    .filter((stored) => stored.possibleDuplicate && !stored.hidden)
+    .sort(byNewest);
+  // A match can hold a stored transfer row that isn't in review.
+  const shown = [...new Set([...inReview, ...candidates, ...duplicates])];
   const linesById = new Map(
-    buildTransactionsScreen({ rows: inReview, accounts, categories }).lines.map(
+    buildTransactionsScreen({ rows: shown, accounts, categories }).lines.map(
       (line) => [line.id, line],
     ),
   );
@@ -203,9 +261,47 @@ export function buildReviewInbox({
     date: shortDateAsOf(postedOn, thisMonth),
   });
 
+  const byIdentity = new Map(rows.map((stored) => [identityOf(stored), stored]));
+  const pairing = pairTransfers(candidates, pairingAccounts);
+  // A sure pair is shown, not stored: the owner confirms every transfer here.
+  const found: UncertainMatch[] = [
+    ...pairing.pairs.map(({ evidence, moneyOut, moneyIn }) => ({
+      reason: evidence,
+      rows: [moneyOut, moneyIn],
+    })),
+    ...pairing.uncertain,
+  ];
+  const inReviewIds = new Set(inReview.map(({ id }) => id));
+  const transfers = found
+    .map(({ reason, rows: ids }) => ({
+      reason,
+      matched: ids
+        .map((id) => byIdentity.get(identityOf(id)) as StoredTransaction)
+        .sort(byNewest),
+    }))
+    // Rows already typed as transfers leave the owner nothing to decide.
+    .filter(({ matched }) => matched.some(({ id }) => inReviewIds.has(id)))
+    .sort((a, b) => byNewest(a.matched[0], b.matched[0]))
+    .map(({ reason, matched }): TransferMatch => {
+      const ids = matched.map(({ id }) => id);
+      const isPair = ids.length === 2;
+      const { title, help } = MATCH_TEXT[reason];
+      return {
+        key: [...ids].sort().join(","),
+        title,
+        help: isPair ? help : `${help} ${PICK_TWO}`,
+        rows: matched.map(lineOf),
+        picked: isPair ? ids : [],
+      };
+    });
+  const inAMatch = new Set(
+    transfers.flatMap((match) => match.rows.map(({ id }) => id)),
+  );
+
   const byKey = new Map<string, StoredTransaction[]>();
   const noMerchant: NoMerchantRow[] = [];
   for (const stored of inReview) {
+    if (inAMatch.has(stored.id)) continue;
     const key = merchantKey(stored);
     if (key === undefined) {
       noMerchant.push({
@@ -240,13 +336,16 @@ export function buildReviewInbox({
     subtitle: left === 0 ? "Nothing left to review." : `${rowsText(left)} left.`,
     groups: groups.sort(largestFirst),
     noMerchant,
+    transfers,
+    duplicates: duplicates.map(lineOf),
     categories: categories.map(({ id, name }) => ({ id, name })),
-    empty: emptyState(left, rows.length),
+    empty: emptyState(left + duplicates.length, rows.length),
   };
 }
 
-function emptyState(left: number, stored: number): InboxEmpty | null {
-  if (left > 0) return null;
+/** `open` is every row the inbox still shows, including possible duplicates. */
+function emptyState(open: number, stored: number): InboxEmpty | null {
+  if (open > 0) return null;
   if (stored === 0) {
     return {
       kind: "nothing-imported",

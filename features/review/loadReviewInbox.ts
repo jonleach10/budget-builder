@@ -3,6 +3,7 @@ import {
   orNull,
   readAccounts,
   readCategories,
+  readPairingAccounts,
 } from "@/features/budget/loadScreens";
 import { readStoredTransactions } from "@/features/import/storedTransactions";
 import { buildReviewInbox, type ReviewInbox } from "./reviewInbox";
@@ -16,11 +17,18 @@ export async function loadReviewInbox(
 ): Promise<ReviewInbox | null> {
   return orNull(async () => {
     const client = await serverClient();
-    const [rows, accounts, categories] = await Promise.all([
+    const [rows, accounts, pairingAccounts, categories] = await Promise.all([
       readStoredTransactions(client),
       readAccounts(client),
+      readPairingAccounts(client),
       readCategories(client),
     ]);
-    return buildReviewInbox({ rows, accounts, categories, thisMonth });
+    return buildReviewInbox({
+      rows,
+      accounts,
+      pairingAccounts,
+      categories,
+      thisMonth,
+    });
   });
 }
