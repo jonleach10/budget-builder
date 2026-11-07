@@ -1,5 +1,5 @@
 import type { Transaction } from "@/features/import/types";
-import { forTextMatch, hasText } from "./text";
+import { forTextMatch, hasText, withoutRedacted } from "./text";
 
 export type MatchOn =
   | "ppdId"
@@ -13,6 +13,14 @@ export type RuleCondition = {
   value: string;
 };
 
+/**
+ * The description a text rule reads, without redaction placeholders, so a
+ * short value such as "RED" can't match every redacted row.
+ */
+function ruleText({ description }: Transaction): string {
+  return forTextMatch(withoutRedacted(description));
+}
+
 function matches(rule: RuleCondition, transaction: Transaction): boolean {
   // A blank value would be inside every description and match everything.
   if (!hasText(rule.value)) return false;
@@ -23,13 +31,9 @@ function matches(rule: RuleCondition, transaction: Transaction): boolean {
     case "orderingPartyId":
       return transaction.orderingPartyId === rule.value;
     case "descriptionStartsWith":
-      return forTextMatch(transaction.description).startsWith(
-        forTextMatch(rule.value),
-      );
+      return ruleText(transaction).startsWith(forTextMatch(rule.value));
     case "descriptionContains":
-      return forTextMatch(transaction.description).includes(
-        forTextMatch(rule.value),
-      );
+      return ruleText(transaction).includes(forTextMatch(rule.value));
   }
 }
 
