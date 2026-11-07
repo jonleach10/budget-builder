@@ -5,14 +5,25 @@ import { CircleAlert, CircleCheck } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-export type NoticeMessage = { tone: "error" | "done"; text: string }
+export type NoticeMessage = {
+  tone: "error" | "done"
+  text: string
+  /** Bank text to show first, in mono, as the screen shows it elsewhere. */
+  lead?: string
+}
 
 /**
  * A message for the whole screen. Always rendered, so a screen reader announces
  * it, and focused when it appears, because the button that caused it can be a
- * long way down the page.
+ * long way down the page. `actions` sit beside the text, or under it on a phone.
  */
-function Notice({ message }: { message: NoticeMessage | null }) {
+function Notice({
+  message,
+  actions,
+}: {
+  message: NoticeMessage | null
+  actions?: React.ReactNode
+}) {
   const region = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
@@ -26,18 +37,30 @@ function Notice({ message }: { message: NoticeMessage | null }) {
       tabIndex={-1}
       className="order-first rounded-xl outline-none empty:absolute focus-visible:ring-2 focus-visible:ring-ring">
       {message && (
-        <p
-          className={cn(
-            "flex items-start gap-2.5 rounded-xl bg-frost-wash px-4 py-3 text-body-sm shadow-hairline",
-            message.tone === "error" ? "text-ember-glow" : "text-moon-mist"
-          )}>
-          {message.tone === "error" ? (
-            <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          ) : (
-            <CircleCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl bg-frost-wash px-4 py-3 text-body-sm shadow-hairline">
+          <p
+            className={cn(
+              "flex min-w-0 flex-[1_1_100%] items-start gap-2.5 md:flex-[1_1_360px]",
+              message.tone === "error" ? "text-ember-glow" : "text-moon-mist"
+            )}>
+            {message.tone === "error" ? (
+              <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <CircleCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            )}
+            <span className="min-w-0 [overflow-wrap:anywhere]">
+              {message.lead !== undefined && (
+                <span className="font-eyebrow text-foreground">{`${message.lead} `}</span>
+              )}
+              {message.text}
+            </span>
+          </p>
+          {actions && (
+            <div className="flex w-full gap-2 md:w-auto [&>*]:flex-1 md:[&>*]:flex-none">
+              {actions}
+            </div>
           )}
-          <span>{message.text}</span>
-        </p>
+        </div>
       )}
     </div>
   );

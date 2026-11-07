@@ -35,7 +35,7 @@ function render(rows: readonly RuleRow[] | null): string {
 }
 
 const FUTURE_IMPORTS =
-  "Rules apply to future imports. Stored transactions don&#x27;t change.";
+  "Rules apply to future imports. To sort rows already in review, add a rule from the Review Inbox.";
 
 describe("RulesScreen", () => {
   it("shows ID rules before text rules, whatever their positions", () => {

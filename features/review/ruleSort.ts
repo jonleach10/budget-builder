@@ -46,7 +46,7 @@ export type SortNotice = {
 };
 
 export type SaveRuleResult =
-  | { ok: true; notice: SortNotice }
+  | { ok: true; outcome: SortNotice }
   | { ok: false; message: string };
 
 export type RuleSortDeps = {
@@ -156,7 +156,7 @@ async function sortRows(
 
 /**
  * How a sort reads in the notice. `saved` puts "Rule saved" first. `created`
- * means the rule was just added here: its rows are "more" than the group's,
+ * means the inbox added the rule: its rows are "more" than the group's,
  * and Undo deletes the rule too.
  */
 function sortedNotice(
@@ -248,13 +248,13 @@ export async function saveRuleFromInbox(
     },
     sortRest: null,
   };
-  if (alsoSort !== true) return { ok: true, notice: justSaved };
+  if (alsoSort !== true) return { ok: true, outcome: justSaved };
 
   const sorted = await sortRows(deps, added.id);
   if (typeof sorted === "string") {
     return {
       ok: true,
-      notice: {
+      outcome: {
         ...justSaved,
         tone: "error",
         text: "Rule saved, but no rows were sorted. Click Sort the Rest to try again.",
@@ -262,12 +262,12 @@ export async function saveRuleFromInbox(
       },
     };
   }
-  return { ok: true, notice: sortedNotice(sorted, { saved: true, created: true }) };
+  return { ok: true, outcome: sortedNotice(sorted, { saved: true, created: true }) };
 }
 
 /**
  * Sorts the rows in review a stored rule wins: Sort the Rest after a failed
- * batch (`created`, as the inbox just added the rule), or Sort N Rows when the
+ * batch (`created`, as the inbox added the rule), or Sort N Rows when the
  * same rule was already stored.
  */
 export async function sortByRule(

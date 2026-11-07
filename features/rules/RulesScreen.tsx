@@ -16,7 +16,7 @@ import { RuleDialog } from "./RuleDialog";
 import type { RuleItem, RulesScreenData } from "./rules";
 
 const SUBTITLE =
-  "Rules apply to future imports. Stored transactions don't change.";
+  "Rules apply to future imports. To sort rows already in review, add a rule from the Review Inbox.";
 
 type RuleActions = {
   busy: boolean;

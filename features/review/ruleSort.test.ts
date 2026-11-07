@@ -220,7 +220,7 @@ describe("saveRuleFromInbox", () => {
 
     expect(result).toEqual({
       ok: true,
-      notice: {
+      outcome: {
         tone: "done",
         text: "Rule saved. It applies to future imports.",
         undo: {
@@ -250,7 +250,7 @@ describe("saveRuleFromInbox", () => {
 
     expect(result).toEqual({
       ok: true,
-      notice: {
+      outcome: {
         tone: "done",
         text: "Rule saved. 2 more rows were sorted as Shopping.",
         undo: {
@@ -280,7 +280,7 @@ describe("saveRuleFromInbox", () => {
 
     const result = await saveRuleFromInbox(stored.deps(), TRANSFER_FORM, "source", true);
 
-    expect(result.ok && result.notice.text).toBe(
+    expect(result.ok && result.outcome.text).toBe(
       "Rule saved. 1 more row was sorted as Transfer.",
     );
     expect(sortedAsShopping(stored.row("other"))).toEqual({
@@ -300,7 +300,7 @@ describe("saveRuleFromInbox", () => {
 
     const result = await saveRuleFromInbox(stored.deps(), SHOPPING_FORM, "source", true);
 
-    expect(result.ok && result.notice.text).toBe(
+    expect(result.ok && result.outcome.text).toBe(
       "Rule saved. 1 more row was sorted as Shopping. 1 row had already changed, so it was left as it is.",
     );
     expect(stored.row("b").categoryId).toBeNull();
@@ -377,7 +377,7 @@ describe("saveRuleFromInbox", () => {
 
     expect(result).toEqual({
       ok: true,
-      notice: {
+      outcome: {
         tone: "error",
         text: "Rule saved, and 2 of 5 rows were sorted. The rest are still in the inbox. Click Sort the Rest to finish.",
         undo: {
@@ -409,7 +409,7 @@ describe("saveRuleFromInbox", () => {
 
     const result = await saveRuleFromInbox(stored.deps(), SHOPPING_FORM, "source", true);
 
-    expect(result.ok && result.notice).toMatchObject({
+    expect(result.ok && result.outcome).toMatchObject({
       tone: "error",
       text: "Rule saved, but no rows were sorted. Click Sort the Rest to try again.",
       sortRest: "rule-1",
@@ -480,8 +480,8 @@ function undoFor(extra: Partial<SortUndo> = {}): SortUndo {
 async function savedAndSorted(rows: StoredTransaction[], options: Options = {}) {
   const stored = world([accepted(), ...rows], [], options);
   const result = await saveRuleFromInbox(stored.deps(1), SHOPPING_FORM, "source", true);
-  if (!result.ok || result.notice.undo === null) throw new Error("expected a sort");
-  return { stored, undo: result.notice.undo };
+  if (!result.ok || result.outcome.undo === null) throw new Error("expected a sort");
+  return { stored, undo: result.outcome.undo };
 }
 
 describe("undoRuleSort", () => {
@@ -529,9 +529,9 @@ describe("undoRuleSort", () => {
   it("only deletes a rule saved without sorting", async () => {
     const stored = world([accepted(), row({ id: "a" })]);
     const result = await saveRuleFromInbox(stored.deps(), SHOPPING_FORM, "source", false);
-    if (!result.ok || result.notice.undo === null) throw new Error("expected a rule");
+    if (!result.ok || result.outcome.undo === null) throw new Error("expected a rule");
 
-    const notice = await undoRuleSort(stored.deps(), result.notice.undo);
+    const notice = await undoRuleSort(stored.deps(), result.outcome.undo);
 
     expect(notice.text).toBe("The rule was deleted.");
     expect(stored.rules()).toEqual([]);

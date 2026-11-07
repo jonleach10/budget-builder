@@ -50,8 +50,8 @@ export function DeleteRuleDialog({ ruleId, onClose }: DeleteRuleDialogProps) {
       <DialogContent role="alertdialog">
         <DialogTitle>Delete Rule</DialogTitle>
         <DialogDescription>
-          Future imports won&apos;t use this rule. Stored transactions don&apos;t
-          change.
+          Future imports won&apos;t use this rule. Rows it already sorted
+          don&apos;t change.
         </DialogDescription>
         <FieldError message={error} />
         <DialogFooter>
