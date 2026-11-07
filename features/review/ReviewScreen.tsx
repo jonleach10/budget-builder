@@ -7,6 +7,8 @@ import { EmptyPanel } from "@/features/budget/ScreenParts";
 import { cn } from "@/lib/utils";
 import { MerchantGroups } from "./MerchantGroups";
 import { NoMerchantRows } from "./NoMerchantRows";
+import { PossibleDuplicates } from "./PossibleDuplicates";
+import { PossibleTransfers } from "./PossibleTransfers";
 import type { InboxEmpty, ReviewInbox } from "./reviewInbox";
 import { SECTIONS, sectionHref, type ReviewSection } from "./sections";
 
@@ -23,7 +25,7 @@ function SectionTabs({
     <nav
       aria-label="Review sections"
       className="grid grid-cols-2 gap-1 rounded-[20px] bg-frost-wash p-1 shadow-hairline md:inline-flex md:gap-0.5 md:self-start md:rounded-full md:p-[3px]">
-      {SECTIONS.map(({ value, label }) => {
+      {SECTIONS.map(({ value, label, phoneLabel }) => {
         const selected = value === section;
         return (
           <Link
@@ -35,7 +37,8 @@ function SectionTabs({
               "inline-flex min-h-11 items-center justify-center rounded-full px-3.5 text-body-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-[30px]",
               selected ? "bg-accent text-white" : "text-moon-mist hover:text-white",
             )}>
-            {label}
+            <span className="hidden md:inline">{label}</span>
+            <span className="md:hidden">{phoneLabel}</span>
             <span
               className={cn(
                 "ml-1.5 font-normal tabular-nums",
@@ -105,13 +108,30 @@ export function ReviewScreen({
         counts={{
           merchants: inbox.groups.length,
           "no-merchant": inbox.noMerchant.length,
+          transfers: inbox.transfers.length,
+          duplicates: inbox.duplicates.length,
         }}
       />
-      {section === "merchants" ? (
-        <MerchantGroups groups={inbox.groups} categories={inbox.categories} />
-      ) : (
-        <NoMerchantRows rows={inbox.noMerchant} categories={inbox.categories} />
-      )}
+      <Section inbox={inbox} section={section} />
     </PageFrame>
   );
+}
+
+function Section({
+  inbox,
+  section,
+}: {
+  inbox: ReviewInbox;
+  section: ReviewSection;
+}) {
+  switch (section) {
+    case "merchants":
+      return <MerchantGroups groups={inbox.groups} categories={inbox.categories} />;
+    case "no-merchant":
+      return <NoMerchantRows rows={inbox.noMerchant} categories={inbox.categories} />;
+    case "transfers":
+      return <PossibleTransfers matches={inbox.transfers} />;
+    case "duplicates":
+      return <PossibleDuplicates rows={inbox.duplicates} />;
+  }
 }
