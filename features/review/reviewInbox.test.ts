@@ -691,6 +691,29 @@ describe("buildReviewInbox", () => {
       ]);
     });
 
+    it("leave out a match where no two rows can be one transfer, so its rows go back to review", () => {
+      // A repeated transfer row in one file: same account, same number.
+      const repeated = { transferNumber: "TX-9", description: "ONLINE TRANSFER" };
+      const result = inbox([
+        moneyOut({ id: "first", ...repeated }),
+        moneyOut({ id: "repeat", ...repeated }),
+      ]);
+
+      expect(result.transfers).toEqual([]);
+      expect(result.groups[0].rows.map(({ id }) => id).sort()).toEqual(["first", "repeat"]);
+    });
+
+    it("keep a larger match that holds a possible pair, with nothing picked", () => {
+      const result = inbox([
+        moneyOut({ id: "out", transferNumber: "TX-7" }),
+        moneyOut({ id: "out-again", transferNumber: "TX-7" }),
+        moneyIn({ id: "in", transferNumber: "TX-7" }),
+      ]);
+
+      expect(matchIds(result)).toEqual([["in", "out", "out-again"]]);
+      expect(result.transfers[0].picked).toEqual([]);
+    });
+
     it("never match EUR and USD rows", () => {
       const result = inbox([
         moneyOut(),

@@ -4,6 +4,7 @@ import type { AccountRow, CategoryRow } from "@/features/budget/rows";
 import { lookUp } from "@/features/categorize/bankMaps";
 import { needsReview } from "@/features/categorize/needsReview";
 import {
+  canBeOneTransfer,
   pairTransfers,
   type PairingAccount,
   type RowId,
@@ -163,6 +164,13 @@ function identityOf({ accountId, fingerprint }: RowId): string {
   return JSON.stringify([accountId, fingerprint]);
 }
 
+/** Whether any two of the rows could be one transfer, as Mark as Transfer checks. */
+function holdsAPair(rows: readonly StoredTransaction[]): boolean {
+  return rows.some((row, index) =>
+    rows.slice(index + 1).some((other) => canBeOneTransfer(row, other)),
+  );
+}
+
 function byNewest(a: StoredTransaction, b: StoredTransaction): number {
   return b.postedOn.localeCompare(a.postedOn) || a.id.localeCompare(b.id);
 }
@@ -281,6 +289,9 @@ export function buildReviewInbox({
     }))
     // Rows already typed as transfers leave the owner nothing to decide.
     .filter(({ matched }) => matched.some(({ id }) => inReviewIds.has(id)))
+    // Shared evidence alone can't make a transfer, such as a row repeated in one
+    // file. With no two rows that could be one, the rows go back to review.
+    .filter(({ matched }) => holdsAPair(matched))
     .sort((a, b) => byNewest(a.matched[0], b.matched[0]))
     .map(({ reason, matched }): TransferMatch => {
       const ids = matched.map(({ id }) => id);
