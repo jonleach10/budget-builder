@@ -58,6 +58,7 @@ The rules above, plus:
 - The change matches its issue's acceptance criteria.
 - A change that touches a one-way door names it under Merge Danger.
 - A UI-facing PR has a sandbox screenshot in its Proof section that shows the change itself.
+- A PR that adds a domain term, or settles a decision that's hard to reverse, surprising and a real trade-off, updates `GLOSSARY.md` or `docs/adr/` in the same PR.
 
 ## PR policy
 
