@@ -105,14 +105,23 @@ test("a redacted group asks for its rows to be checked, and can be accepted whol
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await groupButton(page, redacted).click();
-  await expect(groupButton(page, redacted)).toContainText(/\d+ rows? · Redacted text/);
+  // innerText leaves out the line hidden at this width, so each check proves its own.
+  await expect(groupButton(page, redacted)).toContainText(/\d+ rows? · Redacted text/, {
+    useInnerText: true,
+  });
+  await expect(groupButton(page, redacted)).not.toContainText(reminder, {
+    useInnerText: true,
+  });
   await groupButton(page, redacted).evaluate((el) => el.scrollIntoView({ block: "start" }));
   await picture(page, "review-redacted-group-phone");
 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.reload();
   await groupButton(page, redacted).click();
-  await expect(groupButton(page, redacted)).toContainText(reminder);
+  await expect(groupButton(page, redacted)).toContainText(reminder, { useInnerText: true });
+  await expect(groupButton(page, redacted)).not.toContainText(/rows? · Redacted text/, {
+    useInnerText: true,
+  });
   await groupButton(page, redacted).evaluate((el) => el.scrollIntoView({ block: "start" }));
   await picture(page, "review-redacted-group-laptop");
 
