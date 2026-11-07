@@ -21,7 +21,7 @@ const REDACTED_PREFIX = "redacted:";
  * same text. A redacted description is keyed on the text left around the
  * placeholder, under its own prefix, because the placeholder may hide two
  * payees: its past category only suggests (see `isRedactedKey`). A row with no
- * text left, or a blank description, has no key.
+ * letter or digit left, or a blank description, has no key.
  */
 export function merchantKey(transaction: Transaction): string | undefined {
   const { ppdId, orderingPartyId, description } = transaction;
@@ -32,8 +32,16 @@ export function merchantKey(transaction: Transaction): string | undefined {
     return `description:${ignoreCase(description)}`;
   }
   const rest = withoutRedacted(description);
-  return hasText(rest) ? `${REDACTED_PREFIX}${ignoreCase(rest)}` : undefined;
+  return NAMES_SOMETHING.test(rest)
+    ? `${REDACTED_PREFIX}${ignoreCase(rest)}`
+    : undefined;
 }
+
+/**
+ * A letter or digit. Text that redaction left as only punctuation, such as the
+ * "/" between two numbers, names no merchant, so it would group any payees.
+ */
+const NAMES_SOMETHING = /[\p{L}\p{N}]/u;
 
 /** A key from redacted text, whose past category may suggest but never decide. */
 export function isRedactedKey(key: string | undefined): boolean {

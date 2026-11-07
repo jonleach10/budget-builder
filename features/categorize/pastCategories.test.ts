@@ -121,6 +121,9 @@ describe("merchantKey", () => {
   it.each([
     ["removed whole", "AB12 CAFE BAR 10115"],
     ["of two numbers and nothing else", "DE00123456789012345678 1111222233334444"],
+    ["of two numbers split by a slash", "DE00123456789012345678 / 1111222233334444"],
+    ["of a number and a full stop", "1111222233334444."],
+    ["of two numbers split by a comma", "DE00123456789012345678, DE00987654321098765432"],
   ])("gives no key to a description %s by redaction", (_label, text) => {
     expect(
       merchantKey(transaction({ description: redactText(text) })),
