@@ -28,6 +28,7 @@ function row(extra: Partial<TransactionRow> = {}): TransactionRow {
     amount_minor: -1250,
     currency: "USD",
     description: "SAMPLE GROCER",
+    note: null,
     base_amount_minor: -1250,
     base_currency: "USD",
     type: "spending",
@@ -46,12 +47,19 @@ describe("toLedger", () => {
         country: "US",
         account: "Joint Checking",
         description: "SAMPLE GROCER",
+        note: null,
         amount: { minor: -1250, currency: "USD" },
         base: { minor: -1250, currency: "USD" },
         type: "spending",
         category: "Groceries",
       },
     ]);
+  });
+
+  it("keeps the owner's label, as stored", () => {
+    const ledger = toLedger([row({ note: "Corner shop" })], ACCOUNTS, CATEGORIES);
+
+    expect(ledger[0].note).toBe("Corner shop");
   });
 
   it("takes a row's country from its account, not from its currency", () => {

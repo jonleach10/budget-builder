@@ -1,3 +1,4 @@
+import { rowTitle, type RowTitle } from "@/features/transactions/rowTitle";
 import { formatMoney, formatPlainAmount, sumMinor } from "@/lib/money";
 import type { Country } from "./budget";
 import type { CategoryComparison } from "./compareBudget";
@@ -8,6 +9,7 @@ import {
   currencyNote,
   firstOfMonth,
   noRateMessage,
+  reviewHref,
   reviewText,
 } from "./screenText";
 import {
@@ -20,10 +22,10 @@ import {
   type ViewData,
 } from "./viewFigures";
 
-export type TransactionLine = {
+/** The title comes from the rule Transactions uses, so a row reads the same on both. */
+export type TransactionLine = RowTitle & {
   id: string;
   date: string;
-  description: string;
   account: string;
   amount: string;
   /** The EUR amount under a USD base amount, in Combined. */
@@ -58,6 +60,7 @@ export type ReadyBudgetScreen = {
   status: "ready";
   subtitle: string;
   review: string;
+  reviewHref: string | null;
   /** The country this view edits, or null for Combined, which is read-only. */
   country: Country | null;
   currency: string;
@@ -137,7 +140,7 @@ function transactionLines(
     .map((row) => ({
       id: row.id,
       date: shortDate(row.postedOn),
-      description: row.description,
+      ...rowTitle(row),
       account: row.account,
       amount: formatMoney(amountInView(row, view)),
       original:
@@ -210,6 +213,7 @@ export function buildBudgetScreen(
     status: "ready",
     subtitle: subtitleFor(view, month, rate),
     review: reviewText(comparison.needsReview),
+    reviewHref: reviewHref(comparison.needsReview),
     country,
     currency,
     setup: monthSetup(view, month, data.amounts),

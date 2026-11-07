@@ -17,6 +17,7 @@ import type {
   BudgetLine,
   BudgetScreenData,
   ReadyBudgetScreen,
+  TransactionLine,
 } from "./budgetScreenData";
 import { ScreenControls } from "./ScreenControls";
 import {
@@ -110,7 +111,21 @@ function AmountCell({
   );
 }
 
-function TransactionTable({
+/** Laid out as on Transactions: the title, then any bank text in a caption. */
+function TransactionTitle({ transaction }: { transaction: TransactionLine }) {
+  return (
+    <div className="min-w-0 [overflow-wrap:anywhere]">
+      <div>{transaction.title}</div>
+      {transaction.bankText !== null && (
+        <div className="text-caption text-muted-foreground">
+          {transaction.bankText}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TransactionTable({
   line,
   empty,
 }: {
@@ -148,8 +163,8 @@ function TransactionTable({
             <td className="py-2 pr-4 text-muted-foreground">
               {transaction.date}
             </td>
-            <td className="py-2 pr-4 [overflow-wrap:anywhere]">
-              {transaction.description}
+            <td className="py-2 pr-4">
+              <TransactionTitle transaction={transaction} />
             </td>
             <td className="py-2 pr-4 text-muted-foreground [overflow-wrap:anywhere]">
               {transaction.account}
@@ -164,7 +179,7 @@ function TransactionTable({
   );
 }
 
-function TransactionList({
+export function TransactionList({
   line,
   empty,
 }: {
@@ -180,9 +195,7 @@ function TransactionList({
       {line.transactions.map((transaction) => (
         <li key={transaction.id} className="py-2">
           <div className="flex items-start justify-between gap-3">
-            <span className="min-w-0 [overflow-wrap:anywhere]">
-              {transaction.description}
-            </span>
+            <TransactionTitle transaction={transaction} />
             <div className="shrink-0 text-right">
               <AmountWithOriginal line={transaction} />
             </div>
@@ -513,7 +526,7 @@ function ReadyBudget({
         </div>
       }>
       <Notice message={notice} />
-      <InfoNotice text={screen.review} />
+      <InfoNotice text={screen.review} href={screen.reviewHref} />
 
       {setup.kind === "copy" && (
         <EmptyPanel title={setup.title} text={setup.text}>

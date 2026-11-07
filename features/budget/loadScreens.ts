@@ -26,7 +26,7 @@ import type { ScreenParams } from "./screenParams";
 import { TREND_MONTHS } from "./viewFigures";
 
 const TRANSACTION_COLUMNS =
-  "id, account_id, posted_on, amount_minor, currency, description, " +
+  "id, account_id, posted_on, amount_minor, currency, description, note, " +
   "base_amount_minor, base_currency, type, category_id, hidden";
 
 // findRate looks back up to 7 days, for a first of the month with no rate.

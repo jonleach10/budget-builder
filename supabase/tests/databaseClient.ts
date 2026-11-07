@@ -59,10 +59,16 @@ export function databaseClient(
         changes = patch;
         return builder;
       },
-      eq: (column: string, value: string) => keep(column, "=", value),
+      // Postgres writes a boolean as text the way String() does: true or false.
+      eq: (column: string, value: string | boolean) => keep(column, "=", String(value)),
       gte: (column: string, value: string) => keep(column, ">=", value),
       lte: (column: string, value: string) => keep(column, "<=", value),
       lt: (column: string, value: string) => keep(column, "<", value),
+      in(column: string, list: readonly string[]) {
+        values.push(list);
+        conditions.push(`${column}::text = any($${values.length}::text[])`);
+        return builder;
+      },
       /** The app only ever tests for null this way. */
       is(column: string) {
         conditions.push(`${column} is null`);

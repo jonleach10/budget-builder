@@ -6,14 +6,11 @@ import type { TransactionType } from "@/features/categorize/transactionType";
 import type { StoredTransaction } from "@/features/import/storedTransactions";
 import { TYPE_OPTIONS } from "@/features/rules/rules";
 import { formatMoney, type Money } from "@/lib/money";
+import { rowTitle, type RowTitle } from "./rowTitle";
 
-export type TransactionLine = {
+export type TransactionLine = RowTitle & {
   id: string;
   date: string;
-  /** The owner's label if the row has one, otherwise the bank text. */
-  title: string;
-  /** The bank text, when a label took its place as the title. */
-  bankText: string | null;
   purpose: string | null;
   bankType: string | null;
   bankCategory: string | null;
@@ -113,15 +110,13 @@ export function buildTransactionsScreen({
   }
 
   function toLine(row: StoredTransaction): TransactionLine {
-    const label = row.note?.trim() || null;
     const category =
       row.categoryId === null ? null : (namesById.get(row.categoryId) ?? null);
 
     return {
       id: row.id,
       date: shortDate(row.postedOn),
-      title: label ?? row.description,
-      bankText: label === null ? null : row.description,
+      ...rowTitle(row),
       purpose: row.purpose ?? null,
       bankType: row.bankType ?? null,
       bankCategory: row.bankCategory ?? null,

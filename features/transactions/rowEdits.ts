@@ -46,7 +46,19 @@ export type RowEditStore = {
     pairId: string | null,
     changes: RowChanges,
   ): Promise<WriteResult>;
+  /**
+   * Lands only on rows that still need review, have no pair and hold the given
+   * type. Gives how many rows changed.
+   */
+  updateInReview(
+    ids: readonly string[],
+    type: "spending" | null,
+    changes: RowChanges,
+  ): Promise<number | "failed">;
 };
+
+/** How many rows one write of a group sends. */
+export const BATCH_SIZE = 100;
 
 const EDIT_FIELDS: ReadonlySet<string> = new Set([
   "type",
@@ -163,4 +175,81 @@ export async function editRow(
   const write = await store.update(id, start.transfer_pair_id, changes);
   if (write === "done") return OK;
   return breaksPair ? ONLY_PAIR_REMOVED : NOT_SAVED;
+}
+
+function count(rows: number): string {
+  return rows.toLocaleString("en-US");
+}
+
+function rowsWere(rows: number): string {
+  return rows === 1 ? "1 row was" : `${count(rows)} rows were`;
+}
+
+function noneSaved(total: number): ActionResult {
+  return {
+    ok: false,
+    message:
+      total === 1
+        ? "This row wasn't saved. Try again."
+        : "These rows weren't saved. Try again.",
+  };
+}
+
+const ROWS_CHANGED: ActionResult = {
+  ok: false,
+  message:
+    "These rows have changed, so none were saved. Check the rows, then try again.",
+};
+
+function isIdList(ids: unknown): ids is string[] {
+  return (
+    Array.isArray(ids) &&
+    ids.length > 0 &&
+    ids.every((id) => typeof id === "string" && id !== "")
+  );
+}
+
+/**
+ * Gives one decision to many rows in review, such as a merchant group, using
+ * `editRow`'s change logic on a row in review. It saves in batches, each a
+ * write per kind of review row, spending first, so a row that gains a type
+ * can't be counted twice. A failed batch stops it: rows already saved stay
+ * saved, and the rest stay in review, so trying again is safe. A row that left
+ * review since the inbox loaded, or holds a pair, is left as it is.
+ */
+export async function editRows(
+  store: RowEditStore,
+  ids: readonly string[],
+  edit: RowEdit,
+  batchSize = BATCH_SIZE,
+): Promise<ActionResult> {
+  if (!isIdList(ids) || typeof edit !== "object" || edit === null) {
+    return noneSaved(2);
+  }
+  if (Object.keys(edit).some((field) => !EDIT_FIELDS.has(field))) {
+    return BANK_DATA;
+  }
+  if (!isValidEdit(edit)) return noneSaved(2);
+
+  const unique = [...new Set(ids)];
+  const changes = changesFor(IN_REVIEW, edit);
+  let saved = 0;
+
+  for (let start = 0; start < unique.length; start += batchSize) {
+    const batch = unique.slice(start, start + batchSize);
+    for (const type of ["spending", null] as const) {
+      const write = await store.updateInReview(batch, type, changes);
+      if (write === "failed") {
+        if (saved === 0) return noneSaved(unique.length);
+        return {
+          ok: false,
+          message: `${count(saved)} of ${count(unique.length)} rows were saved. The rest are still in the inbox. Accept the group again to finish.`,
+        };
+      }
+      saved += write;
+    }
+  }
+
+  if (saved === 0) return ROWS_CHANGED;
+  return { ok: true, notice: `${rowsWere(saved)} saved.` };
 }

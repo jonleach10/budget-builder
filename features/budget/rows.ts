@@ -13,6 +13,8 @@ export type TransactionRow = {
   amount_minor: number;
   currency: string;
   description: string;
+  /** The owner's label. It changes the text shown, never a figure. */
+  note: string | null;
   base_amount_minor: number;
   base_currency: string;
   type: string | null;
@@ -38,6 +40,8 @@ export type LedgerRow = {
   country: Country;
   account: string;
   description: string;
+  /** The owner's label, as stored. `rowTitle` decides what it shows. */
+  note: string | null;
   amount: Money;
   /** The USD amount locked at import, which Combined uses. */
   base: Money;
@@ -66,6 +70,7 @@ export function toLedger(
         country: account.country,
         account: account.name,
         description: row.description,
+        note: row.note,
         amount: { minor: row.amount_minor, currency: row.currency },
         base: { minor: row.base_amount_minor, currency: row.base_currency },
         type: row.type as TransactionType | null,

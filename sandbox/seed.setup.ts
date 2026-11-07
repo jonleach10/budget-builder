@@ -32,6 +32,12 @@ const DE_BUDGET: Record<string, number> = {
   Insurance: 4_500,
 };
 
+/**
+ * Made up, like every row here. It goes on last month's newest SAMPLE GROCER row,
+ * which a rule puts in Groceries, a budgeted category, so Budget shows a label.
+ */
+const GROCERY_LABEL = "Weekly shop";
+
 const SCHEMA_ATTEMPTS = 100;
 const SCHEMA_WAIT_MS = 200;
 
@@ -156,6 +162,37 @@ async function addBudget(
   );
 }
 
+/** The owner's label, saved the way Edit Row saves one, on a stored row. */
+async function labelGroceryRow(
+  client: SupabaseClient,
+  today: string,
+  groceriesId: string | undefined,
+): Promise<void> {
+  const [month, next] = sandboxMonths(today).slice(-2);
+  const found = dataOf(
+    await client
+      .from("transactions")
+      .select("id")
+      .eq("category_id", groceriesId)
+      .like("description", "SAMPLE GROCER%")
+      .gte("posted_on", `${month}-01`)
+      .lt("posted_on", `${next}-01`)
+      .order("posted_on", { ascending: false })
+      .order("id")
+      .limit(1),
+  );
+  if (found.length === 0) throw new Error("No grocery row to label last month.");
+
+  const labeled = dataOf(
+    await client
+      .from("transactions")
+      .update({ note: GROCERY_LABEL })
+      .eq("id", found[0].id)
+      .select("id"),
+  );
+  expect(labeled).toHaveLength(1);
+}
+
 setup("seed the fake owner's data", async () => {
   const url = required("SANDBOX_URL");
   assertLocalSupabase(url);
@@ -223,4 +260,6 @@ setup("seed the fake owner's data", async () => {
 
   expect(result).toMatchObject({ ok: true, fileCount: files.length });
   if (result.ok) console.log(JSON.stringify(result.summary));
+
+  await labelGroceryRow(client, today, categoryIds.get("Groceries"));
 });

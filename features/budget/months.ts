@@ -54,6 +54,13 @@ export function shortDate(isoDate: string): string {
   return `${shortMonthName(isoDate.slice(0, 7))} ${Number(isoDate.slice(8))}`;
 }
 
+/** The short date, with the year added when it isn't the current month's year. */
+export function shortDateAsOf(isoDate: string, thisMonth: string): string {
+  const year = isoDate.slice(0, 4);
+  const date = shortDate(isoDate);
+  return year === thisMonth.slice(0, 4) ? date : `${date}, ${year}`;
+}
+
 /** Finds the closest month, earlier or later. A tie goes to the earlier one. */
 export function nearestMonth(
   target: string,

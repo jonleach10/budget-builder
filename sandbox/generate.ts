@@ -301,6 +301,14 @@ function cardEvents(month: Month): CardRow[] {
   });
 
   return [
+    // A grocery row every month, because the seed labels last month's.
+    cardRowOn(month, 3, {
+      description: "SAMPLE GROCER #1042",
+      category: "Groceries",
+      type: "Sale",
+      minor: -5875,
+      memo: "",
+    }),
     cardRowOn(month, 8, {
       description: "Payment Thank You-Mobile",
       category: "",

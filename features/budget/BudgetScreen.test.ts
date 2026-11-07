@@ -1,11 +1,12 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BudgetScreen } from "./BudgetScreen";
+import { BudgetScreen, TransactionList, TransactionTable } from "./BudgetScreen";
 import type {
   BudgetLine,
   BudgetScreenData,
   ReadyBudgetScreen,
+  TransactionLine,
 } from "./budgetScreenData";
 import type { BudgetView } from "./screenParams";
 
@@ -53,6 +54,7 @@ function ready(extra: Partial<ReadyBudgetScreen> = {}): ReadyBudgetScreen {
     status: "ready",
     subtitle: "Amounts are in USD. Changes apply to October 2026 only.",
     review: "2 rows need review and aren't in the budget totals.",
+    reviewHref: "/review",
     country: "US",
     currency: "USD",
     setup: { kind: "has-amounts" },
@@ -135,13 +137,19 @@ describe("BudgetScreen", () => {
     expect(html).toContain("-$50.00");
   });
 
-  it("shows the needs-review count as text, not a link", () => {
-    const html = render(ready());
-
-    expect(html).toContain(
-      "2 rows need review and aren&#x27;t in the budget totals.",
+  it("links the needs-review count to the Review inbox", () => {
+    expect(render(ready())).toMatch(
+      /<a[^>]*href="\/review"[^>]*>2 rows need review and aren&#x27;t in the budget totals\.<\/a>/,
     );
-    expect(html).not.toMatch(/<a[^>]*>[^<]*rows need review/);
+  });
+
+  it("shows no link when no rows need review", () => {
+    const html = render(
+      ready({ review: "No rows need review.", reviewHref: null }),
+    );
+
+    expect(html).toContain("No rows need review.");
+    expect(html).not.toContain('href="/review"');
   });
 
   it("shows only the running action as busy", () => {
@@ -244,5 +252,51 @@ describe("BudgetScreen", () => {
 
   it("uses no backdrop blur on its tables", () => {
     expect(render(ready())).not.toContain("backdrop-blur");
+  });
+});
+
+const LABELED: TransactionLine = {
+  id: "t1",
+  date: "Oct 24",
+  title: "Corner shop",
+  bankText: "SAMPLE GROCER",
+  account: "Card A",
+  amount: "-$40.00",
+  original: null,
+};
+
+const UNLABELED: TransactionLine = {
+  ...LABELED,
+  id: "t2",
+  title: "SAMPLE MARKET",
+  bankText: null,
+};
+
+const CAPTION = '<div class="text-caption text-muted-foreground">';
+
+describe.each([
+  ["table", TransactionTable],
+  ["phone list", TransactionList],
+] as const)("a category's transactions, in the %s", (_, Rows) => {
+  function renderRows(transactions: TransactionLine[]): string {
+    return renderToStaticMarkup(
+      createElement(Rows, {
+        line: { ...GROCERIES, transactions },
+        empty: "No transactions in this category for October 2026.",
+      }),
+    );
+  }
+
+  it("shows the label first, with the bank text in a caption under it", () => {
+    const html = renderRows([LABELED]);
+
+    expect(html).toContain(`<div>Corner shop</div>${CAPTION}SAMPLE GROCER</div>`);
+  });
+
+  it("shows the bank text alone when the row has no label", () => {
+    const html = renderRows([UNLABELED]);
+
+    expect(html).toContain("<div>SAMPLE MARKET</div>");
+    expect(html).not.toContain(`${CAPTION}SAMPLE`);
   });
 });

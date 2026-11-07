@@ -14,6 +14,7 @@ function usRow(extra: Partial<LedgerRow> = {}): LedgerRow {
     country: "US",
     account: "Card A",
     description: "SAMPLE GROCER",
+    note: null,
     amount: { minor: -40000, currency: "USD" },
     base: { minor: -40000, currency: "USD" },
     type: "spending",
@@ -153,10 +154,15 @@ describe("buildOverviewScreen", () => {
     );
   });
 
-  it("says when no rows need review", () => {
+  it("links the count to the Review inbox while rows need review", () => {
+    expect(ready("us").reviewHref).toBe("/review");
+  });
+
+  it("says when no rows need review, with no link", () => {
     const screen = ready("us", data({ ledger: [usRow()] }));
 
     expect(screen.review).toBe("No rows need review.");
+    expect(screen.reviewHref).toBeNull();
   });
 
   it("says a single row needs review", () => {
