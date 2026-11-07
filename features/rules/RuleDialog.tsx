@@ -305,6 +305,9 @@ export function RuleDialog({ target, categories, onClose, inbox }: RuleDialogPro
         className={cn(inbox !== undefined && "max-w-[560px] p-5 md:p-6")}>
         {target !== null && (
           <RuleEditor
+            // The form is state, so a different target needs a fresh editor:
+            // Edit Earlier Rule swaps the inbox's offer for a stored rule.
+            key={target === "new" ? (inbox === undefined ? "new" : "offer") : target.id}
             rule={target === "new" ? null : target}
             categories={categories}
             onClose={onClose}

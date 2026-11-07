@@ -141,6 +141,19 @@ test.describe("on a phone", () => {
     expect(await sidewaysScroll(page)).toBeLessThanOrEqual(0);
     await picture(page, "rule-dialog-phone");
 
+    // Each row shows its date, bank text, account and amount, even on a phone.
+    await dialog.getByRole("button", { name: "Show Rows" }).click();
+    const shown = dialog.getByRole("list", { name: "Rows this rule sorts" });
+    const first = shown.getByRole("listitem").first();
+    const visible = (text: RegExp) => first.locator("span:visible", { hasText: text });
+    await expect(visible(/^[A-Z][a-z]{2} \d{1,2}$/)).toHaveCount(1);
+    await expect(visible(new RegExp(`^${PARCEL}Q\\d{2}[0-9A-Z]{2}$`))).toHaveCount(1);
+    await expect(visible(/^Sandbox Card$/)).toHaveCount(1);
+    await expect(visible(/^-\$\d+\.\d{2}$/)).toHaveCount(1);
+    await shown.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    expect(await sidewaysScroll(page)).toBeLessThanOrEqual(0);
+    await picture(page, "rule-show-rows-phone");
+
     await dialog.getByRole("button", { name: "Save Rule" }).click();
     await expect(notice(page)).toContainText(
       `Rule saved. ${count} more rows were sorted as Shopping.`,
@@ -152,4 +165,47 @@ test.describe("on a phone", () => {
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(notice(page)).toContainText("The rule was deleted");
   });
+});
+
+const textRules = (page: Page) => page.getByRole("table", { name: "Text Rules" });
+
+// Last in the file: its stored rule decides every PARCELPOINT row from here on.
+test("Edit Earlier Rule edits the earlier rule as stored, and adds none", async ({ page }) => {
+  // A stored rule that decides every PARCELPOINT row first.
+  await page.goto("/rules");
+  await page.getByRole("button", { name: "Add Rule", exact: true }).first().click();
+  const add = page.getByRole("dialog", { name: "Add Rule" });
+  await add.getByLabel("Value").fill("PARCELPOINT");
+  await add.getByLabel("Type").selectOption("spending");
+  await add.getByLabel("Category").selectOption({ label: "Shopping" });
+  await add.getByRole("button", { name: "Save Rule" }).click();
+  await expect(add).toBeHidden();
+  // Counted once the list shows the new rule, so the count includes it.
+  await expect(textRules(page).getByRole("cell", { name: "PARCELPOINT", exact: true })).toHaveCount(1);
+  const rulesBefore = await textRules(page).getByRole("row").count();
+
+  // Accept one PARCELPOINT group, which offers a rule with the full text.
+  await page.goto("/review");
+  await acceptFirstParcel(page);
+  await page.getByRole("button", { name: "Add Rule..." }).click();
+
+  const offered = page.getByRole("dialog", { name: "Add Rule" });
+  await expect(offered).toContainText("An earlier rule matches this row first");
+  await expect(offered.getByRole("button", { name: "Save Rule" })).toBeDisabled();
+  await offered.getByRole("button", { name: "Edit Earlier Rule" }).click();
+
+  const edit = page.getByRole("dialog", { name: "Edit Rule" });
+  await expect(edit).toBeVisible();
+  // The earlier rule is "Starts With PARCELPOINT", so that's what it should hold.
+  await expect(edit.getByLabel("Value")).toHaveValue("PARCELPOINT");
+  await expect(edit.getByLabel("Match")).toHaveValue("descriptionStartsWith");
+  await expect(edit.getByLabel("Category").locator("option:checked")).toHaveText("Shopping");
+
+  await edit.getByRole("button", { name: "Save Rule" }).click();
+  await expect(edit).toBeHidden();
+
+  await page.goto("/rules");
+  await expect(textRules(page).getByRole("cell", { name: "PARCELPOINT", exact: true })).toHaveCount(1);
+  await expect(textRules(page).getByRole("cell", { name: /^PARCELPOINT MKTPL/ })).toHaveCount(0);
+  expect(await textRules(page).getByRole("row").count()).toBe(rulesBefore);
 });

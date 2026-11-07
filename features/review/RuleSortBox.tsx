@@ -43,8 +43,14 @@ function ShowRows({ sort }: { sort: SortSummary }) {
                 key={row.id}
                 className="grid grid-cols-[44px_minmax(0,1fr)_72px] items-baseline gap-x-2.5 border-b border-border py-1.5 text-caption md:grid-cols-[52px_minmax(0,1fr)_96px_76px]">
                 <span className="text-muted-foreground">{row.date}</span>
-                <span className="truncate font-eyebrow text-foreground">
-                  {row.description}
+                <span className="min-w-0">
+                  <span className="block font-eyebrow text-foreground [overflow-wrap:anywhere] md:truncate">
+                    {row.description}
+                  </span>
+                  {/* A phone has no room for an account column, so it sits under the text. */}
+                  <span className="block truncate text-muted-foreground md:hidden">
+                    {row.account}
+                  </span>
                 </span>
                 <span className="hidden truncate text-muted-foreground md:block">
                   {row.account}
