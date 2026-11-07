@@ -36,6 +36,23 @@ describe("firstMatchingRule on redacted text", () => {
     expect(firstMatchingRule(redacted, [rule])).toBe(rule);
   });
 
+  // A value copied from the screen holds the placeholder, as the row does.
+  it.each<RuleCondition>([
+    { matchOn: "descriptionStartsWith", value: "Pay [REDACTED] Rent" },
+    { matchOn: "descriptionContains", value: "PAY [REDACTED] RENT" },
+    { matchOn: "descriptionContains", value: "[REDACTED] RENT" },
+  ])("matches a value copied from the row: $matchOn $value", (rule) => {
+    expect(firstMatchingRule(redacted, [rule])).toBe(rule);
+  });
+
+  it.each<RuleCondition>([
+    { matchOn: "descriptionContains", value: "[REDACTED]" },
+    { matchOn: "descriptionStartsWith", value: " [REDACTED] [REDACTED] " },
+  ])("never matches a value that is only placeholders: $matchOn $value", (rule) => {
+    expect(firstMatchingRule(redacted, [rule])).toBeUndefined();
+    expect(firstMatchingRule(transaction("EXAMPLE SHOP"), [rule])).toBeUndefined();
+  });
+
   it("matches the start of the text after a leading placeholder", () => {
     const rule: RuleCondition = { matchOn: "descriptionStartsWith", value: "RENT" };
 
