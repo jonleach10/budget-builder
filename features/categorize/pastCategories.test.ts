@@ -120,12 +120,33 @@ describe("merchantKey", () => {
 
   it.each([
     ["removed whole", "AB12 CAFE BAR 10115"],
-    ["left with a prefix", "PAY DE00123456789012345678"],
-    ["left with other text", "EXAMPLE SHOP 1111222233334444"],
+    ["of two numbers and nothing else", "DE00123456789012345678 1111222233334444"],
   ])("gives no key to a description %s by redaction", (_label, text) => {
     expect(
       merchantKey(transaction({ description: redactText(text) })),
     ).toBeUndefined();
+  });
+
+  it.each([
+    ["a prefix", "PAY DE00123456789012345678", "redacted:PAY"],
+    ["other text", "EXAMPLE SHOP 1111222233334444", "redacted:EXAMPLE SHOP"],
+    ["text on both sides", "PAY DE00123456789012345678 RENT", "redacted:PAY RENT"],
+  ])("keys a redacted description on %s left around the number", (_label, text, key) => {
+    expect(merchantKey(transaction({ description: redactText(text) }))).toBe(key);
+  });
+
+  it("gives one key to redacted rows that differ only in the number removed", () => {
+    const keys = ["PAY DE00123456789012345678", "Pay  DE00987654321098765432"].map(
+      (text) => merchantKey(transaction({ description: redactText(text) })),
+    );
+
+    expect(keys).toEqual(["redacted:PAY", "redacted:PAY"]);
+  });
+
+  it("never gives a redacted description and the same plain text one key", () => {
+    expect(
+      merchantKey(transaction({ description: redactText("PAY DE00123456789012345678") })),
+    ).not.toBe(merchantKey(transaction({ description: "PAY" })));
   });
 
   it("keeps an ID key when the description was redacted", () => {

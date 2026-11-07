@@ -247,6 +247,42 @@ describe("classifyImport with past categories", () => {
     expect(decisions).toEqual([{ type: "spending" }]);
   });
 
+  describe("on redacted text", () => {
+    const REDACTED_ROW = { description: "PAY [REDACTED]" };
+
+    it("stores the confirmed category as a suggestion and sends the row to review", () => {
+      const { decisions } = classify({
+        transactions: [row("a", { ...REDACTED_ROW, bankType: "DEBIT_CARD" })],
+        confirmed: [manual("old", GROCERIES.id, REDACTED_ROW)],
+      });
+
+      expect(decisions).toEqual([
+        { type: "spending", suggested_category_id: GROCERIES.id },
+      ]);
+    });
+
+    it("makes the row spending, with the suggestion, when the bank gives no type", () => {
+      const { decisions } = classify({
+        transactions: [row("a", { ...REDACTED_ROW, bankType: "Transfer" })],
+        confirmed: [manual("old", GROCERIES.id, REDACTED_ROW)],
+      });
+
+      expect(decisions).toEqual([
+        { type: "spending", suggested_category_id: GROCERIES.id },
+      ]);
+    });
+
+    it("learns nothing for a row holding only the placeholder", () => {
+      const onlyPlaceholder = { description: "[REDACTED]" };
+      const { decisions } = classify({
+        transactions: [row("a", { ...onlyPlaceholder, bankType: "DEBIT_CARD" })],
+        confirmed: [manual("old", GROCERIES.id, onlyPlaceholder)],
+      });
+
+      expect(decisions).toEqual([{ type: "spending" }]);
+    });
+  });
+
   it("sends a mixed merchant to review, past the bank's type", () => {
     const { decisions } = classify({
       transactions: [row("a", { bankType: "Fee" })],

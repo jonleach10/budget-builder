@@ -408,21 +408,70 @@ describe("categorize", () => {
       });
     });
 
-    it("doesn't spread a category between rows with redacted descriptions", () => {
+    describe("a redacted description", () => {
       const first = transaction({
         description: redactText("PAY DE00123456789012345678"),
       });
       const second = transaction({
         description: redactText("PAY DE00987654321098765432"),
       });
-      const ctx = context({
-        pastCategories: pastCategories([
-          { transaction: first, category: "Rent", source: "manual" },
-        ]),
+
+      it("only suggests the category confirmed for the same text", () => {
+        const ctx = context({
+          pastCategories: pastCategories([
+            { transaction: first, category: "Rent", source: "manual" },
+          ]),
+        });
+
+        expect(categorize(second, "spending", ctx)).toStrictEqual({
+          status: "needs-review",
+          suggestedCategory: "Rent",
+        });
       });
 
-      expect(categorize(second, "spending", ctx)).toStrictEqual({
-        status: "needs-review",
+      it("suggests its past category before the bank category's", () => {
+        const ctx = context({
+          pastCategories: pastCategories([
+            { transaction: first, category: "Rent", source: "manual" },
+          ]),
+          bankCategoryMap: { Shopping: "Household" },
+        });
+
+        expect(categorize(second, "spending", ctx)).toStrictEqual({
+          status: "needs-review",
+          suggestedCategory: "Rent",
+        });
+      });
+
+      it("suggests nothing from the past when the text has two categories", () => {
+        const rows = [
+          { transaction: first, category: "Rent", source: "manual" as const },
+          { transaction: second, category: "Utilities", source: "manual" as const },
+        ];
+        const ctx = context({
+          pastCategories: pastCategories(rows),
+          mixedMerchants: mixedMerchants(rows),
+          bankTypeMap: { CARD: "From bank type" },
+        });
+
+        expect(categorize(second, "spending", ctx)).toStrictEqual({
+          status: "needs-review",
+        });
+      });
+
+      it("still lets a plain description take its past category", () => {
+        const plain = transaction({ description: "PAY" });
+        const ctx = context({
+          pastCategories: pastCategories([
+            { transaction: plain, category: "Rent", source: "manual" },
+          ]),
+        });
+
+        expect(categorize(plain, "spending", ctx)).toStrictEqual({
+          status: "categorized",
+          category: "Rent",
+          source: "history",
+        });
       });
     });
 
