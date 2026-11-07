@@ -218,10 +218,17 @@ export function sortCandidates(source: ReviewSource): SortCandidate[] {
     ...inbox.noMerchant.map(({ line }) => line),
   ];
 
-  return lines.flatMap((line): SortCandidate[] => {
-    const stored = byId.get(line.id);
+  // Newest first across groups, so Show Rows starts with the latest rows.
+  const ordered = lines
+    .flatMap((line) => {
+      const stored = byId.get(line.id);
+      return stored === undefined ? [] : [{ line, stored }];
+    })
+    .sort((a, b) => byNewest(a.stored, b.stored));
+
+  return ordered.flatMap(({ line, stored }): SortCandidate[] => {
     const country = countryOf.get(line.accountId);
-    if (stored === undefined || country === undefined) return [];
+    if (country === undefined) return [];
     return [
       {
         id: stored.id,

@@ -501,6 +501,18 @@ describe("sortCandidates", () => {
     expect(ids(sortCandidates(source([out, back])))).toEqual([]);
   });
 
+  it("lists rows newest first, whatever group they're in", () => {
+    const old = inReview({ id: "old", postedOn: "2026-07-10", description: "A 1" });
+    const recent = inReview({ id: "recent", postedOn: "2026-10-22", description: "B 2" });
+    const middle = inReview({ id: "middle", postedOn: "2026-09-16", description: "C 3" });
+
+    expect(ids(sortCandidates(source([old, recent, middle])))).toEqual([
+      "recent",
+      "middle",
+      "old",
+    ]);
+  });
+
   it("includes a possible duplicate, as accepting its group does", () => {
     const duplicate = inReview({ id: "duplicate", possibleDuplicate: true });
     expect(ids(sortCandidates(source([duplicate])))).toEqual(["duplicate"]);

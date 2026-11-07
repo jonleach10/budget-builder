@@ -93,7 +93,8 @@ const GERMAN_MERCHANTS: readonly string[] = [
   "Muster Tankstelle",
 ];
 
-const CARD_ROWS_PER_MONTH = 46;
+// Three fewer than before the PARCELPOINT rows, so the total stays near 400.
+const CARD_ROWS_PER_MONTH = 43;
 const DEBIT_ROWS_PER_MONTH = 20;
 const GERMAN_ROWS_PER_MONTH = 34;
 
@@ -306,6 +307,22 @@ function cardRowOn(
   return { date: isoDate(month, day), postDate: isoDate(month, day + 1), ...row };
 }
 
+/**
+ * Card text with a code that changes with each purchase, so every row is its
+ * own merchant group until a rule with shorter text sorts them.
+ */
+function parcelRows(month: Month): CardRow[] {
+  return ["7L", "2M", "9R"].map((suffix, index) =>
+    cardRowOn(month, 9 + index * 6, {
+      description: `PARCELPOINT MKTPL*Q${pad(month.number)}${suffix}`,
+      category: "Shopping",
+      type: "Sale",
+      minor: -(1275 + index * 1450),
+      memo: "",
+    }),
+  );
+}
+
 function cardEvents(month: Month): CardRow[] {
   const streaming = cardRowOn(month, 16, {
     description: "SAMPLE STREAM A1B2C3",
@@ -347,6 +364,7 @@ function cardEvents(month: Month): CardRow[] {
     }),
     streaming,
     streaming,
+    ...parcelRows(month),
     cardRowOn(month, 18, {
       description: LONG_NAME,
       category: "Shopping",
