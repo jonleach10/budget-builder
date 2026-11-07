@@ -14,6 +14,7 @@ function usRow(extra: Partial<LedgerRow> = {}): LedgerRow {
     country: "US",
     account: "Card A",
     description: "SAMPLE GROCER",
+    note: null,
     amount: { minor: -40000, currency: "USD" },
     base: { minor: -40000, currency: "USD" },
     type: "spending",

@@ -1,3 +1,4 @@
+import { rowTitle, type RowTitle } from "@/features/transactions/rowTitle";
 import { formatMoney, formatPlainAmount, sumMinor } from "@/lib/money";
 import type { Country } from "./budget";
 import type { CategoryComparison } from "./compareBudget";
@@ -21,10 +22,10 @@ import {
   type ViewData,
 } from "./viewFigures";
 
-export type TransactionLine = {
+/** The title comes from the rule Transactions uses, so a row reads the same on both. */
+export type TransactionLine = RowTitle & {
   id: string;
   date: string;
-  description: string;
   account: string;
   amount: string;
   /** The EUR amount under a USD base amount, in Combined. */
@@ -139,7 +140,7 @@ function transactionLines(
     .map((row) => ({
       id: row.id,
       date: shortDate(row.postedOn),
-      description: row.description,
+      ...rowTitle(row),
       account: row.account,
       amount: formatMoney(amountInView(row, view)),
       original:

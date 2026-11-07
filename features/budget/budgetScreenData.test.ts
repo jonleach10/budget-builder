@@ -25,6 +25,7 @@ function ledgerRow(extra: Partial<LedgerRow> = {}): LedgerRow {
     country: "US",
     account: "Card A",
     description: "SAMPLE GROCER",
+    note: null,
     amount: { minor: -4000, currency: "USD" },
     base: { minor: -4000, currency: "USD" },
     type: "spending",
@@ -187,7 +188,8 @@ describe("a category's transactions", () => {
       {
         id: "new",
         date: "Oct 24",
-        description: "SAMPLE GROCER",
+        title: "SAMPLE GROCER",
+        bankText: null,
         account: "Card A",
         amount: "-$40.00",
         original: null,
@@ -195,13 +197,68 @@ describe("a category's transactions", () => {
       {
         id: "old",
         date: "Oct 3",
-        description: "SAMPLE GROCER",
+        title: "SAMPLE GROCER",
+        bankText: null,
         account: "Card A",
         amount: "-$40.00",
         original: null,
       },
     ]);
   });
+
+  it("shows the bank text alone when the row has no label", () => {
+    const screen = ready("us", data({ ledger: [ledgerRow({ note: null })] }));
+
+    expect(screen.lines[0].transactions[0]).toMatchObject({
+      title: "SAMPLE GROCER",
+      bankText: null,
+    });
+  });
+
+  it("shows the label first, with the bank text under it", () => {
+    const screen = ready(
+      "us",
+      data({ ledger: [ledgerRow({ note: "Corner shop" })] }),
+    );
+
+    expect(screen.lines[0].transactions[0]).toMatchObject({
+      title: "Corner shop",
+      bankText: "SAMPLE GROCER",
+    });
+  });
+
+  it("treats a blank label as no label", () => {
+    const screen = ready("us", data({ ledger: [ledgerRow({ note: "   " })] }));
+
+    expect(screen.lines[0].transactions[0]).toMatchObject({
+      title: "SAMPLE GROCER",
+      bankText: null,
+    });
+  });
+
+  it.each(["us", "germany", "combined"] as const)(
+    "leaves the %s view's figures and totals as they were when rows are labeled",
+    (view) => {
+      const labeled = [
+        ledgerRow({ note: "Corner shop" }),
+        germanRow({ note: "Bakery run" }),
+      ];
+      const plain = ready(view);
+      const withLabels = ready(view, data({ ledger: labeled }));
+
+      const figures = ({ lines, totals }: ReadyBudgetScreen) => ({
+        totals,
+        lines: lines.map(({ transactions, ...line }) => ({
+          ...line,
+          amounts: transactions.map(({ amount, original }) => ({
+            amount,
+            original,
+          })),
+        })),
+      });
+      expect(figures(withLabels)).toEqual(figures(plain));
+    },
+  );
 
   it("shows a refund as money in", () => {
     const screen = ready(

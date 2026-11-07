@@ -1,11 +1,12 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BudgetScreen } from "./BudgetScreen";
+import { BudgetScreen, TransactionList, TransactionTable } from "./BudgetScreen";
 import type {
   BudgetLine,
   BudgetScreenData,
   ReadyBudgetScreen,
+  TransactionLine,
 } from "./budgetScreenData";
 import type { BudgetView } from "./screenParams";
 
@@ -251,5 +252,51 @@ describe("BudgetScreen", () => {
 
   it("uses no backdrop blur on its tables", () => {
     expect(render(ready())).not.toContain("backdrop-blur");
+  });
+});
+
+const LABELED: TransactionLine = {
+  id: "t1",
+  date: "Oct 24",
+  title: "Corner shop",
+  bankText: "SAMPLE GROCER",
+  account: "Card A",
+  amount: "-$40.00",
+  original: null,
+};
+
+const UNLABELED: TransactionLine = {
+  ...LABELED,
+  id: "t2",
+  title: "SAMPLE MARKET",
+  bankText: null,
+};
+
+const CAPTION = '<div class="text-caption text-muted-foreground">';
+
+describe.each([
+  ["table", TransactionTable],
+  ["phone list", TransactionList],
+] as const)("a category's transactions, in the %s", (_, Rows) => {
+  function renderRows(transactions: TransactionLine[]): string {
+    return renderToStaticMarkup(
+      createElement(Rows, {
+        line: { ...GROCERIES, transactions },
+        empty: "No transactions in this category for October 2026.",
+      }),
+    );
+  }
+
+  it("shows the label first, with the bank text in a caption under it", () => {
+    const html = renderRows([LABELED]);
+
+    expect(html).toContain(`<div>Corner shop</div>${CAPTION}SAMPLE GROCER</div>`);
+  });
+
+  it("shows the bank text alone when the row has no label", () => {
+    const html = renderRows([UNLABELED]);
+
+    expect(html).toContain("<div>SAMPLE MARKET</div>");
+    expect(html).not.toContain(`${CAPTION}SAMPLE`);
   });
 });

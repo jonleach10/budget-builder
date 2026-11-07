@@ -318,6 +318,7 @@ describe("buildTransactionsScreen", () => {
       amount_minor: line.amount.minor,
       currency: line.amount.currency,
       description: line.description,
+      note: line.note,
       base_amount_minor: line.base.minor,
       base_currency: line.base.currency,
       type: line.type,
