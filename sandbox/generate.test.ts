@@ -4,7 +4,7 @@ import { passThroughHash } from "@/features/import/__fixtures__/load";
 import { parseStatement } from "@/features/import/parseStatement";
 import { REDACTED } from "@/features/import/redact";
 import type { Account, Transaction } from "@/features/import/types";
-import { generateStatements, SANDBOX_ACCOUNTS } from "./generate.ts";
+import { generateStatements, SANDBOX_ACCOUNTS, sandboxMonths } from "./generate.ts";
 
 const TODAY = "2026-11-15";
 
@@ -124,6 +124,21 @@ describe("generateStatements", () => {
     expect(ibans.length).toBeGreaterThan(0);
     expect(ibans.every((iban) => iban.startsWith("DE00"))).toBe(true);
   });
+
+  // The seed labels last month's newest SAMPLE GROCER row, and card merchants
+  // are picked at random, so December 2026 once had none.
+  it.each(["2026-11-15", "2027-01-15"])(
+    "writes a SAMPLE GROCER row last month for the seed to label, on %s",
+    async (today) => {
+      const [lastMonth] = sandboxMonths(today).slice(-2);
+      const grocer = (await parsedRows(today)).filter(
+        ({ postedOn, description }) =>
+          postedOn.startsWith(lastMonth) && description.startsWith("SAMPLE GROCER"),
+      );
+
+      expect(grocer).not.toHaveLength(0);
+    },
+  );
 
   it("keeps working across a new year", async () => {
     expect(monthsOf(await parsedRows("2027-02-15"))).toEqual([
