@@ -71,12 +71,17 @@ function conditionOf(
  * redacted group's category only ever suggests (ADR 0010), and a rule on a
  * mixed merchant would hide the mix, so neither gets an offer.
  *
- * `mixed` is `mixedMerchants` worked out after the accept saved.
+ * A type on a merchant the owner has confirmed categories for gets no offer
+ * either: the rule would send that merchant's future rows away from them.
+ *
+ * `mixed` is `mixedMerchants` worked out after the accept saved, and
+ * `confirmed` the merchants with any category the owner confirmed.
  */
 export function ruleOffer(
   source: RuleTarget,
   edit: RowEdit,
   mixed: readonly string[],
+  confirmed: readonly string[] = [],
 ): RuleOffer | null {
   const outcome = outcomeOf(edit);
   const key = merchantKey(source);
@@ -86,6 +91,7 @@ export function ruleOffer(
   const keyedOnText = key.startsWith("description:");
   const codeInText = keyedOnText && CODE.test(source.description);
   const givesType = outcome.categoryId === "";
+  if (givesType && confirmed.includes(key)) return null;
   if (!givesType && !codeInText) return null;
 
   return { form: { ...conditionOf(source), ...outcome }, codeInText };
@@ -293,7 +299,15 @@ export function inboxRuleOffer(
       source: stored.categorySource ?? undefined,
     })),
   );
-  const offer = ruleOffer(newest, edit, mixed);
+  const confirmed = source.rows.flatMap((stored) => {
+    const key = merchantKey(stored);
+    return stored.categorySource === "manual" &&
+      stored.categoryId !== null &&
+      key !== undefined
+      ? [key]
+      : [];
+  });
+  const offer = ruleOffer(newest, edit, mixed, confirmed);
   if (offer === null) return null;
 
   const { ppdId, orderingPartyId, description } = newest;

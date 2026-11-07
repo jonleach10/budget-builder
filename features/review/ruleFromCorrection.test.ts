@@ -597,6 +597,37 @@ describe("inboxRuleOffer", () => {
     ).toBeNull();
   });
 
+  it("offers nothing for a type on a merchant with confirmed categories", () => {
+    // From the review probe: two past Groceries rows, then the group as Transfer.
+    const past = [
+      row({ id: "p1", postedOn: "2026-08-01", description: "SAMPLE GROCER" }),
+      row({ id: "p2", postedOn: "2026-09-01", description: "SAMPLE GROCER" }),
+    ];
+    const acceptedRows = [
+      row({ id: "a1", description: "SAMPLE GROCER", type: "transfer", categoryId: null, categorySource: null }),
+      row({ id: "a2", description: "SAMPLE GROCER", type: "transfer", categoryId: null, categorySource: null }),
+    ];
+
+    expect(
+      inboxRuleOffer(source([...past, ...acceptedRows]), [], ["a1", "a2"], TRANSFER),
+    ).toBeNull();
+  });
+
+  it("still offers a type when the merchant's past categories weren't confirmed", () => {
+    const byRule = row({ id: "p1", description: "SAMPLE GROCER", categorySource: "rule" });
+    const acceptedRow = row({
+      id: "a1",
+      description: "SAMPLE GROCER",
+      type: "transfer",
+      categoryId: null,
+      categorySource: null,
+    });
+
+    expect(
+      inboxRuleOffer(source([byRule, acceptedRow]), [], ["a1"], TRANSFER)?.form.type,
+    ).toBe("transfer");
+  });
+
   it("offers nothing when no accepted row is stored", () => {
     expect(inboxRuleOffer(source([waiting]), [], ["gone"], SHOPPING)).toBeNull();
   });
