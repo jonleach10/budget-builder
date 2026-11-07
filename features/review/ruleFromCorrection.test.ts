@@ -9,6 +9,7 @@ import {
   type ValidRule,
 } from "@/features/rules/rules";
 import {
+  inboxRuleOffer,
   ruleConflict,
   ruleOffer,
   rowsRuleWouldSort,
@@ -532,5 +533,59 @@ describe("sortCandidates", () => {
         amount: "-$22.99",
       },
     ]);
+  });
+});
+
+describe("inboxRuleOffer", () => {
+  const older = row({ id: "older", postedOn: "2026-10-01" });
+  const newest = row({ id: "newest", postedOn: "2026-10-20", description: older.description });
+  const waiting = inReview({ id: "waiting", description: "PARCELPOINT MKTPL*K81ZT0" });
+
+  it("fills the dialog in from the accepted group's newest row", () => {
+    const stored = rule({ value: "CORNER MARKET" });
+    const offer = inboxRuleOffer(source([older, newest, waiting]), [stored], ["older", "newest"], SHOPPING);
+
+    expect(offer).toMatchObject({
+      sourceId: "newest",
+      source: { description: "PARCELPOINT MKTPL*7Q2LM1" },
+      name: "PARCELPOINT MKTPL*7Q2LM1",
+      count: 2,
+      form: { value: "PARCELPOINT MKTPL*7Q2LM1", categoryId: "cat-shopping" },
+      codeInText: true,
+      gives: { typeLabel: "Spending", category: "Shopping" },
+      rules: [stored],
+    });
+    expect(offer?.candidates.map(({ id }) => id)).toEqual(["waiting"]);
+  });
+
+  it("names a type for a type rule", () => {
+    const transfer = row({
+      id: "autopay",
+      description: "SAMPLE CARD AUTOPAY",
+      type: "transfer",
+      categoryId: null,
+      categorySource: null,
+    });
+
+    expect(
+      inboxRuleOffer(source([transfer]), [], ["autopay"], TRANSFER)?.gives,
+    ).toEqual({ typeLabel: "Transfer", category: null });
+  });
+
+  it("offers nothing for a merchant this accept made mixed", () => {
+    const earlier = row({ id: "earlier", categoryId: "cat-gifts", description: older.description });
+    const rows = [earlier, older, newest];
+    const categories = [
+      { id: "cat-shopping", name: "Shopping", position: 0 },
+      { id: "cat-gifts", name: "Gifts", position: 1 },
+    ];
+
+    expect(
+      inboxRuleOffer({ ...source(rows), categories }, [], ["older", "newest"], SHOPPING),
+    ).toBeNull();
+  });
+
+  it("offers nothing when no accepted row is stored", () => {
+    expect(inboxRuleOffer(source([waiting]), [], ["gone"], SHOPPING)).toBeNull();
   });
 });

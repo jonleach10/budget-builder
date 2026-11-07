@@ -50,11 +50,39 @@ export function rowEditStore(client: SupabaseClient): RowEditStore {
         .eq("hidden", false)
         .is("category_id", null)
         .is("transfer_pair_id", null);
-      const { data, error } = await (
-        type === null ? rows.is("type", null) : rows.eq("type", type)
-      ).select("id");
-      if (error || data === null) return "failed";
-      return data.length;
+      return idsOf(
+        await (type === null ? rows.is("type", null) : rows.eq("type", type)).select(
+          "id",
+        ),
+      );
+    },
+
+    /** The trigger on `category_id` clears `category_source` with it. */
+    async undoSort(ids, wrote, back) {
+      const rows = client
+        .from("transactions")
+        .update({ type: back, category_id: null })
+        .in("id", [...ids])
+        .eq("hidden", false)
+        .is("transfer_pair_id", null)
+        .eq("type", wrote.type);
+      return idsOf(
+        await (wrote.categoryId === null
+          ? rows.is("category_id", null)
+          : rows.eq("category_id", wrote.categoryId).eq("category_source", "rule")
+        ).select("id"),
+      );
     },
   };
+}
+
+function idsOf({
+  data,
+  error,
+}: {
+  data: { id: string }[] | null;
+  error: unknown;
+}): string[] | "failed" {
+  if (error || data === null) return "failed";
+  return data.map(({ id }) => id);
 }

@@ -4,19 +4,25 @@ import {
   type RuleCondition,
   type RuleTarget,
 } from "@/features/categorize/matchRule";
-import { isRedactedKey, merchantKey } from "@/features/categorize/pastCategories";
+import {
+  isRedactedKey,
+  merchantKey,
+  mixedMerchants,
+} from "@/features/categorize/pastCategories";
 import { forTextMatch, hasText } from "@/features/categorize/text";
 import type { TransactionType } from "@/features/categorize/transactionType";
 import { positionFor } from "@/features/rules/ruleChanges";
 import {
   isIdRule,
   isTransactionType,
+  TYPE_OPTIONS,
   type RuleForm,
   type RuleRow,
   type ValidRule,
 } from "@/features/rules/rules";
 import type { Country } from "@/features/budget/budget";
 import { REDACTED } from "@/features/import/redact";
+import type { StoredTransaction } from "@/features/import/storedTransactions";
 import type { RowEdit } from "@/features/transactions/rowEdits";
 import { inPositionOrder } from "@/lib/ordering";
 import { buildReviewInbox, type ReviewSource } from "./reviewInbox";
@@ -237,4 +243,69 @@ export function sortCandidates(source: ReviewSource): SortCandidate[] {
       },
     ];
   });
+}
+
+/** Everything the Add Rule dialog needs, so its count updates as the value does. */
+export type InboxRuleOffer = RuleOffer & {
+  sourceId: string;
+  /** What the rule matches on the source row, to check for an earlier rule. */
+  source: RuleTarget;
+  /** The source row's bank text, as the group showed it. */
+  name: string;
+  /** The rows the accept saved. */
+  count: number;
+  gives: { typeLabel: string; category: string | null };
+  rules: RuleRow[];
+  candidates: SortCandidate[];
+};
+
+function byNewest(a: StoredTransaction, b: StoredTransaction): number {
+  return b.postedOn.localeCompare(a.postedOn) || a.id.localeCompare(b.id);
+}
+
+/**
+ * The offer after a whole group saved, worked out from the stored rows as they
+ * are now, so "mixed after this accept" counts the categories just confirmed.
+ * The source row is the group's newest, whose text the group showed.
+ */
+export function inboxRuleOffer(
+  source: ReviewSource,
+  rules: readonly RuleRow[],
+  acceptedIds: readonly string[],
+  edit: RowEdit,
+): InboxRuleOffer | null {
+  const ids = new Set(acceptedIds);
+  const [newest] = source.rows.filter(({ id }) => ids.has(id)).sort(byNewest);
+  if (newest === undefined) return null;
+
+  const names = new Map(source.categories.map(({ id, name }) => [id, name]));
+  const mixed = mixedMerchants(
+    source.rows.map((stored) => ({
+      transaction: stored,
+      category: names.get(stored.categoryId ?? ""),
+      source: stored.categorySource ?? undefined,
+    })),
+  );
+  const offer = ruleOffer(newest, edit, mixed);
+  if (offer === null) return null;
+
+  const { ppdId, orderingPartyId, description } = newest;
+  const type = offer.form.type;
+  return {
+    ...offer,
+    sourceId: newest.id,
+    source: {
+      description,
+      ...(ppdId === undefined ? {} : { ppdId }),
+      ...(orderingPartyId === undefined ? {} : { orderingPartyId }),
+    },
+    name: description,
+    count: ids.size,
+    gives: {
+      typeLabel: TYPE_OPTIONS.find(({ value }) => value === type)?.label ?? type,
+      category: names.get(offer.form.categoryId) ?? null,
+    },
+    rules: [...rules],
+    candidates: sortCandidates(source),
+  };
 }

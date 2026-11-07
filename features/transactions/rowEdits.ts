@@ -31,7 +31,8 @@ export type RowState = {
 export type RowChanges = {
   type?: TransactionType | null;
   category_id?: string | null;
-  category_source?: "manual" | null;
+  /** `rule` is a rule from the inbox sorting rows already in review. */
+  category_source?: "manual" | "rule" | null;
   note?: string | null;
   hidden?: boolean;
   possible_duplicate?: false;
@@ -51,14 +52,61 @@ export type RowEditStore = {
   ): Promise<WriteResult>;
   /**
    * Lands only on rows that still need review, have no pair and hold the given
-   * type. Gives how many rows changed.
+   * type. Gives the IDs of the rows it changed.
    */
   updateInReview(
     ids: readonly string[],
     type: "spending" | null,
     changes: RowChanges,
-  ): Promise<number | "failed">;
+  ): Promise<string[] | "failed">;
+  /**
+   * Puts rows a rule sorted back to `back` with no category, only where a row
+   * still holds what the sort wrote: `wrote`'s type, and its category with a
+   * `rule` source, or no category. Hidden and paired rows are left. Gives the
+   * IDs of the rows it changed.
+   */
+  undoSort(
+    ids: readonly string[],
+    wrote: SortWrite,
+    back: "spending" | null,
+  ): Promise<string[] | "failed">;
 };
+
+/** What a rule's sort wrote on each row. */
+export type SortWrite = { type: TransactionType; categoryId: string | null };
+
+/** The rows one batched write changed, by the type each had before. */
+export type WrittenRows = { fromSpending: string[]; fromNoType: string[] };
+
+/**
+ * Sends `changes` to rows in review in batches, one write per kind of review
+ * row, Spending first, so a row that gains a type can't be written twice. A
+ * failed write stops it, and rows already written stay written.
+ */
+export async function writeInReview(
+  store: Pick<RowEditStore, "updateInReview">,
+  ids: readonly string[],
+  kinds: readonly ("spending" | null)[],
+  changes: RowChanges,
+  batchSize = BATCH_SIZE,
+): Promise<{ written: WrittenRows; failed: boolean }> {
+  const written: WrittenRows = { fromSpending: [], fromNoType: [] };
+
+  for (let start = 0; start < ids.length; start += batchSize) {
+    const batch = ids.slice(start, start + batchSize);
+    for (const type of ["spending", null] as const) {
+      if (!kinds.includes(type)) continue;
+      const write = await store.updateInReview(batch, type, changes);
+      if (write === "failed") return { written, failed: true };
+      (type === null ? written.fromNoType : written.fromSpending).push(...write);
+    }
+  }
+  return { written, failed: false };
+}
+
+export function writtenCount({ fromSpending, fromNoType }: WrittenRows): number {
+  return fromSpending.length + fromNoType.length;
+}
 
 /** How many rows one write of a group sends. */
 export const BATCH_SIZE = 100;
@@ -76,7 +124,9 @@ const NOT_SAVED: ActionResult = {
   ok: false,
   message: "This row wasn't saved. Try again.",
 };
-const BANK_DATA: ActionResult = {
+type Failure = Extract<ActionResult, { ok: false }>;
+
+const BANK_DATA: Failure = {
   ok: false,
   message: "Bank dates, amounts and descriptions can't be changed.",
 };
@@ -189,15 +239,15 @@ export async function editRow(
   return breaksPair ? ONLY_PAIR_REMOVED : NOT_SAVED;
 }
 
-function count(rows: number): string {
+export function count(rows: number): string {
   return rows.toLocaleString("en-US");
 }
 
-function rowsWere(rows: number): string {
+export function rowsWere(rows: number): string {
   return rows === 1 ? "1 row was" : `${count(rows)} rows were`;
 }
 
-function noneSaved(total: number): ActionResult {
+function noneSaved(total: number): Failure {
   return {
     ok: false,
     message:
@@ -207,7 +257,7 @@ function noneSaved(total: number): ActionResult {
   };
 }
 
-const ROWS_CHANGED: ActionResult = {
+const ROWS_CHANGED: Failure = {
   ok: false,
   message:
     "These rows have changed, so none were saved. Check the rows, then try again.",
@@ -229,12 +279,16 @@ function isIdList(ids: unknown): ids is string[] {
  * saved, and the rest stay in review, so trying again is safe. A row that left
  * review since the inbox loaded, or holds a pair, is left as it is.
  */
+export type RowsResult =
+  | { ok: true; notice: string; saved: number; total: number }
+  | { ok: false; message: string };
+
 export async function editRows(
   store: RowEditStore,
   ids: readonly string[],
   edit: RowEdit,
   batchSize = BATCH_SIZE,
-): Promise<ActionResult> {
+): Promise<RowsResult> {
   if (!isIdList(ids) || typeof edit !== "object" || edit === null) {
     return noneSaved(2);
   }
@@ -244,24 +298,27 @@ export async function editRows(
   if (!isValidEdit(edit)) return noneSaved(2);
 
   const unique = [...new Set(ids)];
-  const changes = changesFor(IN_REVIEW, edit);
-  let saved = 0;
+  const { written, failed } = await writeInReview(
+    store,
+    unique,
+    ["spending", null],
+    changesFor(IN_REVIEW, edit),
+    batchSize,
+  );
+  const saved = writtenCount(written);
 
-  for (let start = 0; start < unique.length; start += batchSize) {
-    const batch = unique.slice(start, start + batchSize);
-    for (const type of ["spending", null] as const) {
-      const write = await store.updateInReview(batch, type, changes);
-      if (write === "failed") {
-        if (saved === 0) return noneSaved(unique.length);
-        return {
-          ok: false,
-          message: `${count(saved)} of ${count(unique.length)} rows were saved. The rest are still in the inbox. Accept the group again to finish.`,
-        };
-      }
-      saved += write;
-    }
+  if (failed) {
+    if (saved === 0) return noneSaved(unique.length);
+    return {
+      ok: false,
+      message: `${count(saved)} of ${count(unique.length)} rows were saved. The rest are still in the inbox. Accept the group again to finish.`,
+    };
   }
-
   if (saved === 0) return ROWS_CHANGED;
-  return { ok: true, notice: `${rowsWere(saved)} saved.` };
+  return {
+    ok: true,
+    notice: `${rowsWere(saved)} saved.`,
+    saved,
+    total: unique.length,
+  };
 }
