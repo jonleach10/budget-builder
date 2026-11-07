@@ -41,8 +41,11 @@ export type SortNotice = {
   tone: "done" | "error";
   text: string;
   undo: SortUndo | null;
-  /** The rule Sort the Rest sorts with, when a batch failed. */
-  sortRest: string | null;
+  /**
+   * The rule Sort the Rest sorts with, when a batch failed. `created` says the
+   * inbox added it, so Undo may delete it; a rule already stored never is.
+   */
+  sortRest: { ruleId: string; created: boolean } | null;
 };
 
 export type SaveRuleResult =
@@ -64,6 +67,8 @@ const EXISTS = "This rule already exists, so it wasn't added again.";
 const EARLIER =
   "An earlier rule decides this row first, so this rule wasn't added.";
 const NOTHING_UNDONE = "Nothing was undone. Try again.";
+const NO_SOURCE =
+  "The row this rule came from can't be found, so the rule wasn't added. Reload the page to try again.";
 const SAVED_ONLY = "Rule saved. It applies to future imports.";
 
 function rows(total: number, more = false): string {
@@ -164,12 +169,16 @@ function sortedNotice(
   { saved, created }: { saved: boolean; created: boolean },
 ): SortNotice {
   const done = writtenCount(sorted.written);
-  const undo: SortUndo = {
-    ruleId: created ? sorted.rule.id : null,
-    type: typeWritten(sorted.rule),
-    categoryId: sorted.rule.category_id,
-    ...sorted.written,
-  };
+  // With no rule to delete and no row to put back, Undo has nothing to do.
+  const undo: SortUndo | null =
+    !created && done === 0
+      ? null
+      : {
+          ruleId: created ? sorted.rule.id : null,
+          type: typeWritten(sorted.rule),
+          categoryId: sorted.rule.category_id,
+          ...sorted.written,
+        };
 
   if (sorted.failed) {
     const someText = `${count(done)} of ${rows(sorted.total)} were sorted. The rest are still in the inbox. Click Sort the Rest to finish.`;
@@ -180,7 +189,7 @@ function sortedNotice(
       : done === 0
         ? "No rows were sorted. Click Sort the Rest to try again."
         : someText;
-    return { tone: "error", text, undo, sortRest: sorted.rule.id };
+    return { tone: "error", text, undo, sortRest: { ruleId: sorted.rule.id, created } };
   }
 
   if (sorted.total === 0) {
@@ -189,7 +198,10 @@ function sortedNotice(
   }
 
   const skipped = sorted.total - done;
-  const sortedText = `${rows(done, created)} ${done === 1 ? "was" : "were"} sorted as ${sorted.name}.`;
+  const sortedText =
+    done === 0
+      ? ""
+      : ` ${rows(done, created)} ${done === 1 ? "was" : "were"} sorted as ${sorted.name}.`;
   const skippedText =
     skipped === 0
       ? ""
@@ -198,7 +210,7 @@ function sortedNotice(
         : ` ${rows(skipped)} had already changed, so they were left as they are.`;
   return {
     tone: "done",
-    text: `${saved ? "Rule saved. " : ""}${sortedText}${skippedText}`,
+    text: `${saved ? "Rule saved." : ""}${sortedText}${skippedText}`.trim(),
     undo,
     sortRest: null,
   };
@@ -226,9 +238,11 @@ export async function saveRuleFromInbox(
 
   const [rules, source] = await Promise.all([deps.rules.list(), deps.loadSource()]);
   if (rules === null || source === null) return failed;
+  // Without its row, the same-rule and earlier-rule checks can't run, so a
+  // stale or made-up ID adds nothing.
   const sourceRow = source.rows.find(({ id }) => id === sourceId);
-  const conflict =
-    sourceRow === undefined ? null : ruleConflict(check.rule, rules, sourceRow);
+  if (sourceRow === undefined) return { ok: false, message: NO_SOURCE };
+  const conflict = ruleConflict(check.rule, rules, sourceRow);
   if (conflict !== null) {
     return { ok: false, message: conflict.kind === "exists" ? EXISTS : EARLIER };
   }
@@ -258,7 +272,7 @@ export async function saveRuleFromInbox(
         ...justSaved,
         tone: "error",
         text: "Rule saved, but no rows were sorted. Click Sort the Rest to try again.",
-        sortRest: added.id,
+        sortRest: { ruleId: added.id, created: true },
       },
     };
   }
@@ -289,7 +303,7 @@ export async function sortByRule(
       tone: "error",
       text: "No rows were sorted. Try again.",
       undo: null,
-      sortRest: created === true ? ruleId : null,
+      sortRest: created === true ? { ruleId, created: true } : null,
     };
   }
   return sortedNotice(sorted, { saved: false, created: created === true });

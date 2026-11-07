@@ -387,7 +387,7 @@ describe("saveRuleFromInbox", () => {
           fromNoType: [expect.any(String), expect.any(String)],
           fromSpending: [],
         },
-        sortRest: "rule-1",
+        sortRest: { ruleId: "rule-1", created: true },
       },
     });
     expect(stored.rules()).toHaveLength(1);
@@ -412,7 +412,7 @@ describe("saveRuleFromInbox", () => {
     expect(result.ok && result.outcome).toMatchObject({
       tone: "error",
       text: "Rule saved, but no rows were sorted. Click Sort the Rest to try again.",
-      sortRest: "rule-1",
+      sortRest: { ruleId: "rule-1", created: true },
     });
   });
 
@@ -423,6 +423,77 @@ describe("saveRuleFromInbox", () => {
       await saveRuleFromInbox(stored.deps(), null as unknown as RuleForm, "source", true),
     ).toEqual({ ok: false, message: "The rule wasn't saved, so no rows were sorted. Try again." });
     expect(stored.rules()).toEqual([]);
+  });
+
+  it("adds no rule when the row it came from isn't stored", async () => {
+    const stored = world([row({ id: "a" })]);
+
+    const result = await saveRuleFromInbox(stored.deps(), SHOPPING_FORM, "gone", true);
+
+    expect(result).toEqual({
+      ok: false,
+      message:
+        "The row this rule came from can't be found, so the rule wasn't added. Reload the page to try again.",
+    });
+    expect(stored.rules()).toEqual([]);
+    expect(stored.row("a").type).toBeNull();
+  });
+});
+
+const STORED_SHOPPING: RuleRow = {
+  id: "rule-0",
+  match_on: "descriptionStartsWith",
+  value: "PARCELPOINT MKTPL",
+  position: 0,
+  type: null,
+  category_id: "cat-shopping",
+};
+
+describe("sortByRule on a rule that was already stored", () => {
+  it("offers no Undo when no row matches it now", async () => {
+    const stored = world([row({ id: "other", description: "CORNER MARKET" })], [STORED_SHOPPING]);
+
+    expect(await sortByRule(stored.deps(), "rule-0", false)).toEqual({
+      tone: "done",
+      text: "No rows in review match this rule now.",
+      undo: null,
+      sortRest: null,
+    });
+  });
+
+  it("offers no Undo when every row changed before it was sorted", async () => {
+    const stored = world([row({ id: "a" })], [STORED_SHOPPING], {
+      beforeWrite: (rows) => {
+        const a = rows.get("a") as StoredTransaction;
+        rows.set("a", { ...a, hidden: true });
+      },
+    });
+
+    expect(await sortByRule(stored.deps(), "rule-0", false)).toEqual({
+      tone: "done",
+      text: "1 row had already changed, so it was left as it is.",
+      undo: null,
+      sortRest: null,
+    });
+  });
+
+  it("keeps Sort the Rest from treating the stored rule as one to delete", async () => {
+    const stored = world([row({ id: "a" })], [STORED_SHOPPING], { failWrite: 1 });
+
+    const notice = await sortByRule(stored.deps(), "rule-0", false);
+
+    expect(notice.undo).toBeNull();
+    expect(notice.sortRest).toEqual({ ruleId: "rule-0", created: false });
+  });
+});
+
+describe("sortByRule after Sort the Rest", () => {
+  it("still offers Undo, which deletes the rule, when nothing was left to sort", async () => {
+    const stored = world([row({ id: "other", description: "CORNER MARKET" })], [STORED_SHOPPING]);
+
+    const notice = await sortByRule(stored.deps(), "rule-0", true);
+
+    expect(notice.undo).toMatchObject({ ruleId: "rule-0", fromNoType: [], fromSpending: [] });
   });
 });
 

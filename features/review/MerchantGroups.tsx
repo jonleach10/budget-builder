@@ -377,8 +377,10 @@ function OpenGroup({
 type InboxNotice = NoticeMessage & {
   offer?: { rule: InboxRuleOffer; plain: string };
   undo?: SortUndo | null;
-  sortRest?: string | null;
+  sortRest?: SortNotice["sortRest"];
 };
+
+type SortRest = NonNullable<SortNotice["sortRest"]>;
 
 /** The Add Rule dialog for an offer, or Edit Rule for the earlier rule it names. */
 type RuleDialogTarget = { offer: InboxRuleOffer } | { earlier: RuleItem } | null;
@@ -404,7 +406,7 @@ function NoticeActions({
   pending: boolean;
   onAddRule: (offer: InboxRuleOffer) => void;
   onSkip: (plain: string) => void;
-  onSortRest: (ruleId: string) => void;
+  onSortRest: (target: SortRest) => void;
   onUndo: (undo: SortUndo) => void;
 }) {
   if (notice === null) return null;
@@ -505,13 +507,16 @@ export function MerchantGroups({
     );
   }
 
-  function sortRest(ruleId: string) {
+  function sortRest(target: SortRest) {
     const before = message?.undo ?? null;
     run(
-      async () => ({ ok: true as const, sorted: await sortByRuleAction(ruleId, true) }),
+      async () => ({
+        ok: true as const,
+        sorted: await sortByRuleAction(target.ruleId, target.created),
+      }),
       (result) => {
         if (!result.ok) {
-          setMessage({ tone: "error", text: result.message, undo: before, sortRest: ruleId });
+          setMessage({ tone: "error", text: result.message, undo: before, sortRest: target });
           return;
         }
         const next = fromSort(result.sorted);
