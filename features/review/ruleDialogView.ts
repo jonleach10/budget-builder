@@ -11,6 +11,7 @@ import {
 } from "@/features/rules/rules";
 import { rowsText } from "./reviewInbox";
 import {
+  isNoMerchant,
   ruleConflict,
   rowsRuleWouldSort,
   type InboxRuleOffer,
@@ -28,7 +29,7 @@ export type PreviewRow = Pick<
 export type SortSummary = {
   count: number;
   checkLabel: string;
-  /** The merchants, and the countries when both appear. */
+  /** The inbox groups the rows are in, and the countries when both appear. */
   detail: string;
   bothCountries: boolean;
   /** The first rows, for Show Rows. */
@@ -78,20 +79,35 @@ export function valueHint(matchOn: string, codeInText: boolean): string {
     : "Case doesn't matter. Shorten the text to match more rows.";
 }
 
-function merchantsText(count: number): string {
-  return count === 1 ? "1 merchant" : `${count.toLocaleString("en-US")} merchants`;
+function counted(count: number, one: string, many: string): string {
+  return `${count.toLocaleString("en-US")} ${count === 1 ? one : many}`;
+}
+
+/**
+ * Where the rows are in the inbox: each merchant key is one group under
+ * Merchants, whether the key is bank text or an ID, and a row with no key is
+ * under No Merchant. A code in each row's text makes each its own group.
+ */
+function sourcesText(rows: readonly SortCandidate[]): string {
+  const groups = new Set(rows.filter((row) => !isNoMerchant(row)).map(({ merchant }) => merchant)).size;
+  const loose = rows.filter(isNoMerchant).length;
+  const parts = [
+    ...(groups > 0 ? [counted(groups, "merchant group", "merchant groups")] : []),
+    ...(loose > 0 ? [counted(loose, "No Merchant row", "No Merchant rows")] : []),
+  ];
+  return parts.join(" and ");
 }
 
 function summaryOf(rows: readonly SortCandidate[]): SortSummary | null {
   if (rows.length === 0) return null;
 
-  const merchants = merchantsText(new Set(rows.map(({ merchant }) => merchant)).size);
+  const from = sourcesText(rows);
   const us = rows.filter(({ country }) => country === "US").length;
   const de = rows.length - us;
   const bothCountries = us > 0 && de > 0;
   const detail = bothCountries
-    ? `From ${merchants}: ${rowsText(us)} in US accounts and ${de.toLocaleString("en-US")} in Germany.`
-    : `From ${merchants}, all in ${us > 0 ? "US" : "German"} accounts.`;
+    ? `From ${from}: ${rowsText(us)} in US accounts and ${de.toLocaleString("en-US")} in Germany.`
+    : `From ${from}, all in ${us > 0 ? "US" : "German"} accounts.`;
   const extra = rows.length - PREVIEW_ROWS;
 
   return {

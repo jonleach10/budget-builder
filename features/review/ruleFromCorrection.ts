@@ -160,6 +160,14 @@ export function ruleConflict(
     : { kind: "earlier", rule: earlier };
 }
 
+/** Starts the `merchant` of a row with no key, which the inbox lists under No Merchant. */
+const NO_MERCHANT = "row:";
+
+/** Whether the inbox lists the row under No Merchant, not in a merchant group. */
+export function isNoMerchant({ merchant }: Pick<SortCandidate, "merchant">): boolean {
+  return merchant.startsWith(NO_MERCHANT);
+}
+
 /**
  * A row the inbox lists under Merchants or No Merchant, with what a rule reads
  * and what the dialog shows. A label never reaches a rule, so it isn't here.
@@ -248,7 +256,7 @@ export function sortCandidates(source: ReviewSource): SortCandidate[] {
           : { transferNumber: stored.transferNumber }),
         type: stored.type,
         redacted: stored.description.includes(REDACTED),
-        merchant: merchantKey(stored) ?? `row:${stored.id}`,
+        merchant: merchantKey(stored) ?? `${NO_MERCHANT}${stored.id}`,
         country,
         date: line.date,
         account: line.account,

@@ -121,7 +121,7 @@ describe("ruleDialogView", () => {
     expect(sort).toMatchObject({
       count: 7,
       checkLabel: "Also sort 7 rows in review",
-      detail: "From 7 merchants, all in US accounts.",
+      detail: "From 7 merchant groups, all in US accounts.",
       bothCountries: false,
       more: "And 2 more.",
     });
@@ -144,7 +144,7 @@ describe("ruleDialogView", () => {
 
     expect(sortOf(ruleDialogView(offer({ candidates: rows }), SHORT))).toMatchObject({
       checkLabel: "Also sort 3 rows in review",
-      detail: "From 2 merchants: 2 rows in US accounts and 1 in Germany.",
+      detail: "From 2 merchant groups: 2 rows in US accounts and 1 in Germany.",
       bothCountries: true,
       more: null,
     });
@@ -158,8 +158,49 @@ describe("ruleDialogView", () => {
 
     expect(sortOf(view)).toMatchObject({
       checkLabel: "Also sort 1 row in review",
-      detail: "From 1 merchant, all in German accounts.",
+      detail: "From 1 merchant group, all in German accounts.",
     });
+  });
+
+  it("counts one group per bank text, so a code in each row means a group each", () => {
+    // Shortened text matches 3 rows from 2 groups: the same text twice, one other.
+    const rows = [
+      candidate({ description: "PARCELPOINT MKTPL*AA1", merchant: "description:PARCELPOINT MKTPL*AA1" }),
+      candidate({ description: "PARCELPOINT MKTPL*AA1", merchant: "description:PARCELPOINT MKTPL*AA1" }),
+      candidate({ description: "PARCELPOINT MKTPL*BB2", merchant: "description:PARCELPOINT MKTPL*BB2" }),
+    ];
+
+    expect(sortOf(ruleDialogView(offer({ candidates: rows }), SHORT))?.detail).toBe(
+      "From 2 merchant groups, all in US accounts.",
+    );
+  });
+
+  it("counts one group per ID for an ID rule", () => {
+    const idForm: RuleForm = { ...FORM, matchOn: "ppdId", value: "000111222" };
+    const rows = [
+      candidate({ description: "SAMPLE UTILITY CO", ppdId: "000111222", merchant: "ppdId:000111222" }),
+      candidate({ description: "SAMPLE UTILITY CO WEB", ppdId: "000111222", merchant: "ppdId:000111222" }),
+    ];
+    const idOffer = offer({
+      candidates: rows,
+      source: { description: "SAMPLE UTILITY CO", ppdId: "999" },
+    });
+
+    expect(sortOf(ruleDialogView(idOffer, idForm))?.detail).toBe(
+      "From 1 merchant group, all in US accounts.",
+    );
+  });
+
+  it("counts No Merchant rows by their tab's name", () => {
+    const loose = candidate({ description: "PARCELPOINT MKTPL / 1", merchant: "row:loose" });
+    const grouped = candidate();
+
+    expect(sortOf(ruleDialogView(offer({ candidates: [loose] }), SHORT))?.detail).toBe(
+      "From 1 No Merchant row, all in US accounts.",
+    );
+    expect(
+      sortOf(ruleDialogView(offer({ candidates: [grouped, loose] }), SHORT))?.detail,
+    ).toBe("From 1 merchant group and 1 No Merchant row, all in US accounts.");
   });
 
   it("names an earlier rule that decides the row first", () => {
@@ -200,7 +241,7 @@ describe("ruleDialogView", () => {
       ruleId: "rule-1",
       text: "This rule already exists, so it won't be added again. A rule sorts only rows imported after it, so 2 rows that match it are still in review.",
       sortLabel: "Sort 2 Rows",
-      sort: { count: 2, detail: "From 2 merchants, all in US accounts." },
+      sort: { count: 2, detail: "From 2 merchant groups, all in US accounts." },
     });
   });
 

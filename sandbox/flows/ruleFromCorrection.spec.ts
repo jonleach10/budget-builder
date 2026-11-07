@@ -68,7 +68,8 @@ async function shortenRule(page: Page): Promise<number> {
   const box = dialog.getByRole("checkbox", { name: /^Also sort \d+ rows? in review$/ });
   await expect(box).toBeVisible();
   await expect(box).not.toBeChecked();
-  await expect(dialog).toContainText("all in US accounts.");
+  // Each code makes its own group, so the count names groups, not merchants.
+  await expect(dialog).toContainText(/From \d+ merchant groups?, all in US accounts\./);
   const label = (await box.getAttribute("id")) ?? "";
   const text = await dialog.locator(`label[for="${label}"]`).textContent();
   return Number(text?.match(/\d+/)?.[0]);
