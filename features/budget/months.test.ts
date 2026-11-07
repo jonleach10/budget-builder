@@ -6,6 +6,7 @@ import {
   monthName,
   nearestMonth,
   shortDate,
+  shortDateAsOf,
   shortMonthName,
 } from "./months";
 
@@ -51,6 +52,17 @@ describe("shortDate", () => {
   it("reads the date as text, so a time zone can't change the day", () => {
     expect(shortDate("2026-10-03")).toBe("Oct 3");
     expect(shortDate("2026-12-31")).toBe("Dec 31");
+  });
+});
+
+describe("shortDateAsOf", () => {
+  it("leaves the year off a date in the current year", () => {
+    expect(shortDateAsOf("2026-10-03", "2026-11")).toBe("Oct 3");
+  });
+
+  it("adds the year to a date from another year", () => {
+    expect(shortDateAsOf("2025-10-03", "2026-11")).toBe("Oct 3, 2025");
+    expect(shortDateAsOf("2026-12-31", "2027-01")).toBe("Dec 31, 2026");
   });
 });
 

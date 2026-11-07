@@ -63,7 +63,12 @@ const ROWS: StoredTransaction[] = [
 ];
 
 function inbox(rows: readonly StoredTransaction[] = ROWS): ReviewInbox {
-  return buildReviewInbox({ rows, accounts: ACCOUNTS, categories: CATEGORIES });
+  return buildReviewInbox({
+    rows,
+    accounts: ACCOUNTS,
+    categories: CATEGORIES,
+    thisMonth: "2026-11",
+  });
 }
 
 function render(

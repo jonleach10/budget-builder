@@ -54,7 +54,12 @@ function confirmed(
 }
 
 function inbox(rows: readonly StoredTransaction[]): ReviewInbox {
-  return buildReviewInbox({ rows, accounts: ACCOUNTS, categories: CATEGORIES });
+  return buildReviewInbox({
+    rows,
+    accounts: ACCOUNTS,
+    categories: CATEGORIES,
+    thisMonth: "2026-11",
+  });
 }
 
 function groupNames(rows: readonly StoredTransaction[]): string[] {
@@ -231,6 +236,25 @@ describe("buildReviewInbox", () => {
         bankCategory: "Groceries",
         amount: "-$40.00",
       });
+    });
+
+    // The inbox holds every month, so last year's charge and this year's can
+    // sit in one group.
+    it("adds the year to a row's date only when it isn't this year", () => {
+      const [group] = inbox([
+        row({ id: "this-year", postedOn: "2026-10-03" }),
+        row({ id: "last-year", postedOn: "2025-10-03" }),
+      ]).groups;
+
+      expect(group.rows.map(({ date }) => date)).toEqual(["Oct 3", "Oct 3, 2025"]);
+    });
+
+    it("adds the year to a No Merchant row's date from another year", () => {
+      const [only] = inbox([
+        row({ description: "", postedOn: "2025-12-30" }),
+      ]).noMerchant;
+
+      expect(only.line.date).toBe("Dec 30, 2025");
     });
 
     it("puts a group's newest rows first", () => {

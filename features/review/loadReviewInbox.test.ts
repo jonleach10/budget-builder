@@ -89,12 +89,12 @@ describe("loadReviewInbox", () => {
       storedRow("open-new", "2026-10-05"),
     ]);
 
-    const inbox = await loadReviewInbox();
+    const inbox = await loadReviewInbox("2026-11");
 
     expect(inbox?.left).toBe(2);
-    expect(inbox?.groups[0].rows.map(({ id }) => id)).toEqual([
-      "open-new",
-      "open-old",
+    expect(inbox?.groups[0].rows.map(({ id, date }) => [id, date])).toEqual([
+      ["open-new", "Oct 5"],
+      ["open-old", "Nov 30, 2025"],
     ]);
     expect(inbox?.groups[0].suggestion?.name).toBe("Groceries");
   });
@@ -102,6 +102,6 @@ describe("loadReviewInbox", () => {
   it("gives null when a read fails, so the inbox never claims to be done", async () => {
     session.client = fakeClient([storedRow("row-1", "2026-10-05")], true);
 
-    expect(await loadReviewInbox()).toBeNull();
+    expect(await loadReviewInbox("2026-11")).toBeNull();
   });
 });

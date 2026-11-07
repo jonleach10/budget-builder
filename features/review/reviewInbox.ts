@@ -1,4 +1,5 @@
 import { BudgetError } from "@/features/budget/errors";
+import { shortDateAsOf } from "@/features/budget/months";
 import type { AccountRow, CategoryRow } from "@/features/budget/rows";
 import { lookUp } from "@/features/categorize/bankMaps";
 import { needsReview } from "@/features/categorize/needsReview";
@@ -67,6 +68,8 @@ export type ReviewSource = {
   rows: readonly StoredTransaction[];
   accounts: readonly AccountRow[];
   categories: readonly CategoryRow[];
+  /** Today's month, so a date from another year shows its year. */
+  thisMonth: string;
 };
 
 export function rowsText(count: number): string {
@@ -114,6 +117,7 @@ export function buildReviewInbox({
   rows,
   accounts,
   categories,
+  thisMonth,
 }: ReviewSource): ReviewInbox {
   const namesById = new Map(categories.map(({ id, name }) => [id, name]));
   const idsByName = new Map(categories.map(({ id, name }) => [name, id]));
@@ -171,7 +175,11 @@ export function buildReviewInbox({
       (line) => [line.id, line],
     ),
   );
-  const lineOf = ({ id }: StoredTransaction) => linesById.get(id) as TransactionLine;
+  // The inbox spans every month, so a row's date needs its year when it's old.
+  const lineOf = ({ id, postedOn }: StoredTransaction): TransactionLine => ({
+    ...(linesById.get(id) as TransactionLine),
+    date: shortDateAsOf(postedOn, thisMonth),
+  });
 
   const byKey = new Map<string, StoredTransaction[]>();
   const noMerchant: NoMerchantRow[] = [];
