@@ -287,6 +287,16 @@ describe("buildReviewInbox", () => {
       });
     });
 
+    it("says the text is redacted on the phone's group line, after the count", () => {
+      const [group] = inbox([
+        confirmed("cat-groceries", { description: "PAY [REDACTED]" }),
+        row({ description: "PAY [REDACTED]" }),
+        row({ description: "PAY [REDACTED]" }),
+      ]).groups;
+
+      expect(group.phoneDetail).toBe("2 rows · Redacted text");
+    });
+
     it("suggests the category the owner confirmed for that text", () => {
       const [group] = inbox([
         confirmed("cat-groceries", { description: "PAY [REDACTED]" }),

@@ -103,6 +103,19 @@ function totalOf(rows: readonly StoredTransaction[]): string {
   });
 }
 
+/**
+ * The phone's one group line. A redacted group says so instead of naming its
+ * suggestion, which still shows when the group is open.
+ */
+function phoneDetailOf(
+  key: string,
+  countText: string,
+  suggestion: Suggestion | null,
+): string {
+  if (isRedactedKey(key)) return `${countText} · Redacted text`;
+  return suggestion === null ? countText : `${countText} · Suggested: ${suggestion.name}`;
+}
+
 function byNewest(a: StoredTransaction, b: StoredTransaction): number {
   return b.postedOn.localeCompare(a.postedOn) || a.id.localeCompare(b.id);
 }
@@ -215,10 +228,7 @@ export function buildReviewInbox({
       count: group.length,
       countText,
       total: totalOf(group),
-      phoneDetail:
-        suggestion === null
-          ? countText
-          : `${countText} · Suggested: ${suggestion.name}`,
+      phoneDetail: phoneDetailOf(key, countText, suggestion),
       suggestion,
       rows: group.map(lineOf),
     };
