@@ -55,6 +55,8 @@ const LONG_NAME =
 const SAVINGS_TRANSFER = 25_000;
 /** The same on both sides with no transfer number, so it needs a person's call. */
 const NEAR_MATCH = 75_000;
+/** Paid on the card once, with two checking rows that could each be the other side. */
+const SECOND_CARD_PAYMENT = 64_000;
 
 const CHASE_BANK_HEADER =
   "Details,Posting Date,Description,Amount,Type,Balance,Check or Slip #";
@@ -247,6 +249,19 @@ function checkingRows(month: Month): BankRow[] {
       minor: -NEAR_MATCH,
       type: "MISC_DEBIT",
     },
+    // Two rows that could each be the second card payment's other side.
+    {
+      date: isoDate(month, 21),
+      description: "SAMPLE CARD PAYMENT",
+      minor: -SECOND_CARD_PAYMENT,
+      type: "ACH_DEBIT",
+    },
+    {
+      date: isoDate(month, 24),
+      description: "SAMPLE TUITION",
+      minor: -SECOND_CARD_PAYMENT,
+      type: "ACH_DEBIT",
+    },
   ];
 
   for (let index = 0; index < DEBIT_ROWS_PER_MONTH; index += 1) {
@@ -314,6 +329,13 @@ function cardEvents(month: Month): CardRow[] {
       category: "",
       type: "Payment",
       minor: cardPayment(month),
+      memo: "",
+    }),
+    cardRowOn(month, 22, {
+      description: "Payment Thank You-Web",
+      category: "",
+      type: "Payment",
+      minor: SECOND_CARD_PAYMENT,
       memo: "",
     }),
     cardRowOn(month, 14, {

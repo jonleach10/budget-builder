@@ -178,6 +178,136 @@ test("Budget's needs-review text opens the inbox", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Review Inbox" })).toBeVisible();
 });
 
+const match = (page: Page, title: string) =>
+  page.getByRole("region", { name: title, exact: true });
+
+const markButton = (region: ReturnType<typeof match>) =>
+  region.getByRole("button", { name: "Mark as Transfer" });
+
+async function matchCount(page: Page): Promise<number> {
+  const tab = await page.getByRole("link", { name: /Transfers/ }).textContent();
+  return Number.parseInt((tab ?? "").replace(/\D+/g, ""), 10);
+}
+
+test("a pair of possible transfers can be marked, and leaves the inbox", async ({ page }) => {
+  await page.goto("/review?section=transfers");
+  const before = { left: await rowsLeft(page), matches: await matchCount(page) };
+  const pair = match(page, "Same Amount Within 3 Days").first();
+  await expect(pair.getByRole("checkbox")).toHaveCount(2);
+  for (const box of await pair.getByRole("checkbox").all()) await expect(box).toBeChecked();
+  await picture(page, "review-transfers-laptop");
+
+  await markButton(pair).click();
+
+  await expect(page.getByRole("status")).toHaveText("The rows are marked as a transfer.");
+  await page.reload();
+  expect(await rowsLeft(page)).toBe(before.left - 2);
+  expect(await matchCount(page)).toBe(before.matches - 1);
+});
+
+test("a card payment with two candidates waits for two rows to be picked", async ({ page }) => {
+  await page.goto("/review?section=transfers");
+  const card = match(page, "Card Payment").first();
+  await expect(card).toContainText("Select the two rows that belong together.");
+  await expect(card.getByRole("checkbox")).toHaveCount(3);
+  await expect(markButton(card)).toBeDisabled();
+
+  await card.getByRole("checkbox", { name: /^Select Payment Thank You-Web from/ }).check();
+  await expect(markButton(card)).toBeDisabled();
+  await card.getByRole("checkbox", { name: /^Select SAMPLE CARD PAYMENT from/ }).check();
+  await expect(markButton(card)).toBeEnabled();
+  await card.evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await picture(page, "review-transfer-picked-laptop");
+
+  const before = await matchCount(page);
+  await markButton(card).click();
+  await expect(page.getByRole("status")).toHaveText("The rows are marked as a transfer.");
+
+  // The row left over has no other side, so it waits under Merchants.
+  await page.reload();
+  expect(await matchCount(page)).toBe(before - 1);
+  await page.getByRole("link", { name: /^Merchants/ }).click();
+  await expect(groupButton(page, "SAMPLE TUITION")).toBeVisible();
+});
+
+test("giving a matched row a type takes it out, and the rest becomes a pair", async ({ page }) => {
+  await page.goto("/review?section=transfers");
+  const card = match(page, "Card Payment").first();
+  await expect(card.getByRole("checkbox")).toHaveCount(3);
+  const cardsBefore = await match(page, "Card Payment").count();
+
+  await card
+    .getByRole("combobox", { name: /^Set type for SAMPLE TUITION from/ })
+    .selectOption({ label: "Spending" });
+
+  // The two rows left are sure to pair, so they show picked, and nothing is stored yet.
+  const pair = match(page, "Card Payment").first();
+  await expect(pair.getByRole("checkbox")).toHaveCount(2);
+  for (const box of await pair.getByRole("checkbox").all()) await expect(box).toBeChecked();
+  await expect(pair).not.toContainText("Select the two rows that belong together.");
+  await expect(markButton(pair)).toBeEnabled();
+  await page.reload();
+  await expect(match(page, "Card Payment")).toHaveCount(cardsBefore);
+});
+
+const duplicateRows = (page: Page) =>
+  page.getByRole("region", { name: "Possible duplicates" }).getByRole("row").filter({
+    has: page.getByRole("button", { name: "Dismiss" }),
+  });
+
+test("hiding a possible duplicate leaves it out, and Transactions can bring it back", async ({ page }) => {
+  const month = new Date(`${lastMonth()}-15T12:00:00Z`).toLocaleString("en-US", {
+    month: "short",
+    timeZone: "UTC",
+  });
+  await page.goto(`/transactions?month=${lastMonth()}`);
+  const streamRows = page.getByRole("row").filter({ hasText: "SAMPLE STREAM" });
+  const shownBefore = await streamRows.count();
+
+  await page.goto("/review?section=duplicates");
+  const before = await duplicateRows(page).count();
+  await picture(page, "review-duplicates-laptop");
+  const row = duplicateRows(page).filter({ hasText: new RegExp(`^${month} \\d`) }).first();
+  await row.getByRole("button", { name: "Hide Row" }).click();
+
+  await expect(duplicateRows(page)).toHaveCount(before - 1);
+  await page.reload();
+  await expect(duplicateRows(page)).toHaveCount(before - 1);
+
+  await page.goto(`/transactions?month=${lastMonth()}`);
+  await expect(streamRows).toHaveCount(shownBefore - 1);
+  await page.getByLabel("Show Hidden").check();
+  await expect(streamRows.filter({ hasText: "Hidden" })).toHaveCount(1);
+});
+
+test("dismissing a possible duplicate keeps the row and clears the flag", async ({ page }) => {
+  await page.goto("/review?section=duplicates");
+  const before = await duplicateRows(page).count();
+
+  await duplicateRows(page).first().getByRole("button", { name: "Dismiss" }).click();
+
+  await expect(duplicateRows(page)).toHaveCount(before - 1);
+  await page.reload();
+  await expect(duplicateRows(page)).toHaveCount(before - 1);
+});
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  for (const section of ["transfers", "duplicates"] as const) {
+    test(`Possible ${section} fits with no sideways scroll`, async ({ page }) => {
+      await page.goto(`/review?section=${section}`);
+      await expect(page.getByRole("link", { name: /^Transfers/ })).toBeVisible();
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+      await picture(page, `review-${section}-phone`);
+    });
+  }
+});
+
 test("the inbox fits a phone, with the group's rows as a list", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();

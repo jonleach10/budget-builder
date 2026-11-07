@@ -8,7 +8,11 @@ vi.mock("@/features/auth/requireSession", () => ({
   serverClient: async () => session.client,
 }));
 
-const ACCOUNTS = [{ id: "acct-1", name: "Joint Checking", country: "US" }];
+// One reply serves both account reads, so each row has every column either asks for.
+const ACCOUNTS = [
+  { id: "acct-1", name: "Joint Checking", country: "US", format: "chase-bank" },
+  { id: "acct-2", name: "Joint Savings", country: "US", format: "chase-bank" },
+];
 const CATEGORIES = [{ id: "cat-groceries", name: "Groceries", position: 0 }];
 
 function storedRow(
@@ -97,6 +101,21 @@ describe("loadReviewInbox", () => {
       ["open-old", "Nov 30, 2025"],
     ]);
     expect(inbox?.groups[0].suggestion?.name).toBe("Groceries");
+  });
+
+  it("reads each account's format, so rows on two accounts can match", async () => {
+    session.client = fakeClient([
+      storedRow("out", "2026-10-05", { amount_minor: -50000, base_amount_minor: -50000 }),
+      storedRow("in", "2026-10-06", {
+        account_id: "acct-2",
+        amount_minor: 50000,
+        base_amount_minor: 50000,
+      }),
+    ]);
+
+    const inbox = await loadReviewInbox("2026-11");
+
+    expect(inbox?.transfers.map(({ key }) => key)).toEqual(["in,out"]);
   });
 
   it("gives null when a read fails, so the inbox never claims to be done", async () => {

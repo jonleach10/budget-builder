@@ -8,6 +8,8 @@ const SCREENS = [
   ["Transactions", "/transactions"],
   ["Review Inbox", "/review"],
   ["Review Inbox, No Merchant", "/review?section=no-merchant"],
+  ["Review Inbox, Possible Transfers", "/review?section=transfers"],
+  ["Review Inbox, Possible Duplicates", "/review?section=duplicates"],
   ["Import", "/import"],
   ["Rules", "/rules"],
   ["Settings", "/settings"],

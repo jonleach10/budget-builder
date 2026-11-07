@@ -71,6 +71,14 @@ describe("generateStatements", () => {
     expect(uncertain.map(({ reason }) => reason)).toContain("same-amount");
   });
 
+  it("includes a card payment with two bank rows that could be its other side", async () => {
+    const { uncertain } = pairTransfers(await parsedRows(), accounts);
+
+    expect(
+      uncertain.some(({ reason, rows }) => reason === "card-payment" && rows.length === 3),
+    ).toBe(true);
+  });
+
   it("includes a row the import treats as a possible duplicate", async () => {
     const rows = await parsedRows();
 

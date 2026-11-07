@@ -74,6 +74,19 @@ export function databaseClient(
         conditions.push(`${column} is null`);
         return builder;
       },
+      /** Takes the forms the app sends: `column.eq.value` and `column.is.null`. */
+      or(filters: string) {
+        const either = filters.split(",").map((filter) => {
+          const [column, operator, ...rest] = filter.split(".");
+          const value = rest.join(".");
+          if (operator === "is" && value === "null") return `${column} is null`;
+          if (operator !== "eq") throw new Error(`Unsupported filter: ${operator}`);
+          values.push(value);
+          return `${column}::text = $${values.length}`;
+        });
+        conditions.push(`(${either.join(" or ")})`);
+        return builder;
+      },
       limit: () => builder,
       order: () => builder,
       range: () => builder,

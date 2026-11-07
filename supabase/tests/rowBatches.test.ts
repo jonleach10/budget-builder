@@ -220,6 +220,7 @@ describe("accepting a group", () => {
     const inbox = buildReviewInbox({
       rows: await readStoredTransactions(databaseClient(db)),
       accounts: [{ id: OWNER.accountId, name: "Checking", country: "US" }],
+      pairingAccounts: [{ id: OWNER.accountId, format: "chase-bank" }],
       categories: [{ id: OWNER.categoryId, name: "Groceries", position: 0 }],
       thisMonth: "2026-11",
     });

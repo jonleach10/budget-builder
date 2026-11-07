@@ -87,15 +87,24 @@ function openRows(
   });
 }
 
-function isOpposite(a: OpenRow, b: OpenRow): boolean {
+export type TransferSide = Pick<Transaction, "accountId" | "amount">;
+
+/**
+ * Whether two rows could be the two sides of one transfer, by what never
+ * changes on a row: two accounts, one currency, and money that moved out of one
+ * and into the other.
+ */
+export function canBeOneTransfer(a: TransferSide, b: TransferSide): boolean {
   return (
+    a.accountId !== b.accountId &&
     a.amount.currency === b.amount.currency &&
+    a.amount.minor !== 0 &&
     a.amount.minor === -b.amount.minor
   );
 }
 
 function canPair(a: OpenRow, b: OpenRow): boolean {
-  return a.accountId !== b.accountId && isOpposite(a, b);
+  return canBeOneTransfer(a, b);
 }
 
 function isWithinDays(a: OpenRow, b: OpenRow, days: number): boolean {

@@ -14,7 +14,7 @@ const ACTIONS = Object.entries(reviewActions);
 
 const REDIRECT = new Error("redirected to log in");
 
-/** A client whose writes match no rows, so accepting stops at "changed". */
+/** A client whose reads and writes match no rows, so each action stops at "changed". */
 function clientWithNoRows() {
   const reply = { data: [], error: null };
   const query = {
@@ -22,7 +22,10 @@ function clientWithNoRows() {
     in: () => query,
     is: () => query,
     eq: () => query,
-    select: () => Promise.resolve(reply),
+    or: () => query,
+    select: () => query,
+    then: (onDone: (value: typeof reply) => unknown) =>
+      Promise.resolve(reply).then(onDone),
   };
   return { from: () => query };
 }
@@ -34,8 +37,11 @@ beforeEach(() => {
 });
 
 describe("server actions", () => {
-  it("cover accepting a group", () => {
-    expect(ACTIONS.map(([name]) => name).sort()).toEqual(["acceptGroupAction"]);
+  it("cover accepting a group and confirming a transfer", () => {
+    expect(ACTIONS.map(([name]) => name).sort()).toEqual([
+      "acceptGroupAction",
+      "confirmTransferAction",
+    ]);
   });
 
   it.each(ACTIONS)(
@@ -43,10 +49,29 @@ describe("server actions", () => {
     async (_name, action) => {
       vi.mocked(requireSession).mockRejectedValue(REDIRECT);
 
-      await expect(action(["row-1"], { type: "income" })).rejects.toBe(REDIRECT);
+      await expect(
+        (action as (...args: unknown[]) => Promise<unknown>)(["row-1", "row-2"], {
+          type: "income",
+        }),
+      ).rejects.toBe(REDIRECT);
       expect(serverClient).not.toHaveBeenCalled();
     },
   );
+
+  it("refreshes every screen confirming a transfer changes", async () => {
+    vi.mocked(serverClient).mockResolvedValue(
+      clientWithNoRows() as unknown as Awaited<ReturnType<typeof serverClient>>,
+    );
+
+    await reviewActions.confirmTransferAction(["row-1", "row-2"]);
+
+    expect(vi.mocked(revalidatePath).mock.calls.flat().sort()).toEqual([
+      "/",
+      "/budget",
+      "/review",
+      "/transactions",
+    ]);
+  });
 
   it("refreshes every screen accepting a group changes", async () => {
     vi.mocked(serverClient).mockResolvedValue(
