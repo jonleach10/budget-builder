@@ -17,6 +17,8 @@ export type RowEdit = {
   /** Lives in `note`, so it never reaches `description`, rules or fingerprints. */
   label?: string;
   hidden?: boolean;
+  /** Dismisses the import's possible-duplicate flag. Only import sets it. */
+  possibleDuplicate?: false;
 };
 
 /** What a stored row holds that decides how an edit lands on it. */
@@ -32,6 +34,7 @@ export type RowChanges = {
   category_source?: "manual" | null;
   note?: string | null;
   hidden?: boolean;
+  possible_duplicate?: false;
 };
 
 /** The part of the transactions table this needs. */
@@ -65,6 +68,7 @@ const EDIT_FIELDS: ReadonlySet<string> = new Set([
   "categoryId",
   "label",
   "hidden",
+  "possibleDuplicate",
 ] satisfies (keyof RowEdit)[]);
 
 const OK: ActionResult = { ok: true };
@@ -99,7 +103,13 @@ export function cleanLabel(text: string): string | null {
 }
 
 /** A server action can be sent anything, so this checks more than the types do. */
-function isValidEdit({ type, categoryId, label, hidden }: RowEdit): boolean {
+function isValidEdit({
+  type,
+  categoryId,
+  label,
+  hidden,
+  possibleDuplicate,
+}: RowEdit): boolean {
   const hasCategory = typeof categoryId === "string";
   return (
     (type === undefined || type === null || isTransactionType(type)) &&
@@ -108,6 +118,7 @@ function isValidEdit({ type, categoryId, label, hidden }: RowEdit): boolean {
       (hasCategory && categoryId !== "")) &&
     (label === undefined || typeof label === "string") &&
     (hidden === undefined || typeof hidden === "boolean") &&
+    (possibleDuplicate === undefined || possibleDuplicate === false) &&
     (!hasCategory || type === undefined || type === "spending")
   );
 }
@@ -139,6 +150,7 @@ function changesFor(row: RowState, edit: RowEdit): RowChanges {
     ...categoryChanges(row, edit, type),
     ...(edit.label === undefined ? {} : { note: cleanLabel(edit.label) }),
     ...(edit.hidden === undefined ? {} : { hidden: edit.hidden }),
+    ...(edit.possibleDuplicate === false ? { possible_duplicate: false } : {}),
   };
 }
 

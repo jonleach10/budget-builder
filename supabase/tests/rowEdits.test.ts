@@ -640,6 +640,44 @@ describe("hiding a row", () => {
   });
 });
 
+describe("dismissing a possible duplicate", () => {
+  async function flagOn(id: string): Promise<boolean> {
+    const { rows } = await db.query<{ possible_duplicate: boolean }>(
+      `select possible_duplicate from public.transactions where id = $1`,
+      [id],
+    );
+    return rows[0].possible_duplicate;
+  }
+
+  it("clears the flag and changes nothing else on the row", async () => {
+    await addRow(ROW, { possible_duplicate: "true" });
+    const before = await everythingBut("possible_duplicate", ROW);
+
+    await expect(save(ROW, { possibleDuplicate: false })).resolves.toEqual({ ok: true });
+
+    await expect(flagOn(ROW)).resolves.toBe(false);
+    await expect(everythingBut("possible_duplicate", ROW)).resolves.toEqual(before);
+  });
+
+  it("keeps the row in Budget's totals", async () => {
+    await addRow(ROW, { ...categorized("manual"), possible_duplicate: "true" });
+    session.client = databaseClient(db);
+
+    await save(ROW, { possibleDuplicate: false });
+
+    await expect(budgetSpent()).resolves.toBe("$12.50");
+  });
+
+  it("refuses to flag a row, and changes nothing", async () => {
+    await addRow(ROW);
+
+    await expect(
+      save(ROW, { possibleDuplicate: true } as unknown as RowEdit),
+    ).resolves.toEqual({ ok: false, message: "This row wasn't saved. Try again." });
+    await expect(flagOn(ROW)).resolves.toBe(false);
+  });
+});
+
 describe("a change to bank data", () => {
   it.each([
     ["description"],
