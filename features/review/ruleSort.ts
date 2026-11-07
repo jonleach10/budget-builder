@@ -18,6 +18,7 @@ import {
   type RowEditStore,
   type WrittenRows,
 } from "@/features/transactions/rowEdits";
+import { matchesRule } from "@/features/categorize/matchRule";
 import type { ReviewSource } from "./reviewInbox";
 import {
   ruleConflict,
@@ -26,12 +27,15 @@ import {
 } from "./ruleFromCorrection";
 
 /**
- * What Undo needs, held by the notice while it shows. The IDs only narrow
- * Undo's write: a row goes back only if it still holds what the sort wrote.
+ * What Undo needs, held by the notice while it shows. It comes back from the
+ * browser, so Undo checks it against the stored rule and rows: a row goes back
+ * only if the rule matches it and it still holds what the sort wrote.
  */
 export type SortUndo = {
-  /** The rule to delete, or null when the sort used a rule already stored. */
-  ruleId: string | null;
+  /** The rule that did the sort. */
+  ruleId: string;
+  /** The inbox added the rule, so Undo deletes it. A rule already stored stays. */
+  created: boolean;
   type: TransactionType;
   categoryId: string | null;
 } & WrittenRows;
@@ -67,6 +71,8 @@ const EXISTS = "This rule already exists, so it wasn't added again.";
 const EARLIER =
   "An earlier rule decides this row first, so this rule wasn't added.";
 const NOTHING_UNDONE = "Nothing was undone. Try again.";
+const RULE_GONE = "This rule no longer exists, so nothing was undone.";
+const RULE_CHANGED = "This rule has changed since the sort, so nothing was undone.";
 const NO_SOURCE =
   "The row this rule came from can't be found, so the rule wasn't added. Reload the page to try again.";
 const SAVED_ONLY = "Rule saved. It applies to future imports.";
@@ -93,7 +99,9 @@ function isUndo(undo: unknown): undo is SortUndo {
   if (typeof undo !== "object" || undo === null) return false;
   const token = undo as Record<string, unknown>;
   return (
-    (token.ruleId === null || typeof token.ruleId === "string") &&
+    typeof token.ruleId === "string" &&
+    token.ruleId !== "" &&
+    typeof token.created === "boolean" &&
     isTransactionType(token.type) &&
     (token.categoryId === null ||
       (typeof token.categoryId === "string" && token.type === "spending")) &&
@@ -174,7 +182,8 @@ function sortedNotice(
     !created && done === 0
       ? null
       : {
-          ruleId: created ? sorted.rule.id : null,
+          ruleId: sorted.rule.id,
+          created,
           type: typeWritten(sorted.rule),
           categoryId: sorted.rule.category_id,
           ...sorted.written,
@@ -255,6 +264,7 @@ export async function saveRuleFromInbox(
     text: SAVED_ONLY,
     undo: {
       ruleId: added.id,
+      created: true,
       type: typeWritten(check.rule),
       categoryId: check.rule.category_id,
       fromNoType: [],
@@ -347,57 +357,83 @@ function undoneText(deleted: boolean, back: number, total: number): string {
   return afterDelete(deleted, ", but ", `${left}${other}`);
 }
 
+function refused(text: string, undo: SortUndo | null = null): SortNotice {
+  return { tone: "error", text, undo, sortRest: null };
+}
+
 /**
- * Deletes the rule, then puts each sorted row back to its earlier state, only
- * where it still holds what the sort wrote. A rule already gone counts as
- * deleted, so Undo can be tried again. If a batch of rows fails, the notice
- * keeps the rows not yet tried, so Undo can finish.
+ * Puts each row the sort wrote back to its earlier state, then deletes the rule
+ * if the inbox added it. The token comes from the browser, so nothing in it is
+ * trusted alone: the rule must still be stored and still give what the token
+ * says, a row goes back only if that rule matches its stored text or ID, and
+ * the write lands only where the row still holds what the sort wrote. The rule
+ * is deleted last, so a retry after a failed batch can still check against it.
  */
 export async function undoRuleSort(
   deps: RuleSortDeps,
   undo: SortUndo,
 ): Promise<SortNotice> {
-  if (!isUndo(undo)) {
-    return { tone: "error", text: NOTHING_UNDONE, undo: null, sortRest: null };
+  if (!isUndo(undo)) return refused(NOTHING_UNDONE);
+
+  const [rules, source] = await Promise.all([deps.rules.list(), deps.loadSource()]);
+  if (rules === null || source === null) return refused(NOTHING_UNDONE, undo);
+  const rule = rules.find(({ id }) => id === undo.ruleId);
+  if (rule === undefined) return refused(RULE_GONE);
+  if (typeWritten(rule) !== undo.type || rule.category_id !== undo.categoryId) {
+    return refused(RULE_CHANGED);
   }
-  const deleted = undo.ruleId !== null;
-  if (deleted && (await deps.rules.remove(undo.ruleId as string)) === "failed") {
-    return { tone: "error", text: NOTHING_UNDONE, undo, sortRest: null };
-  }
+
+  const condition = { matchOn: rule.match_on, value: rule.value };
+  const byId = new Map(source.rows.map((stored) => [stored.id, stored]));
+  const matched = (ids: readonly string[]) =>
+    ids.filter((id) => {
+      const stored = byId.get(id);
+      return stored !== undefined && matchesRule(condition, stored);
+    });
 
   const total = undo.fromNoType.length + undo.fromSpending.length;
   const wrote = { type: undo.type, categoryId: undo.categoryId };
   const batchSize = deps.batchSize ?? BATCH_SIZE;
+  const lists = {
+    fromNoType: matched(undo.fromNoType),
+    fromSpending: matched(undo.fromSpending),
+  };
   let back = 0;
 
   for (const [list, earlier] of [
     ["fromNoType", null],
     ["fromSpending", "spending"],
   ] as const) {
-    const ids = undo[list];
+    const ids = lists[list];
     for (let start = 0; start < ids.length; start += batchSize) {
       const batch = ids.slice(start, start + batchSize);
       const write = await deps.rows.undoSort(batch, wrote, earlier);
       if (write === "failed") {
         const rest: SortUndo =
           list === "fromNoType"
-            ? { ...undo, fromNoType: ids.slice(start) }
+            ? { ...undo, ...lists, fromNoType: ids.slice(start) }
             : { ...undo, fromNoType: [], fromSpending: ids.slice(start) };
-        const part = `${count(back)} of ${rows(total)} ${back === 1 ? "is" : "are"} back in review. Click Undo to finish.`;
-        return {
-          tone: "error",
-          text: afterDelete(deleted, ", and ", part),
-          undo: rest,
-          sortRest: null,
-        };
+        return refused(
+          `${count(back)} of ${rows(total)} ${back === 1 ? "is" : "are"} back in review. Click Undo to finish.`,
+          rest,
+        );
       }
       back += write.length;
     }
   }
 
+  if (undo.created && (await deps.rules.remove(rule.id)) === "failed") {
+    const noRows = { ...undo, fromNoType: [], fromSpending: [] };
+    if (back === 0) return refused(NOTHING_UNDONE, noRows);
+    return refused(
+      `${rows(back)} ${back === 1 ? "is" : "are"} back in review, but the rule wasn't deleted. Click Undo to finish.`,
+      noRows,
+    );
+  }
+
   return {
     tone: back === total ? "done" : "error",
-    text: undoneText(deleted, back, total),
+    text: undoneText(undo.created, back, total),
     undo: null,
     sortRest: null,
   };

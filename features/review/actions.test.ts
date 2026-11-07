@@ -53,7 +53,8 @@ describe("server actions", () => {
     );
 
     await reviewActions.undoRuleSortAction({
-      ruleId: null,
+      ruleId: "rule-1",
+      created: false,
       type: "transfer",
       categoryId: null,
       fromNoType: ["row-1"],

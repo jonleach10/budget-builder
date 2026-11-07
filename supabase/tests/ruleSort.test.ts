@@ -170,24 +170,115 @@ describe("a rule from the inbox", () => {
   });
 
   it("can't reach another user's rows through Undo", async () => {
-    const theirs = await addRow(9, {
-      type: "'spending'",
-      category_id: `'${OTHER.categoryId}'`,
-      category_source: "'rule'",
-    }, OTHER);
+    // Their row matches the owner's rule and holds what it would write.
+    const rule = await storeRule("PARCELPOINT MKTPL", "transfer");
+    const theirs = await addRow(9, { type: "'transfer'" }, OTHER);
 
     await undoRuleSort(deps(), {
-      ruleId: null,
-      type: "spending",
-      categoryId: OTHER.categoryId,
+      ruleId: rule,
+      created: false,
+      type: "transfer",
+      categoryId: null,
       fromNoType: [theirs],
       fromSpending: [],
     });
 
-    const { rows } = await db.query<{ category_id: string | null }>(
-      `select category_id from public.transactions where id = $1`,
+    const { rows } = await db.query<{ type: string | null }>(
+      `select type from public.transactions where id = $1`,
       [theirs],
     );
-    expect(rows[0].category_id).toBe(OTHER.categoryId);
+    expect(rows[0].type).toBe("transfer");
+  });
+});
+
+/** A stored rule of the owner's, made outside the inbox. */
+async function storeRule(value: string, type: string): Promise<string> {
+  const { rows } = await db.query<{ id: string }>(
+    `insert into public.rules (user_id, match_on, value, type)
+       values ($1, 'descriptionStartsWith', $2, $3) returning id`,
+    [OWNER.id, value, type],
+  );
+  return rows[0].id;
+}
+
+async function ruleExists(id: string): Promise<boolean> {
+  const { rows } = await db.query(`select 1 from public.rules where id = $1`, [id]);
+  return rows.length === 1;
+}
+
+async function typeOf(id: string): Promise<string | null> {
+  return (await decisionsOn(id)).type;
+}
+
+describe("an Undo token, checked on the server", () => {
+  // From the review probe: a token could name any of the owner's rules.
+  it("doesn't delete one of the owner's unrelated rules", async () => {
+    const unrelated = await storeRule("SAMPLE PAYROLL", "income");
+
+    const notice = await undoRuleSort(deps(), {
+      ruleId: unrelated,
+      created: true,
+      type: "transfer",
+      categoryId: null,
+      fromNoType: [],
+      fromSpending: [],
+    });
+
+    expect(await ruleExists(unrelated)).toBe(true);
+    expect(notice.text).toBe("This rule has changed since the sort, so nothing was undone.");
+  });
+
+  // From the review probe: a type token with no rule sent any Transfer row back.
+  it("is refused with no rule, so an unrelated Transfer row stays", async () => {
+    const confirmed = await addRow(77, {
+      description: "'SAMPLE BROKERAGE'",
+      type: "'transfer'",
+    });
+
+    const notice = await undoRuleSort(deps(), {
+      ruleId: null,
+      type: "transfer",
+      categoryId: null,
+      fromNoType: [confirmed],
+      fromSpending: [],
+    } as unknown as SortUndo);
+
+    expect(await typeOf(confirmed)).toBe("transfer");
+    expect(notice.text).toBe("Nothing was undone. Try again.");
+  });
+
+  it("puts back only rows its rule matches", async () => {
+    const rule = await storeRule("SAMPLE CARD AUTOPAY", "transfer");
+    const matched = await addRow(78, { description: "'SAMPLE CARD AUTOPAY 1'", type: "'transfer'" });
+    const unrelated = await addRow(79, { description: "'SAMPLE BROKERAGE'", type: "'transfer'" });
+
+    const notice = await undoRuleSort(deps(), {
+      ruleId: rule,
+      created: false,
+      type: "transfer",
+      categoryId: null,
+      fromNoType: [matched, unrelated],
+      fromSpending: [],
+    });
+
+    expect(await typeOf(matched)).toBeNull();
+    expect(await typeOf(unrelated)).toBe("transfer");
+    // Sort N Rows used a rule already stored, so Undo keeps it.
+    expect(await ruleExists(rule)).toBe(true);
+    expect(notice.text).toBe(
+      "1 row had changed since the sort, so it was left as it is. The other row is back in review.",
+    );
+  });
+
+  it("says so when the rule is already gone, and puts nothing back", async () => {
+    await addSource();
+    const waiting = await addRow(2);
+    const undo = await saveAndSort();
+    await db.exec(`delete from public.rules where value = 'PARCELPOINT MKTPL'`);
+
+    const notice = await undoRuleSort(deps(), undo);
+
+    expect(notice.text).toBe("This rule no longer exists, so nothing was undone.");
+    expect(await decisionsOn(waiting)).toEqual(BY_RULE);
   });
 });

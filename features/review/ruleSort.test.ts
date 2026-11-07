@@ -225,6 +225,7 @@ describe("saveRuleFromInbox", () => {
         text: "Rule saved. It applies to future imports.",
         undo: {
           ruleId: "rule-2",
+          created: true,
           type: "spending",
           categoryId: "cat-shopping",
           fromNoType: [],
@@ -255,6 +256,7 @@ describe("saveRuleFromInbox", () => {
         text: "Rule saved. 2 more rows were sorted as Shopping.",
         undo: {
           ruleId: "rule-1",
+          created: true,
           type: "spending",
           categoryId: "cat-shopping",
           fromNoType: ["none"],
@@ -382,6 +384,7 @@ describe("saveRuleFromInbox", () => {
         text: "Rule saved, and 2 of 5 rows were sorted. The rest are still in the inbox. Click Sort the Rest to finish.",
         undo: {
           ruleId: "rule-1",
+          created: true,
           type: "spending",
           categoryId: "cat-shopping",
           fromNoType: [expect.any(String), expect.any(String)],
@@ -515,7 +518,8 @@ describe("sortByRule", () => {
       tone: "done",
       text: "2 rows were sorted as Shopping.",
       undo: {
-        ruleId: null,
+        ruleId: "rule-0",
+        created: false,
         type: "spending",
         categoryId: "cat-shopping",
         fromNoType: ["a", "b"],
@@ -540,6 +544,7 @@ describe("sortByRule", () => {
 function undoFor(extra: Partial<SortUndo> = {}): SortUndo {
   return {
     ruleId: "rule-1",
+    created: true,
     type: "spending",
     categoryId: "cat-shopping",
     fromNoType: [],
@@ -608,31 +613,70 @@ describe("undoRuleSort", () => {
     expect(stored.rules()).toEqual([]);
   });
 
-  it("undoes nothing when the rule can't be deleted", async () => {
-    const { stored, undo } = await savedAndSorted([row({ id: "a" })]);
-    const failing = world([], [], { failRemove: true });
+  it("puts the rows back first, and keeps Undo when the rule can't be deleted", async () => {
+    const { stored, undo } = await savedAndSorted([row({ id: "a" })], { failRemove: true });
 
-    const notice = await undoRuleSort(
-      { ...stored.deps(), rules: failing.deps().rules },
-      undo,
-    );
+    const notice = await undoRuleSort(stored.deps(), undo);
 
     expect(notice).toEqual({
       tone: "error",
-      text: "Nothing was undone. Try again.",
-      undo,
+      text: "1 row is back in review, but the rule wasn't deleted. Click Undo to finish.",
+      undo: { ...undo, fromNoType: [], fromSpending: [] },
+      sortRest: null,
+    });
+    expect(stored.row("a").categoryId).toBeNull();
+    expect(stored.rules()).toHaveLength(1);
+  });
+
+  it("undoes nothing when a rule saved without sorting can't be deleted", async () => {
+    const stored = world([accepted()], [], { failRemove: true });
+    const result = await saveRuleFromInbox(stored.deps(), SHOPPING_FORM, "source", false);
+    if (!result.ok || result.outcome.undo === null) throw new Error("expected a rule");
+
+    const notice = await undoRuleSort(stored.deps(), result.outcome.undo);
+
+    expect(notice.text).toBe("Nothing was undone. Try again.");
+    expect(notice.undo).toEqual(result.outcome.undo);
+  });
+
+  it("puts nothing back when the rule is already gone, and says so", async () => {
+    const { stored, undo } = await savedAndSorted([row({ id: "a" })]);
+    await stored.deps().rules.remove(undo.ruleId);
+
+    const notice = await undoRuleSort(stored.deps(), undo);
+
+    expect(notice).toEqual({
+      tone: "error",
+      text: "This rule no longer exists, so nothing was undone.",
+      undo: null,
       sortRest: null,
     });
     expect(stored.row("a").categoryId).toBe("cat-shopping");
   });
 
-  it("counts a rule already deleted as done, so Undo can be tried again", async () => {
+  it("puts nothing back when the rule now gives something else", async () => {
     const { stored, undo } = await savedAndSorted([row({ id: "a" })]);
-    await stored.deps().rules.remove(undo.ruleId as string);
 
-    expect((await undoRuleSort(stored.deps(), undo)).text).toBe(
-      "The rule was deleted, and 1 row is back in review.",
+    const notice = await undoRuleSort(stored.deps(), { ...undo, categoryId: "cat-gifts" });
+
+    expect(notice.text).toBe("This rule has changed since the sort, so nothing was undone.");
+    expect(stored.rules()).toHaveLength(1);
+    expect(stored.row("a").categoryId).toBe("cat-shopping");
+  });
+
+  it("puts back only rows the rule matches, whatever the token names", async () => {
+    const { stored, undo } = await savedAndSorted([row({ id: "a" })]);
+    const other = stored.row("source");
+
+    const notice = await undoRuleSort(stored.deps(), {
+      ...undo,
+      fromNoType: [...undo.fromNoType, "unrelated"],
+    });
+
+    expect(notice.text).toBe(
+      "The rule was deleted, but 1 row had changed since the sort, so it was left as it is. The other row is back in review.",
     );
+    expect(other.categorySource).toBe("manual");
   });
 
   it("keeps the rows not yet put back when a batch fails, so Undo can finish", async () => {
@@ -642,10 +686,10 @@ describe("undoRuleSort", () => {
     const notice = await undoRuleSort(stored.deps(1), undo);
 
     expect(notice.tone).toBe("error");
-    expect(notice.text).toBe(
-      "The rule was deleted, and 1 of 3 rows is back in review. Click Undo to finish.",
-    );
+    // The rule is deleted last, so it's still there to check the rest against.
+    expect(notice.text).toBe("1 of 3 rows is back in review. Click Undo to finish.");
     expect(notice.undo).toEqual({ ...undo, fromNoType: undo.fromNoType.slice(1) });
+    expect(stored.rules()).toHaveLength(1);
 
     const again = await undoRuleSort(stored.deps(), notice.undo as SortUndo);
     expect(again.text).toBe("The rule was deleted, and 2 rows are back in review.");
