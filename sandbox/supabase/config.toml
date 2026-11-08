@@ -6,7 +6,8 @@ project_id = "budget-builder-sandbox"
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "graphql_public"]
+# Matches hosted (docs/hosted-checklist.md, S2). The app doesn't use GraphQL.
+schemas = ["public"]
 extra_search_path = ["public", "extensions"]
 # Same limit as hosted, so reading past 1,000 rows gets exercised for real.
 max_rows = 1000
