@@ -62,6 +62,7 @@ describe("server actions", () => {
     });
     expect(vi.mocked(revalidatePath).mock.calls.flat().sort()).toEqual([
       "/",
+      "/accounts",
       "/budget",
       "/review",
       "/rules",
@@ -85,6 +86,7 @@ describe("server actions", () => {
 
     expect(vi.mocked(revalidatePath).mock.calls.flat().sort()).toEqual([
       "/",
+      "/accounts",
       "/budget",
       "/review",
       "/rules",
@@ -115,6 +117,7 @@ describe("server actions", () => {
 
     expect(vi.mocked(revalidatePath).mock.calls.flat().sort()).toEqual([
       "/",
+      "/accounts",
       "/budget",
       "/review",
       "/rules",
@@ -131,6 +134,7 @@ describe("server actions", () => {
 
     expect(vi.mocked(revalidatePath).mock.calls.flat().sort()).toEqual([
       "/",
+      "/accounts",
       "/budget",
       "/review",
       "/rules",

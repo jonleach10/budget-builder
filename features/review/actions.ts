@@ -147,4 +147,5 @@ function refreshScreens(): void {
   revalidatePath("/budget");
   revalidatePath("/rules");
   revalidatePath("/");
+  revalidatePath("/accounts");
 }

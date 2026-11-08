@@ -26,7 +26,8 @@ import {
 import type { ScreenParams } from "./screenParams";
 import { TREND_MONTHS } from "./viewFigures";
 
-const TRANSACTION_COLUMNS =
+/** The columns a `TransactionRow` holds. */
+export const TRANSACTION_COLUMNS =
   "id, account_id, posted_on, amount_minor, currency, description, note, " +
   "base_amount_minor, base_currency, type, category_id, hidden";
 
