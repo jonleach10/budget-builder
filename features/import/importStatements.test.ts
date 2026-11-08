@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDays } from "@/features/fx/dates";
 import {
   accounts,
@@ -470,6 +470,35 @@ describe("importStatements when it can't finish", () => {
         "Exchange rates aren't available right now. Nothing was stored. Try again in a few minutes.",
     });
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  describe("when the rate service doesn't answer", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("stores nothing and gives the same rate message after 8 seconds", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      let asked: () => void = () => {};
+      const fetchStarted = new Promise<void>((resolve) => {
+        asked = resolve;
+      });
+      const fetch = vi.fn<typeof globalThis.fetch>(() => {
+        asked();
+        return new Promise(() => {});
+      });
+
+      const { result, rpc } = run([csv(commerzbankFileName)], {}, fetch);
+      await fetchStarted;
+      await vi.advanceTimersByTimeAsync(8_000);
+
+      await expect(result).resolves.toEqual({
+        ok: false,
+        message:
+          "Exchange rates aren't available right now. Nothing was stored. Try again in a few minutes.",
+      });
+      expect(rpc).not.toHaveBeenCalled();
+    });
   });
 
   it.each([

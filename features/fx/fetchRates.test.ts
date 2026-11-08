@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { convertMoney } from "./convertMoney";
 import { fetchRates } from "./fetchRates";
 
@@ -40,6 +40,7 @@ describe("fetchRates", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith(
       "https://api.frankfurter.dev/v2/providers/ecb/rates?from=2026-03-05&to=2026-03-06&base=EUR&quotes=USD",
+      { signal: expect.any(AbortSignal) },
     );
   });
 
@@ -192,6 +193,87 @@ describe("fetchRates", () => {
     await fetchRates({ ...RANGE, fetch });
 
     expect(fetch.mock.contexts).toEqual([undefined]);
+  });
+
+  describe("when the rate service is slow", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("throws request-failed after 8 seconds with no answer", async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>(() => new Promise(() => {}));
+
+      const result = fetchRates({ ...RANGE, fetch });
+      const failed = expect(result).rejects.toMatchObject({
+        name: "FxError",
+        reason: "request-failed",
+      });
+      await vi.advanceTimersByTimeAsync(8_000);
+
+      await failed;
+    });
+
+    it("cancels the request and keeps its error out after 8 seconds", async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>(
+        (_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new Error("SECRET-ABORT-DETAIL")),
+            );
+          }),
+      );
+      expect.assertions(4);
+
+      const result = fetchRates({ ...RANGE, fetch }).catch(
+        (error: unknown) => error,
+      );
+      await vi.advanceTimersByTimeAsync(8_000);
+      const error = await result;
+
+      expect(fetch.mock.calls[0][1]?.signal?.aborted).toBe(true);
+      expect(error).toMatchObject({ name: "FxError", reason: "request-failed" });
+      expect(String(error)).not.toMatch(/SECRET/);
+      expect(error).not.toHaveProperty("cause");
+    });
+
+    it("throws request-failed when the body stalls past 8 seconds", async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>(
+        async () => new Response(new ReadableStream({ start() {} })),
+      );
+
+      const result = fetchRates({ ...RANGE, fetch });
+      const failed = expect(result).rejects.toMatchObject({
+        name: "FxError",
+        reason: "request-failed",
+      });
+      await vi.advanceTimersByTimeAsync(8_000);
+
+      await failed;
+    });
+
+    it("returns the rates when the answer comes just inside 8 seconds", async () => {
+      const fetch = vi.fn<typeof globalThis.fetch>(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(
+              () =>
+                resolve(
+                  new Response(JSON.stringify([row("2026-03-05", 1.08)])),
+                ),
+              7_999,
+            );
+          }),
+      );
+
+      const result = fetchRates({ ...RANGE, fetch });
+      await vi.advanceTimersByTimeAsync(7_999);
+
+      await expect(result).resolves.toEqual({ "2026-03-05": "1.08" });
+    });
   });
 
   it.each([
