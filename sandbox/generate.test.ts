@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { pairTransfers } from "@/features/categorize/pairTransfers";
 import { passThroughHash } from "@/features/import/__fixtures__/load";
@@ -27,6 +28,40 @@ async function parsedRows(today = TODAY): Promise<Transaction[]> {
 function monthsOf(rows: readonly Transaction[]): string[] {
   return [...new Set(rows.map(({ postedOn }) => postedOn.slice(0, 7)))].sort();
 }
+
+function digestOf(files: unknown): string {
+  return createHash("sha256").update(JSON.stringify(files)).digest("hex");
+}
+
+// Taken from the generator before it had sizes. The sandbox's flows and
+// screenshots rely on this output, so a change here must be on purpose.
+const DEFAULT_DIGESTS: Record<string, string> = {
+  "2026-11-03":
+    "fb21319adf179724600cd3a2e006b0b446a40311f866396c26133b676b532ed6",
+  "2026-11-15":
+    "9f759d915bbe3419be1b3ad91dc819c48d6e3569e88e600fa9337c443c9c73be",
+  "2027-02-15":
+    "2452e599611285a9d8278411cd634ca6e1453a8ccb847097b16ea2357d877eb4",
+};
+
+describe("generateStatements at the default size", () => {
+  it.each(Object.entries(DEFAULT_DIGESTS))(
+    "gives exactly the files it gave before sizes, on %s",
+    (today, digest) => {
+      expect(digestOf(generateStatements(today))).toBe(digest);
+    },
+  );
+
+  it("covers the same five months as before sizes", () => {
+    expect(sandboxMonths(TODAY)).toEqual([
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10",
+      "2026-11",
+    ]);
+  });
+});
 
 describe("generateStatements", () => {
   it("writes one file per account, which the real parser accepts", async () => {
