@@ -85,6 +85,11 @@ One Spending row at a merchant. The Account page's Top Merchants gives each merc
 _Avoid_: purchases, transactions
 _In code_: `visits` and `visitsText` on `MerchantLine`.
 
+**Trend**:
+The Account page's Monthly Spending chart: the account's Spending in each month of the period. One month alone shows the 12 months up to it, with it highlighted. A month whose rows all need review has no figure yet, so it's a hollow point, not $0. The card is hidden when every month in it is $0.
+_Avoid_: history, sparkline
+_In code_: `SpendingTrend`, `buildSpendingTrend`, `trend` on `ReadyAccount`.
+
 ## Statements and import
 
 **Statement**:
