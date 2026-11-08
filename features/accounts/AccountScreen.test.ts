@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type {
   AccountScreenData,
   CategoryLine,
+  MerchantLine,
   ReadyAccount,
 } from "./accountScreenData";
 import { AccountScreen } from "./AccountScreen";
@@ -83,6 +84,36 @@ const READY: ReadyAccount = {
     { ...line("Travel", "$0.00", "0%", "-100%", null), dropped: true },
   ],
   total: { amount: "$1,000.00", share: "100%", change: "-3%" },
+  allNeedReview: null,
+  personal: "$286.50",
+  review: { text: "4 rows need review and aren't in these totals.", href: "/review" },
+  merchants: {
+    hint: "Each merchant is named by the bank text of its latest row.",
+    lines: [
+      merchant("1", "SAMPLE GROCER", "14", "$1,104.62"),
+      { ...merchant("2", "No Merchant", "5", "$241.35"), key: "no-merchant", noMerchant: true },
+      { ...merchant("3", "SAMPLE CAFE", "1", "$4.50"), visitsText: "1 visit" },
+    ],
+    empty: null,
+  },
+};
+
+function merchant(rank: string, name: string, visits: string, total: string): MerchantLine {
+  return {
+    key: `merchant:${name}`,
+    rank,
+    name,
+    noMerchant: false,
+    visits,
+    visitsText: `${visits} visits`,
+    total,
+  };
+}
+
+const NO_MERCHANTS = {
+  hint: null,
+  lines: [],
+  empty: "No merchants to show, because there's no Spending in this period.",
 };
 
 const ALL_MONTHS: ReadyAccount = {
