@@ -1,6 +1,7 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { readStoredTransactions } from "@/features/import/storedTransactions";
+import { labelGroup } from "@/features/review/groupLabel";
 import { buildReviewInbox } from "@/features/review/reviewInbox";
 import {
   editRows,
@@ -247,6 +248,35 @@ describe("accepting a group", () => {
       categoryId: OWNER.categoryId,
       name: "Groceries",
     });
+  });
+});
+
+describe("Change All on a group", () => {
+  it("sets the label alone, so every row keeps its type and stays in review", async () => {
+    const untyped = await addGroup(1);
+    const spending = await addGroup(1, { type: "'spending'", note: "'Old name'" }, 200);
+    const [decided] = await addGroup(1, {}, 300);
+    await db.exec(
+      `update public.transactions set type = 'income' where id = '${decided}'`,
+    );
+
+    const result = await labelGroup(
+      rowEditStore(databaseClient(db)),
+      [...untyped, ...spending, decided],
+      "Corner Market",
+    );
+
+    expect(result).toMatchObject({ ok: true, saved: 2, total: 3 });
+    const { rows } = await db.query<Decisions & { note: string | null }>(
+      `select id, type, category_id, category_source, note from public.transactions
+       where id = any($1::uuid[]) order by id`,
+      [[...untyped, ...spending, decided]],
+    );
+    expect(rows).toEqual([
+      { id: untyped[0], type: null, category_id: null, category_source: null, note: "Corner Market" },
+      { id: spending[0], type: "spending", category_id: null, category_source: null, note: "Corner Market" },
+      { id: decided, type: "income", category_id: null, category_source: null, note: null },
+    ]);
   });
 });
 

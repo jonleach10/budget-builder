@@ -198,13 +198,20 @@ type EditRowProps = {
   line: TransactionLine;
   categories: TransactionsScreenData["categories"];
   onClose: () => void;
+  /** Called with the row after it saved, before the dialog closes. */
+  onSaved?: (line: TransactionLine) => void;
 };
 
 /**
  * The list behind only changes when the server sends new rows, so a failed save
  * leaves it showing what's stored.
  */
-export function EditRowForm({ line, categories, onClose }: EditRowProps) {
+export function EditRowForm({
+  line,
+  categories,
+  onClose,
+  onSaved,
+}: EditRowProps) {
   const [form, setForm] = useState(() => rowForm(line));
   const [saveError, setSaveError] = useState<string | null>(null);
   const { pending, run } = useServerAction();
@@ -217,8 +224,12 @@ export function EditRowForm({ line, categories, onClose }: EditRowProps) {
     run(
       () => editRowAction(line.id, editFrom(line, form)),
       (result) => {
-        if (result.ok) onClose();
-        else setSaveError(result.message);
+        if (!result.ok) {
+          setSaveError(result.message);
+          return;
+        }
+        onSaved?.(line);
+        onClose();
       },
     );
   }
@@ -264,6 +275,7 @@ export function EditRowDialog({
   line,
   categories,
   onClose,
+  onSaved,
 }: Omit<EditRowProps, "line"> & { line: TransactionLine | null }) {
   return (
     <Dialog
@@ -280,6 +292,7 @@ export function EditRowDialog({
             line={line}
             categories={categories}
             onClose={onClose}
+            onSaved={onSaved}
           />
         )}
       </DialogContent>

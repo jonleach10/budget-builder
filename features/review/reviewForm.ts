@@ -32,6 +32,17 @@ export function acceptLabel(count: number): string {
     : `Accept ${count.toLocaleString("en-US")} Rows`;
 }
 
+/**
+ * What the notice says after Save Row in the inbox. It takes the place of any
+ * earlier notice, so a count from an earlier Accept can't read as this save's.
+ */
+export function rowSavedNotice(line: TransactionLine): {
+  tone: "done";
+  text: string;
+} {
+  return { tone: "done", text: `The row from ${line.date} was saved.` };
+}
+
 /** Use fills the category with the suggestion. It's hidden once that's done. */
 export function showsUse(
   decision: Decision,

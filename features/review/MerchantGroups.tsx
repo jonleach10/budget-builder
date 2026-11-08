@@ -22,12 +22,15 @@ import {
   sortByRuleAction,
   undoRuleSortAction,
 } from "./actions";
+import { ChangeAllDialog } from "./ChangeAllDialog";
+import { keepOpenInPlace, type OpenPlace } from "./groupOrder";
 import { offerText, storedRuleItem } from "./ruleDialogView";
 import type { InboxRuleOffer } from "./ruleFromCorrection";
 import { mergeUndo, type SortNotice, type SortUndo } from "./ruleSort";
 import {
   acceptLabel,
   decisionEdit,
+  rowSavedNotice,
   showsUse,
   START_DECISION,
   withDecisionType,
@@ -319,6 +322,7 @@ function OpenGroup({
   panelId,
   pending,
   onAccept,
+  onChangeAll,
   onChange,
 }: {
   group: MerchantGroup;
@@ -326,6 +330,7 @@ function OpenGroup({
   panelId: string;
   pending: boolean;
   onAccept: (edit: RowEdit) => void;
+  onChangeAll: () => void;
   onChange: ChangeRow;
 }) {
   const [decision, setDecision] = useState(START_DECISION);
@@ -356,13 +361,18 @@ function OpenGroup({
             })
           }
         />
-        <Button
-          type="button"
-          className="h-11 w-full md:h-9 md:w-auto"
-          disabled={edit === null || pending}
-          onClick={() => edit !== null && onAccept(edit)}>
-          {pending ? "Saving..." : acceptLabel(group.count)}
-        </Button>
+        <div className="grid grid-cols-2 gap-3 md:flex md:gap-2">
+          <OutlineButton disabled={pending} onClick={onChangeAll}>
+            Change All
+          </OutlineButton>
+          <Button
+            type="button"
+            className="h-11 w-full md:h-9 md:w-auto"
+            disabled={edit === null || pending}
+            onClick={() => edit !== null && onAccept(edit)}>
+            {pending ? "Saving..." : acceptLabel(group.count)}
+          </Button>
+        </div>
       </div>
       <GroupTable rows={group.rows} onChange={onChange} />
       <GroupList rows={group.rows} onChange={onChange} />
@@ -453,7 +463,8 @@ function NoticeActions({
  * One group is open at a time, so the screen has one Accept. When the open
  * group is accepted it leaves the list, and the largest one left opens. After a
  * whole group saves, the notice may offer a rule; after a rule sorts rows, it
- * offers Undo until the next accept replaces it.
+ * offers Undo until the next accept or saved row replaces it. While a group is
+ * open it keeps its place, even when a saved row drops its count.
  */
 export function MerchantGroups({
   groups,
@@ -462,19 +473,38 @@ export function MerchantGroups({
   groups: readonly MerchantGroup[];
   categories: Categories;
 }) {
-  // Undefined opens the largest group, which is first.
-  const [openKey, setOpenKey] = useState<string | null | undefined>(undefined);
+  // Undefined opens the largest group, which is first. A place holds the open
+  // group where it was opened, so a save that drops its count can't move it.
+  const [openPlace, setOpenPlace] = useState<OpenPlace | null | undefined>(
+    undefined,
+  );
   const [changing, setChanging] = useState<TransactionLine | null>(null);
+  // The key of the group Change All is open for.
+  const [labeling, setLabeling] = useState<string | null>(null);
   const [message, setMessage] = useState<InboxNotice | null>(null);
   const [ruleTarget, setRuleTarget] = useState<RuleDialogTarget>(null);
   const { pending, run } = useServerAction();
   const panelPrefix = useId();
 
+  const openKey = openPlace === null ? null : openPlace?.key;
   const shownKey = groups.some(({ key }) => key === openKey)
     ? openKey
     : openKey === null
       ? null
       : groups[0]?.key;
+  const shownGroups = keepOpenInPlace(groups, openPlace ?? null);
+
+  /** Where a group sits largest first, which is where it's held once open. */
+  const placeOf = (group: MerchantGroup): OpenPlace => ({
+    key: group.key,
+    index: groups.indexOf(group),
+  });
+
+  /** The largest group opens by itself, so it's held before anything saves. */
+  function hold(group: MerchantGroup) {
+    setOpenPlace((place) => (place?.key === group.key ? place : placeOf(group)));
+  }
+
   // Looked up each time, so a save shows what's now stored.
   const changingLine =
     changing === null
@@ -482,6 +512,8 @@ export function MerchantGroups({
       : (groups
           .flatMap(({ rows }) => rows)
           .find(({ id }) => id === changing.id) ?? null);
+  const labelingGroup =
+    labeling === null ? null : (groups.find(({ key }) => key === labeling) ?? null);
 
   function accept(group: MerchantGroup, edit: RowEdit) {
     setMessage(null);
@@ -492,7 +524,7 @@ export function MerchantGroups({
           setMessage({ tone: "error", text: result.message });
           return;
         }
-        setOpenKey(undefined);
+        setOpenPlace(undefined);
         setMessage(
           "offer" in result
             ? {
@@ -566,7 +598,7 @@ export function MerchantGroups({
           </p>
         ) : (
           <ul className="divide-y divide-border">
-            {groups.map((group, index) => {
+            {shownGroups.map((group, index) => {
               const open = group.key === shownKey;
               // A merchant key can hold spaces, which an ID can't.
               const panelId = `${panelPrefix}-group-${index}`;
@@ -576,7 +608,7 @@ export function MerchantGroups({
                     group={group}
                     open={open}
                     panelId={panelId}
-                    onToggle={() => setOpenKey(open ? null : group.key)}
+                    onToggle={() => setOpenPlace(open ? null : placeOf(group))}
                   />
                   {open && (
                     <OpenGroup
@@ -586,7 +618,14 @@ export function MerchantGroups({
                       panelId={panelId}
                       pending={pending}
                       onAccept={(edit) => accept(group, edit)}
-                      onChange={setChanging}
+                      onChangeAll={() => {
+                        hold(group);
+                        setLabeling(group.key);
+                      }}
+                      onChange={(line) => {
+                        hold(group);
+                        setChanging(line);
+                      }}
                     />
                   )}
                 </li>
@@ -599,6 +638,12 @@ export function MerchantGroups({
         line={changingLine}
         categories={categories}
         onClose={() => setChanging(null)}
+        onSaved={(line) => setMessage(rowSavedNotice(line))}
+      />
+      <ChangeAllDialog
+        group={labelingGroup}
+        onClose={() => setLabeling(null)}
+        onSaved={(notice) => setMessage({ tone: "done", text: notice })}
       />
       {ruleTarget !== null && "offer" in ruleTarget ? (
         <RuleDialog

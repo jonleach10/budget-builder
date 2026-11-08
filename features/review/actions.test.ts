@@ -37,13 +37,35 @@ beforeEach(() => {
 });
 
 describe("server actions", () => {
-  it("cover accepting a group, confirming a transfer and a rule from the inbox", () => {
+  it("cover accepting or labeling a group, confirming a transfer and a rule from the inbox", () => {
     expect(ACTIONS.map(([name]) => name).sort()).toEqual([
       "acceptGroupAction",
       "addRuleFromInboxAction",
       "confirmTransferAction",
+      "labelGroupAction",
       "sortByRuleAction",
       "undoRuleSortAction",
+    ]);
+  });
+
+  it("refreshes every screen that shows a row's label after Change All", async () => {
+    vi.mocked(serverClient).mockResolvedValue(
+      clientWithNoRows() as unknown as Awaited<ReturnType<typeof serverClient>>,
+    );
+
+    const result = await reviewActions.labelGroupAction(["row-1"], "Pharmacy");
+
+    // The client matches no rows, as if they all left review meanwhile.
+    expect(result).toEqual({
+      ok: false,
+      message: "These rows have changed, so none were saved. Check the rows, then try again.",
+    });
+    expect(vi.mocked(revalidatePath).mock.calls.flat().sort()).toEqual([
+      "/",
+      "/budget",
+      "/review",
+      "/rules",
+      "/transactions",
     ]);
   });
 
