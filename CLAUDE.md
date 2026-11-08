@@ -11,9 +11,10 @@
 The local sandbox runs the app on local Supabase with synthetic rows. Run it from a worktree with no `.env.local`:
 
 - `npm run sandbox:start` starts everything from cold, and stays running
-- `npm run sandbox:flows` resets the rows and runs the browser checks
-- `npm run sandbox:shot -- <path> [--phone] [--full]` saves a screenshot
-- `npm run sandbox:down` stops it and frees its memory
+- `npm run sandbox:flows [-- --prod]` resets the rows and runs the browser checks
+- `npm run sandbox:shot -- <path> [--phone] [--full] [--prod]` saves a screenshot
+- `npm run sandbox:prod` builds the app and serves it in production mode, and stays running. Run it from a running sandbox with the dev server stopped, and add `--prod` to flows and shots to use it. Development mode is the default.
+- `npm run sandbox:down` stops it, production mode included, and frees its memory
 
 ## Product
 
