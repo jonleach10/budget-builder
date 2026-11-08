@@ -80,6 +80,11 @@ The donut's last slice when the period has more than 7 categories with Spending:
 _Avoid_: miscellaneous, the rest
 _In code_: the `other` key and `members` on `CategoryLine`.
 
+**Visits**:
+One Spending row at a merchant. The Account page's Top Merchants gives each merchant's visits in the period beside its total, so a few large payments can be told from many small ones. A refund is a Spending row, so it's a visit too.
+_Avoid_: purchases, transactions
+_In code_: `visits` and `visitsText` on `MerchantLine`.
+
 ## Statements and import
 
 **Statement**:
