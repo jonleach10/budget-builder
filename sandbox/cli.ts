@@ -77,10 +77,10 @@ function productionPid(): number | null {
   const pid = serverPidFrom(readFileSync(PRODUCTION_PID_FILE, "utf8"));
   if (pid === null) return null;
 
-  const command = spawnSync("ps", ["-p", String(pid), "-o", "command="], {
+  const psLine = spawnSync("ps", ["-p", String(pid), "-o", "pid=,pgid=,command="], {
     encoding: "utf8",
   }).stdout;
-  return isProductionServer((command ?? "").trim()) ? pid : null;
+  return isProductionServer((psLine ?? "").trim()) ? pid : null;
 }
 
 function pause(milliseconds: number): void {

@@ -21,12 +21,19 @@ export function serverPidFrom(text: string | undefined): number | null {
 }
 
 /**
- * Whether `ps -o command=` shows Next serving a build. Next renames its process
- * to next-server once it starts. An ID can be reused once a process ends, so a
- * stop checks this before it signals anything.
+ * Whether a `ps -o pid=,pgid=,command=` line shows Next serving a build, as
+ * sandbox:prod starts it. Next titles both a built server and the dev server's
+ * worker next-server, so the title alone can't tell them apart. sandbox:prod
+ * starts the server in a process group of its own, and the dev worker is in
+ * `next dev`'s group, so the IDs can. A stop checks this before it signals.
  */
-export function isProductionServer(command: string): boolean {
-  return /^next-server\b/.test(command) || /\/next start\b/.test(command);
+export function isProductionServer(psLine: string): boolean {
+  const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(psLine);
+  if (match === null) return false;
+
+  const [, pid, groupId, command] = match;
+  const isNext = /^next-server\b/.test(command) || /\/next start\b/.test(command);
+  return isNext && pid === groupId;
 }
 
 /**

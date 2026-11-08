@@ -57,25 +57,31 @@ describe("serverPidFrom", () => {
   });
 });
 
+// Lines as `ps -o pid=,pgid=,command=` prints them. sandbox:prod starts the
+// server in a process group of its own, so its ID and group ID match.
 describe("isProductionServer", () => {
   it.each([
-    ["once it's serving", "next-server (v16.4.5)"],
+    ["once it's serving", "95243 95243 next-server (v16.4.5)"],
     [
       "while it starts",
-      "/usr/local/bin/node /repo/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3100",
+      "95243 95243 /usr/local/bin/node /repo/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3100",
     ],
-  ])("recognizes the production server %s", (_name, command) => {
-    expect(isProductionServer(command)).toBe(true);
+    ["with ps padding the ID", "  952   952 next-server (v16.4.5)"],
+  ])("recognizes the production server %s", (_name, line) => {
+    expect(isProductionServer(line)).toBe(true);
   });
 
   it.each([
     ["a process that has ended", ""],
-    ["a reused ID", "/usr/bin/ssh-agent -l"],
+    ["a reused ID", "48213 48213 /usr/bin/ssh-agent -l"],
     [
       "the development server",
-      "/usr/local/bin/node /repo/node_modules/next/dist/bin/next dev -H 127.0.0.1 -p 3100",
+      "65246 65233 /usr/local/bin/node /repo/node_modules/.bin/next dev -H 127.0.0.1 -p 3100",
     ],
-  ])("doesn't take %s for it", (_name, command) => {
-    expect(isProductionServer(command)).toBe(false);
+    // `next dev` forks a worker that Next titles the same as a built server.
+    ["the development server's worker", "65247 65233 next-server (v16.4.3)"],
+    ["a title with no IDs", "next-server (v16.4.5)"],
+  ])("doesn't take %s for it", (_name, line) => {
+    expect(isProductionServer(line)).toBe(false);
   });
 });
