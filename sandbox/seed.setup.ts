@@ -1,10 +1,12 @@
 import { expect, test as setup } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { importStatements } from "@/features/import/importStatements";
+import { REDACTED } from "@/features/import/redact";
 import { fakeRates } from "./fakeRates.ts";
 import {
   ACCOUNT_WITH_NO_ROWS,
   generateStatements,
+  PERSONAL_CARD_MERCHANT,
   SANDBOX_ACCOUNTS,
   sandboxMonths,
   SORTED_CARD_MERCHANTS,
@@ -195,6 +197,30 @@ async function labelGroceryRow(
   expect(labeled).toHaveLength(1);
 }
 
+/**
+ * The card's rows with no merchant key, given a category the way Edit Row gives
+ * one, since no rule can match them. The Account page then lists No Merchant
+ * among the card's merchants. The Girokonto's No Merchant rows stay in review.
+ */
+async function decideCardNoMerchantRows(
+  client: SupabaseClient,
+  shoppingId: string | undefined,
+): Promise<void> {
+  const [card] = dataOf(
+    await client.from("accounts").select("id").eq("name", "Sandbox Card"),
+  );
+  if (card === undefined) throw new Error("No Sandbox Card to decide rows on.");
+  const decided = dataOf(
+    await client
+      .from("transactions")
+      .update({ category_id: shoppingId, category_source: "manual" })
+      .eq("account_id", card.id)
+      .eq("description", REDACTED)
+      .select("id"),
+  );
+  if (decided.length === 0) throw new Error("No card row with no merchant key to decide.");
+}
+
 setup("seed the fake owner's data", async () => {
   assertLocalSupabase(required("SANDBOX_URL"));
   const weirdRows = weirdRowsAsked();
@@ -246,6 +272,13 @@ setup("seed the fake owner's data", async () => {
         position: 3 + index,
         category_id: categoryIds.get(category),
       })),
+      // So the Account page has a Personal total.
+      {
+        match_on: "descriptionStartsWith",
+        value: PERSONAL_CARD_MERCHANT,
+        position: 3 + SORTED_CARD_MERCHANTS.length,
+        type: "personal",
+      },
     ]),
   );
 
@@ -268,6 +301,7 @@ setup("seed the fake owner's data", async () => {
   if (result.ok) console.log(JSON.stringify(result.summary));
 
   await labelGroceryRow(client, today, categoryIds.get("Groceries"));
+  await decideCardNoMerchantRows(client, categoryIds.get("Shopping"));
 
   // Only on request, after everything the normal seed gives.
   await applyWeirdRows(client, today, weirdRows);
