@@ -6,6 +6,7 @@ import { parseStatement } from "@/features/import/parseStatement";
 import { REDACTED } from "@/features/import/redact";
 import type { Account, Transaction } from "@/features/import/types";
 import {
+  ACCOUNT_WITH_NO_ROWS,
   type DataSize,
   generateStatements,
   SANDBOX_ACCOUNTS,
@@ -133,6 +134,32 @@ describe("generateStatements", () => {
   it("writes one file per account, which the real parser accepts", async () => {
     expect(generateStatements(TODAY)).toHaveLength(SANDBOX_ACCOUNTS.length);
     await expect(parsedRows()).resolves.not.toHaveLength(0);
+  });
+
+  it("writes no rows for the account with no rows", async () => {
+    const withEmpty: Account[] = [
+      ...accounts,
+      {
+        id: "account-empty",
+        lastFour: ACCOUNT_WITH_NO_ROWS.lastFour,
+        format: ACCOUNT_WITH_NO_ROWS.format,
+        currency: ACCOUNT_WITH_NO_ROWS.currency,
+      },
+    ];
+    const statements = await Promise.all(
+      generateStatements(TODAY).map(({ name, text }) =>
+        parseStatement({
+          fileName: name,
+          text,
+          accounts: withEmpty,
+          hash: passThroughHash,
+        }),
+      ),
+    );
+
+    expect(statements.map(({ accountId }) => accountId)).not.toContain(
+      "account-empty",
+    );
   });
 
   it("gives the same files for the same day", () => {
