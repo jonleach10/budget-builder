@@ -221,7 +221,7 @@ function CategoryList({ screen }: { screen: ReadyAccount }) {
 /** In the donut's place: no category has Spending above zero in the period. */
 function NoSpending({ line }: { line: NoSpendingLine }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl bg-frost-wash p-5 shadow-hairline">
+    <div className="flex items-start gap-3 rounded-xl bg-frost-wash p-5 text-body-sm shadow-hairline">
       <CircleMinus
         className="mt-0.5 size-4 shrink-0 text-muted-foreground"
         aria-hidden="true"
