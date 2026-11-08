@@ -14,6 +14,7 @@ import {
 import { rowEditStore } from "@/features/transactions/rowEditStore";
 import type { ActionResult } from "@/lib/actionResult";
 import { confirmTransfer } from "./confirmTransfer";
+import { labelGroup } from "./groupLabel";
 import { readReviewSource } from "./loadReviewInbox";
 import { inboxRuleOffer, type InboxRuleOffer } from "./ruleFromCorrection";
 import {
@@ -49,6 +50,21 @@ export async function acceptGroupAction(
   // A failed batch can still have saved rows, so every screen refreshes.
   refreshScreens();
   return offer === null || !result.ok ? result : { ...result, offer };
+}
+
+/**
+ * Change All: gives a merchant group's rows one label, through the shared
+ * write path. The rows stay in review, and no rule is offered.
+ */
+export async function labelGroupAction(
+  ids: string[],
+  label: string,
+): Promise<RowsResult> {
+  await requireSession();
+  const result = await labelGroup(rowEditStore(await serverClient()), ids, label);
+  // A label shows wherever the row does, and a failed batch can still save some.
+  refreshScreens();
+  return result;
 }
 
 /** A failed read only loses the offer, never the accept. */

@@ -171,6 +171,16 @@ describe("ReviewScreen", () => {
       expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Accept 2 Rows<\/button>/);
     });
 
+    it("has Change All beside Accept, as an outlined button, only on the open group", () => {
+      const html = render();
+
+      expect(html.match(/>Change All<\/button>/g)).toHaveLength(1);
+      const [, changeAll] =
+        html.match(/<button([^>]*)>Change All<\/button><button[^>]*>Accept 2 Rows<\/button>/) ?? [];
+      expect(changeAll).toContain("shadow-hairline");
+      expect(changeAll).not.toMatch(/(?<![:\w-])bg-primary(?![/\w-])/);
+    });
+
     it("offers the suggestion without filling it in", () => {
       const html = render();
 

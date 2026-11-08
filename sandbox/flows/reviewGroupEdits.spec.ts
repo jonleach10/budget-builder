@@ -86,3 +86,105 @@ test("Save Row keeps the open group in its place, and the notice is about that r
   await expect(groupButton(page, name)).toHaveAttribute("aria-expanded", "false");
   expect(await placeOf(page, name)).toBe(place + 1);
 });
+
+/** The months the seed fills, newest first, as Transactions' address takes them. */
+function seededMonths(): string[] {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, back) =>
+    new Date(Date.UTC(now.getFullYear(), now.getMonth() - back, 1))
+      .toISOString()
+      .slice(0, 7),
+  );
+}
+
+test("Change All gives every row in the group one label, and Transactions shows it", async ({ page }) => {
+  const name = "Muster Drogerie";
+  await groupButton(page, name).click();
+  const place = await placeOf(page, name);
+  const count = await countOf(page, name);
+
+  // One row gets its own label first, so Change All has one to replace.
+  await merchants(page).getByRole("button", { name: /^Change Muster Drogerie from/ }).first().click();
+  const editRow = page.getByRole("dialog");
+  await editRow.getByLabel("Label", { exact: true }).fill("Old name");
+  await editRow.getByRole("button", { name: "Save Row" }).click();
+  await expect(editRow).toBeHidden();
+  await expect(page.getByRole("status")).toHaveText(/^The row from .+ was saved\.$/);
+
+  const changeAll = merchants(page).getByRole("button", { name: "Change All" });
+  await expect(changeAll).toBeVisible();
+  await changeAll.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "Label All Rows" })).toBeVisible();
+  const label = dialog.getByLabel("Label", { exact: true });
+  await expect(label).toHaveAttribute("maxlength", "100");
+  await expect(label).toHaveValue("");
+  await expect(dialog).toContainText(
+    "The label is blank, so saving clears the label on every row in this group.",
+  );
+  await expect(dialog.getByRole("button", { name: "Clear Labels" })).toBeEnabled();
+
+  await label.fill("Drogerie sample");
+  await expect(dialog).toContainText("1 row already has a different label. Saving replaces it.");
+  await picture(page, "review-change-all-dialog-laptop");
+  await dialog.getByRole("button", { name: "Save Label" }).click();
+  await expect(dialog).toBeHidden();
+
+  await expect(page.getByRole("status")).toHaveText(`The label was saved on ${count} rows.`);
+  // The rows stay in review, so the group keeps its count, its place and stays open.
+  await expect(groupButton(page, name)).toHaveAttribute("aria-expanded", "true");
+  expect(await countOf(page, name)).toBe(count);
+  expect(await placeOf(page, name)).toBe(place);
+  const table = merchants(page).getByRole("table");
+  await expect(table.getByRole("row").filter({ hasText: "Drogerie sample" })).toHaveCount(count);
+  await groupButton(page, name).evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await picture(page, "review-change-all-saved-laptop");
+
+  let labeled = 0;
+  for (const month of seededMonths()) {
+    await page.goto(`/transactions?month=${month}`);
+    await expect(page.getByRole("heading", { name: "Transactions" })).toBeVisible();
+    const rows = page.getByRole("row").filter({ hasText: name });
+    const shown = await rows.count();
+    await expect(rows.filter({ hasText: "Drogerie sample" })).toHaveCount(shown);
+    await expect(rows.filter({ hasText: "Needs Review" })).toHaveCount(shown);
+    labeled += shown;
+  }
+  expect(labeled).toBe(count);
+});
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("Change All sits beside Accept, and its dialog fills the screen", async ({ page }) => {
+    const name = "Beispiel Bäckerei";
+    await groupButton(page, name).click();
+    await expect(groupButton(page, name)).toHaveAttribute("aria-expanded", "true");
+
+    const changeAll = merchants(page).getByRole("button", { name: "Change All" });
+    const accept = merchants(page).getByRole("button", { name: /^Accept \d+ Rows?$/ });
+    const [left, right] = [await changeAll.boundingBox(), await accept.boundingBox()];
+    expect(left?.y).toBe(right?.y);
+    expect((left?.x ?? 0) < (right?.x ?? 0)).toBe(true);
+    await changeAll.click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    expect((await dialog.boundingBox())?.width).toBe(390);
+    await dialog.getByLabel("Label", { exact: true }).fill("Bakery sample");
+    await picture(page, "review-change-all-dialog-phone");
+    await dialog.getByRole("button", { name: "Save Label" }).click();
+    await expect(dialog).toBeHidden();
+
+    await expect(page.getByRole("status")).toHaveText(/^The label was saved on \d+ rows\.$/);
+    await expect(groupButton(page, name)).toHaveAttribute("aria-expanded", "true");
+    const list = merchants(page).getByRole("list", { name: "Rows in this group" });
+    await expect(list.getByText("Bakery sample").first()).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    await groupButton(page, name).evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await picture(page, "review-change-all-saved-phone");
+  });
+});

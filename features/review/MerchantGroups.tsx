@@ -22,6 +22,7 @@ import {
   sortByRuleAction,
   undoRuleSortAction,
 } from "./actions";
+import { ChangeAllDialog } from "./ChangeAllDialog";
 import { keepOpenInPlace, type OpenPlace } from "./groupOrder";
 import { offerText, storedRuleItem } from "./ruleDialogView";
 import type { InboxRuleOffer } from "./ruleFromCorrection";
@@ -321,6 +322,7 @@ function OpenGroup({
   panelId,
   pending,
   onAccept,
+  onChangeAll,
   onChange,
 }: {
   group: MerchantGroup;
@@ -328,6 +330,7 @@ function OpenGroup({
   panelId: string;
   pending: boolean;
   onAccept: (edit: RowEdit) => void;
+  onChangeAll: () => void;
   onChange: ChangeRow;
 }) {
   const [decision, setDecision] = useState(START_DECISION);
@@ -358,13 +361,18 @@ function OpenGroup({
             })
           }
         />
-        <Button
-          type="button"
-          className="h-11 w-full md:h-9 md:w-auto"
-          disabled={edit === null || pending}
-          onClick={() => edit !== null && onAccept(edit)}>
-          {pending ? "Saving..." : acceptLabel(group.count)}
-        </Button>
+        <div className="grid grid-cols-2 gap-3 md:flex md:gap-2">
+          <OutlineButton disabled={pending} onClick={onChangeAll}>
+            Change All
+          </OutlineButton>
+          <Button
+            type="button"
+            className="h-11 w-full md:h-9 md:w-auto"
+            disabled={edit === null || pending}
+            onClick={() => edit !== null && onAccept(edit)}>
+            {pending ? "Saving..." : acceptLabel(group.count)}
+          </Button>
+        </div>
       </div>
       <GroupTable rows={group.rows} onChange={onChange} />
       <GroupList rows={group.rows} onChange={onChange} />
@@ -471,6 +479,8 @@ export function MerchantGroups({
     undefined,
   );
   const [changing, setChanging] = useState<TransactionLine | null>(null);
+  // The key of the group Change All is open for.
+  const [labeling, setLabeling] = useState<string | null>(null);
   const [message, setMessage] = useState<InboxNotice | null>(null);
   const [ruleTarget, setRuleTarget] = useState<RuleDialogTarget>(null);
   const { pending, run } = useServerAction();
@@ -494,6 +504,7 @@ export function MerchantGroups({
   function hold(group: MerchantGroup) {
     setOpenPlace((place) => (place?.key === group.key ? place : placeOf(group)));
   }
+
   // Looked up each time, so a save shows what's now stored.
   const changingLine =
     changing === null
@@ -501,6 +512,8 @@ export function MerchantGroups({
       : (groups
           .flatMap(({ rows }) => rows)
           .find(({ id }) => id === changing.id) ?? null);
+  const labelingGroup =
+    labeling === null ? null : (groups.find(({ key }) => key === labeling) ?? null);
 
   function accept(group: MerchantGroup, edit: RowEdit) {
     setMessage(null);
@@ -605,6 +618,10 @@ export function MerchantGroups({
                       panelId={panelId}
                       pending={pending}
                       onAccept={(edit) => accept(group, edit)}
+                      onChangeAll={() => {
+                        hold(group);
+                        setLabeling(group.key);
+                      }}
                       onChange={(line) => {
                         hold(group);
                         setChanging(line);
@@ -622,6 +639,11 @@ export function MerchantGroups({
         categories={categories}
         onClose={() => setChanging(null)}
         onSaved={(line) => setMessage(rowSavedNotice(line))}
+      />
+      <ChangeAllDialog
+        group={labelingGroup}
+        onClose={() => setLabeling(null)}
+        onSaved={(notice) => setMessage({ tone: "done", text: notice })}
       />
       {ruleTarget !== null && "offer" in ruleTarget ? (
         <RuleDialog

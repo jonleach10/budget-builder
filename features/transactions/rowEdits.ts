@@ -247,7 +247,7 @@ export function rowsWere(rows: number): string {
   return rows === 1 ? "1 row was" : `${count(rows)} rows were`;
 }
 
-function noneSaved(total: number): Failure {
+export function noneSaved(total: number): Failure {
   return {
     ok: false,
     message:
@@ -257,7 +257,7 @@ function noneSaved(total: number): Failure {
   };
 }
 
-const ROWS_CHANGED: Failure = {
+export const ROWS_CHANGED: Failure = {
   ok: false,
   message:
     "These rows have changed, so none were saved. Check the rows, then try again.",
@@ -283,19 +283,31 @@ export type RowsResult =
   | { ok: true; notice: string; saved: number; total: number }
   | { ok: false; message: string };
 
-export async function editRows(
+/**
+ * What a batched edit did: how many rows it saved of the ones sent, and whether
+ * a batch failed. `refused` means the edit was refused before anything saved.
+ */
+export type RowsWritten =
+  | { refused: Failure }
+  | { saved: number; total: number; failed: boolean };
+
+/**
+ * `editRows` without its wording, for a screen that says what it saved in its
+ * own words. It checks the edit and saves it in the same way.
+ */
+export async function writeRows(
   store: RowEditStore,
   ids: readonly string[],
   edit: RowEdit,
   batchSize = BATCH_SIZE,
-): Promise<RowsResult> {
+): Promise<RowsWritten> {
   if (!isIdList(ids) || typeof edit !== "object" || edit === null) {
-    return noneSaved(2);
+    return { refused: noneSaved(2) };
   }
   if (Object.keys(edit).some((field) => !EDIT_FIELDS.has(field))) {
-    return BANK_DATA;
+    return { refused: BANK_DATA };
   }
-  if (!isValidEdit(edit)) return noneSaved(2);
+  if (!isValidEdit(edit)) return { refused: noneSaved(2) };
 
   const unique = [...new Set(ids)];
   const { written, failed } = await writeInReview(
@@ -305,20 +317,26 @@ export async function editRows(
     changesFor(IN_REVIEW, edit),
     batchSize,
   );
-  const saved = writtenCount(written);
+  return { saved: writtenCount(written), total: unique.length, failed };
+}
+
+export async function editRows(
+  store: RowEditStore,
+  ids: readonly string[],
+  edit: RowEdit,
+  batchSize = BATCH_SIZE,
+): Promise<RowsResult> {
+  const write = await writeRows(store, ids, edit, batchSize);
+  if ("refused" in write) return write.refused;
+  const { saved, total, failed } = write;
 
   if (failed) {
-    if (saved === 0) return noneSaved(unique.length);
+    if (saved === 0) return noneSaved(total);
     return {
       ok: false,
-      message: `${count(saved)} of ${count(unique.length)} rows were saved. The rest are still in the inbox. Accept the group again to finish.`,
+      message: `${count(saved)} of ${count(total)} rows were saved. The rest are still in the inbox. Accept the group again to finish.`,
     };
   }
   if (saved === 0) return ROWS_CHANGED;
-  return {
-    ok: true,
-    notice: `${rowsWere(saved)} saved.`,
-    saved,
-    total: unique.length,
-  };
+  return { ok: true, notice: `${rowsWere(saved)} saved.`, saved, total };
 }
