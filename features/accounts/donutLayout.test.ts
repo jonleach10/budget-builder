@@ -75,7 +75,7 @@ describe("layoutDonut", () => {
     // At 135 and 315 degrees: 102 x sin 45 is 72.12 from the centre each way.
     expect(layout.labels).toEqual([
       { key: "slice-1", text: "75%", x: 212.12, y: 212.12, dark: true },
-      { key: "slice-2", text: "25%", x: 67.88, y: 67.88, dark: false },
+      { key: "slice-2", text: "25%", x: 67.88, y: 67.88, dark: true },
     ]);
   });
 
@@ -145,22 +145,27 @@ describe("layoutDonut", () => {
     expect(layout.labels.map(({ text }) => text)).toEqual(["93%", "8%"]);
   });
 
-  it("uses dark text on the two light slots and white on the rest", () => {
+  // Midnight Glass: no white text on a tint brighter than 12%. The solid slots and
+  // Other's stripes take dark text; the faint slots keep white, which reads better.
+  it.each([
+    [1, true],
+    [2, true],
+    [3, true],
+    [4, false],
+    [5, false],
+    [6, false],
+    [7, false],
+    ["other", true],
+  ] as const)("gives slot %s's label dark text: %s", (color, dark) => {
     const layout = layoutDonut({
       slices: [
-        ...slices([2000, "20%"], [2000, "20%"], [2000, "20%"], [2000, "20%"]),
-        { key: "other", minor: 2000, share: "20%", color: "other" },
+        { key: "this", minor: 5000, share: "50%", color },
+        { key: "rest", minor: 5000, share: "50%", color: color === 1 ? 2 : 1 },
       ],
       total: "$100.00",
     });
 
-    expect(layout.labels.map(({ dark }) => dark)).toEqual([
-      true,
-      false,
-      true,
-      false,
-      false,
-    ]);
+    expect(layout.labels[0]).toMatchObject({ key: "this", dark });
   });
 
   it("centres Spending over the figure in the hole, at 26 for a usual total", () => {

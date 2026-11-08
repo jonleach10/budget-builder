@@ -43,8 +43,15 @@ const GAP = 0.7;
 // disappears; the largest slice gives up the room.
 const MIN_ARC = 1;
 const LABEL_FROM = 8;
-// The light slots, which need dark text.
-const LIGHT: readonly SliceColor[] = [1, 3];
+/**
+ * Midnight Glass allows no white text on a tint brighter than 12%, so the solid
+ * slots and Other's 75% stripes take dark text. Contrast over the card, white
+ * against dark: slot 1 at 100% 1.5 to 13.8, slot 2 at 100% 4.1 to 4.9, slot 3 at
+ * 100% 2.7 to 8.4, Other's stripes 4.0 to 5.1. The faint slots keep white, which
+ * reads far better there: slot 4 at 50% 4.9 to 4.1, slot 5 at 50% 9.7 to 2.1,
+ * slot 6 at 45% 7.9 to 2.6, slot 7 at 30% 13.7 to 1.5.
+ */
+const DARK_TEXT: readonly SliceColor[] = [1, 2, 3, "other"];
 
 // The middle: "Spending" at 12 units on a 16-unit line, 2 units apart from the figure.
 const LABEL_LINE = 16;
@@ -158,7 +165,7 @@ export function layoutDonut({ slices, total }: DonutInput): DonutLayout {
     start = end;
 
     if (Math.round((minor / sum) * 100) >= LABEL_FROM) {
-      labels.push({ key, text: share, ...pointAt(middle), dark: LIGHT.includes(color) });
+      labels.push({ key, text: share, ...pointAt(middle), dark: DARK_TEXT.includes(color) });
     }
   });
 
