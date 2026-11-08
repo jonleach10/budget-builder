@@ -145,8 +145,20 @@ describe("layoutDonut", () => {
     expect(layout.labels.map(({ text }) => text)).toEqual(["93%", "8%"]);
   });
 
-  // Midnight Glass: no white text on a tint brighter than 12%. The solid slots and
-  // Other's stripes take dark text; the faint slots keep white, which reads better.
+  it("never labels Other on the ring, even at 8% or more, as its share is in the list", () => {
+    const layout = layoutDonut({
+      slices: [
+        ...slices([6000, "60%"], [2000, "20%"]),
+        { key: "other", minor: 2000, share: "20%", color: "other" },
+      ],
+      total: "$100.00",
+    });
+
+    expect(layout.labels.map(({ key }) => key)).toEqual(["slice-1", "slice-2"]);
+    expect(layout.arcs.map(({ key }) => key)).toContain("other");
+  });
+
+  // By measured contrast: the solid slots take dark text, the faint ones white.
   it.each([
     [1, true],
     [2, true],
@@ -155,7 +167,6 @@ describe("layoutDonut", () => {
     [5, false],
     [6, false],
     [7, false],
-    ["other", true],
   ] as const)("gives slot %s's label dark text: %s", (color, dark) => {
     const layout = layoutDonut({
       slices: [

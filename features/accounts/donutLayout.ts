@@ -23,7 +23,10 @@ export type DonutLayout = {
   stroke: number;
   /** Clockwise from 12 o'clock, in degrees, as drawn. */
   arcs: { key: string; color: SliceColor; from: number; to: number; path: string }[];
-  /** A share on its slice, for slices of 8% or more. Dark on the light slots. */
+  /**
+   * A share on its slice, for slices of 8% or more, but never on Other: no text
+   * reads on its hatch, and the list gives its share. Dark on the solid slots.
+   */
   labels: { key: string; text: string; x: number; y: number; dark: boolean }[];
   /** "Spending" over the figure, centred in the hole. */
   middle: {
@@ -43,15 +46,10 @@ const GAP = 0.7;
 // disappears; the largest slice gives up the room.
 const MIN_ARC = 1;
 const LABEL_FROM = 8;
-/**
- * Midnight Glass allows no white text on a tint brighter than 12%, so the solid
- * slots and Other's 75% stripes take dark text. Contrast over the card, white
- * against dark: slot 1 at 100% 1.5 to 13.8, slot 2 at 100% 4.1 to 4.9, slot 3 at
- * 100% 2.7 to 8.4, Other's stripes 4.0 to 5.1. The faint slots keep white, which
- * reads far better there: slot 4 at 50% 4.9 to 4.1, slot 5 at 50% 9.7 to 2.1,
- * slot 6 at 45% 7.9 to 2.6, slot 7 at 30% 13.7 to 1.5.
- */
-const DARK_TEXT: readonly SliceColor[] = [1, 2, 3, "other"];
+// Label colour follows measured contrast over the card, not the literal 12% tint
+// rule (white vs dark): slots 1-3 solid 1.5/13.8, 4.1/4.9, 2.7/8.4 take dark; slots
+// 4-7 faint 4.9/4.1, 9.7/2.1, 7.9/2.6, 13.7/1.5 keep white. Other has no label.
+const DARK_TEXT: readonly SliceColor[] = [1, 2, 3];
 
 // The middle: "Spending" at 12 units on a 16-unit line, 2 units apart from the figure.
 const LABEL_LINE = 16;
@@ -164,7 +162,7 @@ export function layoutDonut({ slices, total }: DonutInput): DonutLayout {
     }
     start = end;
 
-    if (Math.round((minor / sum) * 100) >= LABEL_FROM) {
+    if (color !== "other" && Math.round((minor / sum) * 100) >= LABEL_FROM) {
       labels.push({ key, text: share, ...pointAt(middle), dark: DARK_TEXT.includes(color) });
     }
   });
