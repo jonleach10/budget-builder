@@ -31,6 +31,7 @@ import {
   type PeriodChoice,
   type Shortcut,
 } from "./period";
+import { buildSpendingTrend, type SpendingTrend } from "./spendingTrend";
 
 /** An account as the Account page reads it. */
 export type AccountRecord = {
@@ -138,6 +139,8 @@ export type ReadyAccount = {
   personal: string;
   /** How many of the period's rows need review, linking to the Review inbox if any. */
   review: ReviewLine;
+  /** Monthly Spending, or null when every month in it is $0. */
+  trend: SpendingTrend | null;
   merchants: MerchantList;
 };
 
@@ -384,6 +387,25 @@ function topMerchants(
 /** The budget's definition, on the ledger, which has no hidden rows. */
 function waitsForReview(row: LedgerRow): boolean {
   return needsReview({ ...row, hidden: false });
+}
+
+/** Each month's Spending, by the same rule as the categories, in minor units. */
+function spendingByMonth(
+  ledger: readonly LedgerRow[],
+  currency: string,
+): Map<string, number> {
+  const outflows = new Map<string, number[]>();
+  for (const row of ledger) {
+    if (!countsAsSpending(row)) continue;
+    if (row.amount.currency !== currency) {
+      throw new BudgetError("entry-currency-mismatch");
+    }
+    const month = row.postedOn.slice(0, 7);
+    const values = outflows.get(month) ?? [];
+    values.push(-row.amount.minor);
+    outflows.set(month, values);
+  }
+  return new Map([...outflows].map(([month, values]) => [month, sumMinor(values)]));
 }
 
 /** The first and last months the account has rows in, hidden rows too. */
@@ -643,6 +665,12 @@ export function buildAccountScreen({
       text: reviewText(waiting, "these totals"),
       href: reviewHref(waiting),
     },
+    trend: buildSpendingTrend({
+      ledger,
+      spentByMonth: spendingByMonth(ledger, currency),
+      range,
+      currency,
+    }),
     merchants: topMerchants(
       inPeriod.filter(countsAsSpending),
       new Map(

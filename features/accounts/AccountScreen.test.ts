@@ -87,6 +87,7 @@ const READY: ReadyAccount = {
   allNeedReview: null,
   personal: "$286.50",
   review: { text: "4 rows need review and aren't in these totals.", href: "/review" },
+  trend: null,
   merchants: {
     hint: "Each merchant is named by the bank text of its latest row.",
     lines: [
