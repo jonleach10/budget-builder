@@ -185,6 +185,7 @@ export function buildAccountScreen({
       amount: money(amount),
       share: percent(amount, total),
     })),
-    total: { amount: money(total), share: "100%" },
+    // With no Spending there's nothing for the total to be all of.
+    total: { amount: money(total), share: total === 0 ? "0%" : "100%" },
   };
 }

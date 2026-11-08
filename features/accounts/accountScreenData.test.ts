@@ -260,6 +260,7 @@ describe("buildAccountScreen", () => {
 
     expect(screen.categories).toEqual([]);
     expect(screen.total.amount).toBe("$0.00");
+    expect(screen.total.share).toBe("0%");
   });
 
   it("points an account with no rows to Import, with no period", () => {
