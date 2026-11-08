@@ -4,7 +4,9 @@ import { PageFrame } from "@/components/page-frame";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { EmptyPanel } from "@/features/budget/ScreenParts";
+import { cn } from "@/lib/utils";
 import { AccountPicker } from "./AccountPicker";
+import { PeriodControl } from "./PeriodControl";
 import type {
   AccountScreenData,
   CategoryLine,
@@ -14,8 +16,14 @@ import type {
 const GHOST_PILL =
   "h-11 bg-frost-wash text-white shadow-hairline hover:bg-accent md:h-9";
 
-/** Desktop: a table with Category, Amount and Share, then the Total row. */
+/**
+ * Desktop: a table with Category, Amount, Share and Change, then the Total row.
+ * Change is plain text, never teal or ember: more spending on one account isn't
+ * over budget. A category that dropped to zero is muted.
+ */
 function CategoryTable({ screen }: { screen: ReadyAccount }) {
+  const { showChange } = screen;
+
   return (
     <table className="hidden w-full table-fixed text-body-sm tabular-nums md:table">
       <caption className="sr-only">Spending by category</caption>
@@ -30,18 +38,41 @@ function CategoryTable({ screen }: { screen: ReadyAccount }) {
           <th scope="col" className="w-20 pb-2.5 text-right font-medium">
             Share
           </th>
+          {showChange && (
+            <th scope="col" className="w-20 pb-2.5 text-right font-medium">
+              Change
+            </th>
+          )}
         </tr>
       </thead>
       <tbody>
         {screen.categories.map((line) => (
-          <tr key={line.name} className="h-11 border-b border-border">
+          <tr
+            key={line.name}
+            data-dropped={line.dropped || undefined}
+            className={cn(
+              "h-11 border-b border-border",
+              line.dropped && "text-muted-foreground",
+            )}>
             <th
               scope="row"
-              className="text-left font-normal text-foreground [overflow-wrap:anywhere]">
+              className={cn(
+                "text-left font-normal [overflow-wrap:anywhere]",
+                !line.dropped && "text-foreground",
+              )}>
               {line.name}
             </th>
-            <td className="text-right text-moon-mist">{line.amount}</td>
-            <td className="text-right text-foreground">{line.share}</td>
+            <td className={cn("text-right", !line.dropped && "text-moon-mist")}>
+              {line.amount}
+            </td>
+            <td className={cn("text-right", !line.dropped && "text-foreground")}>
+              {line.share}
+            </td>
+            {showChange && (
+              <td className={cn("text-right", !line.dropped && "text-moon-mist")}>
+                {line.change}
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -52,38 +83,53 @@ function CategoryTable({ screen }: { screen: ReadyAccount }) {
           </th>
           <td className="text-right">{screen.total.amount}</td>
           <td className="text-right">{screen.total.share}</td>
+          {showChange && <td className="text-right">{screen.total.change}</td>}
         </tr>
       </tfoot>
     </table>
   );
 }
 
+/** Share, then Change when there is one, joined by a middle dot. */
+function shareAndChange({ share, change }: Pick<CategoryLine, "share" | "change">) {
+  return change === null ? share : `${share} · ${change}`;
+}
+
 function CategoryItem({
   line,
   total = false,
 }: {
-  line: CategoryLine;
+  line: Pick<CategoryLine, "name" | "amount" | "share" | "change"> & {
+    dropped?: boolean;
+  };
   total?: boolean;
 }) {
+  const muted = line.dropped === true;
+
   return (
     <li
-      className={
-        total
-          ? "flex items-start justify-between gap-3 py-3 font-medium text-ice-highlight"
-          : "flex items-start justify-between gap-3 py-3"
-      }>
+      data-dropped={muted || undefined}
+      className={cn(
+        "flex items-start justify-between gap-3 py-3",
+        total && "font-medium text-ice-highlight",
+        muted && "text-muted-foreground",
+      )}>
       <div className="min-w-0 [overflow-wrap:anywhere]">
-        <div className={total ? undefined : "text-foreground"}>{line.name}</div>
-        <div className="text-caption text-muted-foreground">{line.share}</div>
+        <div className={total || muted ? undefined : "text-foreground"}>
+          {line.name}
+        </div>
+        <div className="text-caption text-muted-foreground">
+          {shareAndChange(line)}
+        </div>
       </div>
-      <div className={total ? "shrink-0" : "shrink-0 text-moon-mist"}>
+      <div className={total || muted ? "shrink-0" : "shrink-0 text-moon-mist"}>
         {line.amount}
       </div>
     </li>
   );
 }
 
-/** Phone: each category on two lines, with its share under its name. */
+/** Phone: each category on two lines, with its share and change under its name. */
 function CategoryList({ screen }: { screen: ReadyAccount }) {
   return (
     <ul
@@ -99,7 +145,7 @@ function CategoryList({ screen }: { screen: ReadyAccount }) {
 
 /**
  * The donut sits beside the list on a desktop, and the Personal and needs-review
- * lines under it, once those are built. The period control goes above the card.
+ * lines under it, once those are built. The hint names what Change is against.
  */
 function CategoryCard({ screen }: { screen: ReadyAccount }) {
   return (
@@ -111,6 +157,7 @@ function CategoryCard({ screen }: { screen: ReadyAccount }) {
         className="text-body font-medium text-ice-highlight">
         Spending by Category
       </h2>
+      <p className="mt-0.5 text-caption text-muted-foreground">{screen.hint}</p>
       <div className="mt-2 md:mt-4">
         <CategoryTable screen={screen} />
         <CategoryList screen={screen} />
@@ -154,7 +201,12 @@ function AccountBody({ screen }: { screen: AccountScreenData | null }) {
     case "empty":
       return <NoRows title={screen.title} text={screen.text} />;
     case "ready":
-      return <CategoryCard screen={screen} />;
+      return (
+        <>
+          <PeriodControl period={screen.period} />
+          <CategoryCard screen={screen} />
+        </>
+      );
   }
 }
 

@@ -13,6 +13,7 @@ import {
   type AccountRecord,
   type AccountScreenData,
 } from "./accountScreenData";
+import type { PeriodChoice } from "./period";
 
 function readAccountRecords(client: SupabaseClient): Promise<AccountRecord[]> {
   return readAllRows(
@@ -41,9 +42,14 @@ function readAccountRows(
   );
 }
 
-/** Gives null if the screen can't be built, so it never claims an account is empty. */
+/**
+ * Gives null if the screen can't be built, so it never claims an account is empty.
+ * It reads every row the account has, since the period before and All Months need
+ * months outside the period.
+ */
 export async function loadAccountScreen(
   accountId: string | null,
+  period: PeriodChoice,
   today: string,
 ): Promise<AccountScreenData | null> {
   return orNull(async () => {
@@ -61,7 +67,7 @@ export async function loadAccountScreen(
       accountId,
       rows,
       categories,
-      period: "last-3-months",
+      period,
       today,
     });
   });

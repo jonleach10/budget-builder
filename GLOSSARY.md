@@ -55,6 +55,16 @@ The screen that shows one account's Spending by category over a period, in the a
 _Avoid_: Accounts page, account view
 _In code_: `/accounts`, `features/accounts/`, `buildAccountScreen`.
 
+**Period**:
+The continuous run of months the Account page covers, from a From month to a To month. The shortcuts are This Month, the month in progress; Last 3 Months and Last 12 Months, which end at the last full month so a partial month never drags them down; and All Months, from the account's first month with rows to its last. Last 3 Months is the default.
+_Avoid_: date range, timeframe
+_In code_: `PeriodChoice`, `MonthRange`, and `from`, `to` and `period=all` in the address.
+
+**Change**:
+How a category's Spending in the period compares with the same number of months before it, as a percentage. "New" means it had no Spending then. All Months has nothing before it, so it has no Change.
+_Avoid_: delta, trend (the trend is the monthly chart)
+_In code_: `change` on `CategoryLine`, `comparisonRange`.
+
 ## Statements and import
 
 **Statement**:

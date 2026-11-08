@@ -37,7 +37,7 @@ Months in the sandbox: the seed fills the 12 months up to the current one. "Last
 | `/login/mfa/setup` | Set Up Authenticator | AUTH-05, AUTH-07, AUTH-08 |
 | `/` | Overview | AUTH-01, NAV-01, OVR-01 to OVR-04, EMPTY-01 |
 | `/budget` | Budget | NAV-01, BUD-01 to BUD-07, EMPTY-01, EMPTY-02 |
-| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-03, EMPTY-01 |
+| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-07, EMPTY-01 |
 | `/transactions` | Transactions | NAV-01, TXN-01 to TXN-08, EMPTY-01 |
 | `/review` | Review Inbox | NAV-01, REV-01 to REV-14, EMPTY-01 |
 | `/import` | Import | NAV-01, IMP-01 to IMP-05, EMPTY-01 |
@@ -317,7 +317,7 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 
 ## Accounts
 
-The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card and Sandbox Girokonto, with rows, and Sandbox Commerzbank Savings, with none. The page covers Last 3 Months, the three full months before the current one.
+The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card and Sandbox Girokonto, with rows, and Sandbox Commerzbank Savings, with none. With no period in the address, the page covers Last 3 Months, the three full months before the current one. The default seed fills the 5 months up to the current one, leaving the second of them empty, so a comparison often shows "New".
 
 ### ACC-01 Open the Account page from the sidebar
 
@@ -329,7 +329,7 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 
 1. Click Accounts in the sidebar, between Budget and Transactions. On a phone, open the menu at the top left first.
 
-**Result**: the page is titled Accounts, and Accounts is marked as the current item. The Account picker shows the first account by name, Sandbox Card · Ending 2222. The subtitle says amounts are in USD and gives the dates of Last 3 Months, such as "from August 1 to October 31, 2026". Spending by Category lists each category with its Amount and Share, largest first, then a Total row at 100%. Only Spending rows count: no transfer, income or Personal row, no hidden row and no row that needs review. On a phone, each category's share sits under its name, and nothing scrolls sideways.
+**Result**: the page is titled Accounts, and Accounts is marked as the current item. The Account picker shows the first account by name, Sandbox Card · Ending 2222. The subtitle says amounts are in USD and gives the dates of Last 3 Months, such as "from August 1 to October 31, 2026". Spending by Category lists each category with its Amount, Share and Change, largest first, then a Total row at 100%. Only Spending rows count: no transfer, income or Personal row, no hidden row and no row that needs review. On a phone, each category's share and change sit under its name, and nothing scrolls sideways.
 
 ### ACC-02 Switch accounts
 
@@ -343,7 +343,7 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 2. Select Sandbox Girokonto · Ending 3333.
 3. Reload.
 
-**Result**: step 1 lists all five accounts by name, savings included, each with its last four digits. After step 2, the address holds the account, the subtitle says amounts are in EUR, and the amounts show in euros with no conversion. The reload keeps Sandbox Girokonto.
+**Result**: step 1 lists all five accounts by name, savings included, each with its last four digits. After step 2, the address holds the account and keeps the period, as From and To months, the subtitle says amounts are in EUR, and the amounts show in euros with no conversion. The reload keeps Sandbox Girokonto.
 
 ### ACC-03 An account with no rows
 
@@ -356,7 +356,64 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 1. Select Sandbox Commerzbank Savings · Ending 5555 in the Account picker.
 2. Click Go to Import.
 
-**Result**: step 1 shows "No rows in Sandbox Commerzbank Savings" and "Import a statement for this account to see its spending.", with Go to Import. The subtitle says only "Amounts are in EUR.", with no dates, and there's no Spending by Category. The picker stays, so another account can be chosen. Step 2 opens Import.
+**Result**: step 1 shows "No rows in Sandbox Commerzbank Savings" and "Import a statement for this account to see its spending.", with Go to Import. The subtitle says only "Amounts are in EUR.", with no dates, and there's no Spending by Category and no period control. The picker stays, so another account can be chosen. Step 2 opens Import.
+
+### ACC-04 Choose a period with a shortcut
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Look at the period row under the title.
+2. Click This Month.
+3. Click Last 12 Months.
+4. Click All Months.
+
+**Result**: step 1 shows four shortcuts, This Month, Last 3 Months, Last 12 Months and All Months, with Last 3 Months lit, then From and To set to the first and last of those months. The card's hint says what Change is against, such as "Change is against May to July 2026, the 3 months before.", and each category and the Total have a Change: a percentage such as "+18%" or "-12%", plain and never coloured, or "New" when the category had no Spending then. A category that had Spending then and none now is listed muted after the others, at $0.00 and -100%. Each click puts its months in the address, lights only its own shortcut, moves From and To, and changes the subtitle, every amount and every change. Step 2 covers the month in progress, "from November 1 to November 8, 2026" on November 8, against the month before. Step 3 covers the 12 full months before the current one, against the 12 before those. Step 4 puts `period=all` in the address, sets From and To to the first and last months with rows, hides the Change column, and the hint says "All Months has no earlier period to compare with, so there's no Change column." On a phone, the shortcuts sit two by two, From and To sit side by side with short months such as "Sep 2026", and nothing scrolls sideways.
+
+### ACC-05 Choose From and To
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Select last month in From.
+2. Select the earliest month in To.
+3. Select the current month in From.
+4. Go to `/accounts` with a From after its To in the address, such as `?from=2026-10&to=2026-07`.
+
+**Result**: step 1 covers last month alone. No shortcut is lit, the subtitle says "for" the month, such as "for October 2026", and Change is against the month before. Step 2 is before From, so From moves back to it and the range is that one month. Step 3 is after To, so To moves up to it, and This Month lights. Step 4 falls back to Last 3 Months, as a bad period or none does.
+
+### ACC-06 Open the account viewed last
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing stored on the server. The browser keeps a cookie.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Select Sandbox Girokonto · Ending 3333 in the Account picker.
+2. Go to the Overview, then click Accounts in the sidebar.
+3. In the browser's settings, set the `last-account` cookie to an ID that isn't an account, then go to `/accounts`.
+
+**Result**: step 2 opens the Account page at `/accounts` on Sandbox Girokonto. The `last-account` cookie holds only the account's ID, with no name or figures. Step 3 opens the first account, Sandbox Card, as it does with no cookie.
+
+### ACC-07 Go back to the period before
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Click This Month, then All Months.
+2. Use the browser's back button twice.
+
+**Result**: the first back returns to This Month, with its address, lit shortcut and figures. The second returns to `/accounts` on Last 3 Months.
 
 ## Transactions
 
