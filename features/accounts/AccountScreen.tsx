@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { AccountPicker } from "./AccountPicker";
 import { PeriodControl } from "./PeriodControl";
 import { SpendingDonut, Swatch } from "./SpendingDonut";
+import { SpendingTrendCard } from "./SpendingTrendCard";
 import type {
   AccountScreenData,
   AllNeedReviewPanel,
@@ -521,6 +522,7 @@ function AccountBody({ screen }: { screen: AccountScreenData | null }) {
         <>
           <PeriodControl period={screen.period} />
           <CategoryCard screen={screen} />
+          {screen.trend && <SpendingTrendCard trend={screen.trend} />}
           <MerchantsCard list={screen.merchants} />
         </>
       );

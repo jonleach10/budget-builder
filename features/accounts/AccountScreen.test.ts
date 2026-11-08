@@ -7,8 +7,11 @@ import type {
   MerchantLine,
   ReadyAccount,
 } from "./accountScreenData";
+import { layoutLineChart, type ChartValue } from "@/features/budget/lineChartLayout";
+import { TrendTable } from "@/features/budget/TrendCard";
 import { AccountScreen } from "./AccountScreen";
 import { layoutDonut, type SliceColor } from "./donutLayout";
+import type { SpendingTrend } from "./spendingTrend";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
@@ -125,6 +128,57 @@ const ALL_MONTHS: ReadyAccount = {
     .filter(({ dropped }) => !dropped)
     .map((line) => ({ ...line, change: null })),
   total: { ...READY.total, change: null },
+};
+
+const SHORT = ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
+
+function spendingLine(values: ChartValue[]) {
+  return [{ key: "spending", label: "Spending", color: "chart-2" as const, values }];
+}
+
+const THREE_MONTHS: SpendingTrend = {
+  layout: layoutLineChart({
+    columns: [
+      { name: "August 2026", short: "Aug", year: "2026" },
+      { name: "September 2026", short: "Sep" },
+      { name: "October 2026", short: "Oct" },
+    ],
+    series: spendingLine([119720, 241230, 263050]),
+    currency: "USD",
+  }),
+  hint: null,
+};
+
+const ONE_MONTH: SpendingTrend = {
+  layout: layoutLineChart({
+    columns: SHORT.map((short, index) => {
+      const year = index < 2 ? "2025" : "2026";
+      return {
+        name: `Month ${index}`,
+        short,
+        ...(index === 0 || short === "Jan" ? { year } : {}),
+      };
+    }),
+    series: spendingLine([...Array<number>(11).fill(200000), 263050]),
+    currency: "USD",
+    highlight: 11,
+  }),
+  hint: "One month has one point, so the chart shows the 12 months up to October 2026.",
+};
+
+const NEEDS_REVIEW: SpendingTrend = {
+  layout: layoutLineChart({
+    columns: [
+      { name: "July 2026", short: "Jul" },
+      { name: "August 2026", short: "Aug" },
+      { name: "September 2026", short: "Sep" },
+      { name: "October 2026", short: "Oct" },
+      { name: "November 2026", short: "Nov" },
+    ],
+    series: spendingLine([100000, 120000, { missing: "Needs Review" }, 90000, 80000]),
+    currency: "USD",
+  }),
+  hint: null,
 };
 
 function render(screen: AccountScreenData | null): string {
@@ -381,9 +435,80 @@ describe("AccountScreen", () => {
     expect(html).toMatch(/Personal<\/span><span[^>]*>\$0\.00</);
   });
 
+  it("has no Monthly Spending card when there's no trend", () => {
+    expect(render(READY)).not.toContain("Monthly Spending");
+  });
+
+  it("shows Monthly Spending under Spending by Category, as one line with no legend", () => {
+    const html = render({ ...READY, trend: THREE_MONTHS });
+
+    expect(html).toMatch(/<section aria-label="Monthly spending"/);
+    expect(html).toContain(">Monthly Spending</h2>");
+    expect(html.indexOf("Monthly Spending")).toBeGreaterThan(
+      html.indexOf("Spending by Category"),
+    );
+    expect(html).toContain("Show Table");
+    expect(html).toContain("stroke-chart-2");
+    expect(html).not.toContain("Income and Spending");
+    // The end label names the line, and nothing else does.
+    expect(html.match(/>Spending<\/span>/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="September 2026: spending $2,412.30"');
+    expect(html).not.toContain("data-band");
+  });
+
+  it("highlights the month of a one-month period, and says why there are 12", () => {
+    const html = render({ ...READY, trend: ONE_MONTH });
+
+    expect(html).toContain(
+      "One month has one point, so the chart shows the 12 months up to October 2026.",
+    );
+    expect(html).toContain('data-band="true"');
+    expect(html).toContain('data-dot="highlighted"');
+    expect(html).toMatch(/data-tag="figure"[^>]*>\$2,630\.50</);
+    expect(html).toContain(">Oct $2,630.50<");
+    expect(html).toMatch(/font-semibold text-ice-highlight">Oct</);
+  });
+
+  it("puts the year under the first month and under January", () => {
+    const html = render({ ...READY, trend: ONE_MONTH });
+
+    expect(html).toMatch(/>Nov<span[^>]*>2025<\/span>/);
+    expect(html).toMatch(/>Jan<span[^>]*>2026<\/span>/);
+    expect(html).not.toMatch(/>Feb<span/);
+  });
+
+  it("draws a month whose rows all need review as a hollow point, tagged", () => {
+    const html = render({ ...READY, trend: NEEDS_REVIEW });
+
+    expect(html).toContain('data-dot="missing"');
+    expect(html).toMatch(/data-tag="missing"[^>]*>Needs Review</);
+    expect(html).toContain(">Sep · Needs Review<");
+    expect(html).toContain('aria-label="September 2026: spending needs review"');
+    // Two lines, one each side of it.
+    expect(html.match(/<polyline/g)).toHaveLength(2);
+  });
+
   it("says when the page can't be loaded", () => {
     expect(render(null)).toContain(
       "This account can&#x27;t be loaded. Reload the page to try again.",
     );
+  });
+});
+
+describe("Monthly Spending as a table", () => {
+  const html = renderToStaticMarkup(
+    createElement(TrendTable, {
+      layout: NEEDS_REVIEW.layout,
+      caption: "Spending by month",
+    }),
+  );
+
+  it("is named for what it holds", () => {
+    expect(html).toContain('<caption class="sr-only">Spending by month</caption>');
+  });
+
+  it("says Needs Review for a month whose rows all need review, not $0.00", () => {
+    expect(html).toMatch(/September 2026<\/th><td[^>]*>Needs Review<\/td>/);
+    expect(html).not.toContain("$0.00");
   });
 });
