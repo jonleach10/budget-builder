@@ -65,6 +65,21 @@ How a category's Spending in the period compares with the same number of months 
 _Avoid_: delta, trend (the trend is the monthly chart)
 _In code_: `change` on `CategoryLine`, `comparisonRange`.
 
+**Slice**:
+A category's part of the Account page's donut. Only a category with Spending above $0 in the period gets one; a category at $0 or below, because its Spending stopped or refunds outweighed it, is listed muted under the slices with no slice. A slice's colour comes from its place in the list, not from its category, so the same category can change colour between periods. The figure in the middle is the sum of the slices.
+_Avoid_: segment, wedge
+_In code_: `layoutDonut`, `SliceColor`, `swatch` on `CategoryLine`.
+
+**Share**:
+A category's Spending as a part of the sum of the slices, worked out in minor units and rounded only for display, so the shown shares may not add up to exactly 100%. The Total row says 100% whenever the Total is above $0.
+_Avoid_: percentage (Change is a percentage too)
+_In code_: `share` on `CategoryLine`.
+
+**Other**:
+The donut's last slice when the period has more than 7 categories with Spending: the top 6 get a slice each and the rest are grouped into Other, which the legend lists one by one under it. With 7 or fewer there's no Other. Only Other's slice is hatched.
+_Avoid_: miscellaneous, the rest
+_In code_: the `other` key and `members` on `CategoryLine`.
+
 ## Statements and import
 
 **Statement**:
