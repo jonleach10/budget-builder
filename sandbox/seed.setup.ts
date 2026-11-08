@@ -5,7 +5,14 @@ import { fakeRates } from "./fakeRates.ts";
 import { generateStatements, SANDBOX_ACCOUNTS, sandboxMonths } from "./generate.ts";
 import { assertLocalSupabase } from "./guard.ts";
 import { totpCode } from "./totp.ts";
-import { OWNER, type SandboxUser, SECOND_USER, saveTotpSecret } from "./users.ts";
+import {
+  type Credentials,
+  OWNER,
+  type SandboxUser,
+  SECOND_USER,
+  SETUP_USER,
+  saveTotpSecret,
+} from "./users.ts";
 import { applyWeirdRows, WEIRD_ROWS, type WeirdRows, weirdRowsIn } from "./weirdRows.ts";
 
 const CATEGORIES = [
@@ -73,7 +80,7 @@ async function waitForSchema(client: SupabaseClient): Promise<void> {
 }
 
 /** Through the admin API, which works while signups stay closed. */
-async function createUser(user: SandboxUser): Promise<void> {
+async function createUser(user: Credentials): Promise<void> {
   const admin = createClient(required("SANDBOX_URL"), required("SANDBOX_SECRET_KEY"), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -260,4 +267,11 @@ setup("seed the second user", async () => {
 
   await createUser(SECOND_USER);
   await signInWithMfa(userClient(), SECOND_USER);
+});
+
+/** A password and nothing else: no authenticator, settings, accounts or rows. */
+setup("seed the setup user", async () => {
+  assertLocalSupabase(required("SANDBOX_URL"));
+
+  await createUser(SETUP_USER);
 });

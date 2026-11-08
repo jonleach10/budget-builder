@@ -25,7 +25,7 @@ npm run sandbox:shot -- "/transactions?month=2026-10" --phone
 npm run sandbox:down    # stops it and frees its memory
 ```
 
-Rows come from `sandbox/generate.ts` and go through the real import. A fake owner signs in at the real login and MFA pages. A second fake user, `second-user@sandbox.invalid`, has its own MFA and owns no rows, so the owner's rows can be tried as someone else. Nothing here changes hosted, and it isn't part of CI.
+Rows come from `sandbox/generate.ts` and go through the real import. A fake owner signs in at the real login and MFA pages. A second fake user, `second-user@sandbox.invalid`, has its own MFA and owns no rows, so the owner's rows can be tried as someone else. A third, `setup-user@sandbox.invalid`, has only a password, so MFA setup can be tried. Nothing here changes hosted, and it isn't part of CI.
 
 Odd states come on request, and the normal seed never has them:
 
