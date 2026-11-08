@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NO_FILTERS } from "./filterTransactions";
+import { NO_FILTERS, type TransactionFilters } from "./filterTransactions";
 import {
   paramsOf,
   readTransactionFilters,
@@ -108,15 +108,17 @@ describe("transactionsHref", () => {
   });
 
   it("leaves out what only stays on the screen: search, Needs Review and Show Hidden", () => {
-    expect(
-      transactionsHref("2026-10", {
-        ...NO_FILTERS,
-        accountId: "acc-giro",
-        search: "cafe",
-        needsReview: true,
-        showHidden: true,
-      }),
-    ).toBe("/transactions?month=2026-10&account=acc-giro");
+    const filters: TransactionFilters = {
+      ...NO_FILTERS,
+      accountId: "acc-giro",
+      search: "cafe",
+      needsReview: true,
+      showHidden: true,
+    };
+
+    expect(transactionsHref("2026-10", filters)).toBe(
+      "/transactions?month=2026-10&account=acc-giro",
+    );
   });
 
   it("leaves out a category unless the type is Spending", () => {

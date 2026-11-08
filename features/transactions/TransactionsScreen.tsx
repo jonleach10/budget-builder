@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Link as ChainLink, List } from "lucide-react";
 import { PageFrame } from "@/components/page-frame";
 import { OutlineButton } from "@/components/ui/action-buttons";
@@ -29,13 +30,14 @@ import type {
   TransactionLine,
   TransactionsScreenData,
 } from "./transactionsScreenData";
+import {
+  paramsOf,
+  readTransactionFilters,
+  transactionsHref,
+} from "./transactionsParams";
 
 const GHOST_PILL =
   "h-11 bg-frost-wash text-white shadow-hairline hover:bg-accent md:h-9";
-
-function monthHref(month: string): string {
-  return `/transactions?${new URLSearchParams({ month })}`;
-}
 
 export function TransactionFiltersBar({
   filters,
@@ -390,10 +392,16 @@ export function MonthRows({
   );
 }
 
-function HeaderMonthControl({ month }: { month: string }) {
+function HeaderMonthControl({
+  month,
+  hrefFor = (to) => transactionsHref(to),
+}: {
+  month: string;
+  hrefFor?: (month: string) => string;
+}) {
   return (
     <div className="w-full md:w-auto">
-      <MonthControl month={month} hrefFor={monthHref} />
+      <MonthControl month={month} hrefFor={hrefFor} />
     </div>
   );
 }
@@ -405,9 +413,22 @@ function ReadyTransactions({
   month: string;
   screen: TransactionsScreenData;
 }) {
-  // Not keyed by month, so the filters carry over from one month to the next.
-  const [filters, setFilters] = useState(NO_FILTERS);
+  // The account, type and category live in the URL, so a reload or a link keeps
+  // them, and the month links carry them over. The rest stay on the screen, which
+  // isn't keyed by month, so they carry over too.
+  const fromUrl = readTransactionFilters(paramsOf(useSearchParams()), screen);
+  const [onScreen, setOnScreen] = useState(NO_FILTERS);
+  const filters: TransactionFilters = { ...onScreen, ...fromUrl };
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  function setFilters(next: TransactionFilters) {
+    setOnScreen(next);
+    const href = transactionsHref(month, next);
+    // Replaced, not pushed, so Back leaves Transactions rather than undoing a filter.
+    if (href !== transactionsHref(month, filters)) {
+      window.history.replaceState(null, "", href);
+    }
+  }
   const { lines, subtitle, empty } = transactionsView(
     screen.lines,
     filters,
@@ -420,7 +441,12 @@ function ReadyTransactions({
     <PageFrame
       title="Transactions"
       subtitle={subtitle}
-      action={<HeaderMonthControl month={month} />}>
+      action={
+        <HeaderMonthControl
+          month={month}
+          hrefFor={(to) => transactionsHref(to, filters)}
+        />
+      }>
       {empty?.kind === "month" ? (
         <EmptyMonth title={empty.title} text={empty.text} />
       ) : (

@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NO_FILTERS, type TransactionFilters } from "./filterTransactions";
 import {
   EditButton,
@@ -23,6 +23,15 @@ vi.mock("@/features/auth/requireSession", () => ({
   requireSession: vi.fn(),
   serverClient: vi.fn(),
 }));
+
+/** The page's URL, as the screen reads it. */
+const url = vi.hoisted(() => ({ search: new URLSearchParams() }));
+
+vi.mock("next/navigation", () => ({ useSearchParams: () => url.search }));
+
+beforeEach(() => {
+  url.search = new URLSearchParams();
+});
 
 function line(extra: Partial<TransactionLine> = {}): TransactionLine {
   return {
@@ -288,6 +297,53 @@ describe("TransactionsScreen", () => {
     expect(html).toContain("All rows in October 2026 are hidden");
     expect(html).toContain("Select Show Hidden to see them.");
     expect(html).toContain("Search this month");
+  });
+
+  it("filters to the account in the URL", () => {
+    url.search = new URLSearchParams("month=2026-10&account=acc-giro");
+    const html = render(
+      data([
+        line({ title: "CARD ROW" }),
+        line({ id: "t2", title: "GIRO ROW", accountId: "acc-giro", account: "DE Giro" }),
+      ]),
+    );
+
+    expect(html).toContain("GIRO ROW");
+    expect(html).not.toContain("CARD ROW");
+    expect(html).toContain("1 row in October 2026.");
+    expect(html).toContain('<option value="acc-giro" selected="">DE Giro</option>');
+  });
+
+  it("shows every account for an account in the URL that isn't one", () => {
+    url.search = new URLSearchParams("account=acc-gone");
+    const html = render(data([line(), line({ id: "t2", accountId: "acc-giro" })]));
+
+    expect(html).toContain("2 rows in October 2026.");
+    expect(html).toMatch(/<option value=""[^>]*selected[^>]*>All Accounts/);
+  });
+
+  it("filters to the type and category in the URL", () => {
+    url.search = new URLSearchParams("type=spending&category=cat-dining");
+    const html = render(
+      data([
+        line({ title: "GROCER ROW" }),
+        line({ id: "t2", title: "CAFE ROW", categoryId: "cat-dining", category: "Dining" }),
+      ]),
+    );
+
+    expect(html).toContain("CAFE ROW");
+    expect(html).not.toContain("GROCER ROW");
+    expect(html).toContain('<option value="spending" selected="">Spending</option>');
+    expect(html).toContain('<option value="cat-dining" selected="">Dining</option>');
+  });
+
+  it("keeps the URL's filters on the links to the months either side", () => {
+    url.search = new URLSearchParams("account=acc-giro&type=spending&category=cat-dining");
+    const html = render(data([line()]));
+
+    expect(html).toContain(
+      'href="/transactions?month=2026-09&amp;account=acc-giro&amp;type=spending&amp;category=cat-dining"',
+    );
   });
 
   it("shows a message with no row data when the month can't load", () => {
