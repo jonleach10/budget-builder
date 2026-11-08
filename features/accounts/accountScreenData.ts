@@ -15,6 +15,7 @@ import {
 import { needsReview } from "@/features/categorize/needsReview";
 import { merchantKey } from "@/features/categorize/pastCategories";
 import { countsAgainstBudget } from "@/features/categorize/transactionType";
+import { transactionsHref } from "@/features/transactions/transactionsParams";
 import { formatMoney, sumMinor } from "@/lib/money";
 import { accountHref } from "./accountParams";
 import { layoutDonut, type DonutLayout, type SliceColor } from "./donutLayout";
@@ -91,6 +92,11 @@ export type MemberLine = {
   share: string;
   /** Against the period before, or null for All Months, which has none. */
   change: string | null;
+  /**
+   * Transactions on this account, Spending and this category, in the To month,
+   * since Transactions shows one month. Null on Other, which isn't one category.
+   */
+  href: string | null;
 };
 
 export type CategoryLine = MemberLine & {
@@ -142,6 +148,8 @@ export type ReadyAccount = {
   /** Monthly Spending, or null when every month in it is $0. */
   trend: SpendingTrend | null;
   merchants: MerchantList;
+  /** Open in Transactions: this account in the To month, since Transactions shows one month. */
+  transactions: string;
 };
 
 export type MerchantLine = {
@@ -567,11 +575,24 @@ export function buildAccountScreen({
   const money = (minor: number) => formatMoney({ minor, currency });
   const changeOf = (amount: number, name: string) =>
     showChange ? change(amount, before.get(name) ?? 0) : null;
+  // The ledger names categories, and Transactions filters by ID.
+  const categoryIds = new Map(categories.map(({ id, name }) => [name, id]));
+  const hrefOf = (name: string) => {
+    const categoryId = categoryIds.get(name);
+    return categoryId === undefined
+      ? null
+      : transactionsHref(range.to, {
+          accountId: account.id,
+          type: "spending",
+          categoryId,
+        });
+  };
   const member = ([name, amount]: [string, number]): MemberLine => ({
     name,
     amount: money(amount),
     share: percent(amount, sliceSum),
     change: changeOf(amount, name),
+    href: hrefOf(name),
   });
 
   const slices = own.map(([name, amount], index) => ({
@@ -592,6 +613,7 @@ export function buildAccountScreen({
         amount: money(amount),
         share: percent(amount, sliceSum),
         change: showChange ? change(amount, amountBefore) : null,
+        href: null,
       },
       color: "other",
       members: grouped.map(member),
@@ -648,6 +670,7 @@ export function buildAccountScreen({
           amount: money(amount),
           share: "0%",
           change: changeOf(amount, name),
+          href: hrefOf(name),
           dropped: true,
           swatch: null,
           members: [],
@@ -686,5 +709,6 @@ export function buildAccountScreen({
       money,
       currency,
     ),
+    transactions: transactionsHref(range.to, { accountId: account.id }),
   };
 }

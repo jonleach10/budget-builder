@@ -764,6 +764,75 @@ describe("buildAccountScreen: change against the period before", () => {
   });
 });
 
+describe("buildAccountScreen: links to Transactions", () => {
+  it("opens Transactions on the account and the period's To month", () => {
+    const screen = ready({ rows: [row()], period: range("2026-08", "2026-10") });
+
+    expect(screen.transactions).toBe(
+      "/transactions?month=2026-10&account=acc-card",
+    );
+  });
+
+  it("opens the last month with rows for All Months", () => {
+    const screen = ready({ rows: SPREAD(), period: { kind: "all" } });
+
+    expect(screen.transactions).toBe(
+      "/transactions?month=2026-11&account=acc-card",
+    );
+  });
+
+  it("links each category row to its Spending on the account, in the To month", () => {
+    const screen = ready({
+      rows: [row(), row({ category_id: "cat-dining", amount_minor: -5000 })],
+      period: range("2026-08", "2026-10"),
+    });
+
+    expect(screen.categories.map(({ name, href }) => ({ name, href }))).toEqual([
+      {
+        name: "Groceries",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-groceries",
+      },
+      {
+        name: "Dining",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-dining",
+      },
+    ]);
+  });
+
+  it("links the categories under Other, but not Other itself", () => {
+    const screen = nine();
+    const other = screen.categories.find(({ key }) => key === "other");
+
+    expect(other?.href).toBeNull();
+    expect(other?.members.map(({ name, href }) => ({ name, href }))).toEqual([
+      {
+        name: "Home",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-home",
+      },
+      {
+        name: "Insurance",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-insurance",
+      },
+      {
+        name: "Clothing",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-clothing",
+      },
+    ]);
+  });
+
+  it("links a category that dropped to zero, like any category row", () => {
+    const screen = ready({
+      rows: [row(), spent("cat-dining", "2026-06", 4000)],
+    });
+    const dropped = screen.categories.find(({ dropped }) => dropped);
+
+    expect(dropped).toMatchObject({
+      name: "Dining",
+      href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-dining",
+    });
+  });
+});
+
 /** Nine categories, as on a busy card, by position. */
 const NINE = [
   "Groceries",
@@ -844,10 +913,11 @@ describe("buildAccountScreen: the donut", () => {
 
     // $561.20 against $587.20.
     expect(other?.change).toBe("-4%");
+    // Each one's link is checked under "links to Transactions".
     expect(other?.members).toEqual([
-      { name: "Home", amount: "$312.00", share: "5%", change: "-22%" },
-      { name: "Insurance", amount: "$187.20", share: "3%", change: "0%" },
-      { name: "Clothing", amount: "$62.00", share: "1%", change: "New" },
+      expect.objectContaining({ name: "Home", amount: "$312.00", share: "5%", change: "-22%" }),
+      expect.objectContaining({ name: "Insurance", amount: "$187.20", share: "3%", change: "0%" }),
+      expect.objectContaining({ name: "Clothing", amount: "$62.00", share: "1%", change: "New" }),
     ]);
     expect(screen.categories[0].members).toEqual([]);
   });
