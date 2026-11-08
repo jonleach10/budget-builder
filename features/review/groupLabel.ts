@@ -80,6 +80,9 @@ export async function labelGroup(
   label: string,
   batchSize = BATCH_SIZE,
 ): Promise<RowsResult> {
+  // A server action can be sent anything. With no label, `writeRows` would
+  // write empty changes, so this is refused before any write.
+  if (typeof label !== "string") return noneSaved(2);
   const write = await writeRows(store, ids, { label }, batchSize);
   if ("refused" in write) return write.refused;
   const { saved, total, failed } = write;

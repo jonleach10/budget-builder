@@ -124,6 +124,15 @@ describe("Change All", () => {
     expect(result.ok).toBe(false);
     expect(writes).toEqual([]);
   });
+
+  it("refuses a call with no label at all, before any write", async () => {
+    const { store, writes } = fakeStore({ "row-1": IN_REVIEW, "row-2": IN_REVIEW });
+
+    const result = await labelGroup(store, ["row-1", "row-2"], undefined as unknown as string);
+
+    expect(result).toEqual({ ok: false, message: "These rows weren't saved. Try again." });
+    expect(writes).toEqual([]);
+  });
 });
 
 let nextLine = 0;
