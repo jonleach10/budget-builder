@@ -15,6 +15,7 @@ A flow names where it starts, what the user does, and what they should see. It n
 - **Session**: who is logged in when the flow starts.
   - **Fake owner**: the sandbox's owner, with MFA, and its synthetic rows.
   - **Second user**: a second synthetic user with its own MFA and no rows. #118 adds it.
+  - **Setup user**: a third synthetic user with a password, no authenticator and no rows, for MFA setup. #118 adds it. Reseed after AUTH-05, which gives it an authenticator.
   - **None**: no one is logged in.
 - **Release**: when the flow has to pass.
   - **Go-live**: before the app goes live with the owner's data (#72).
@@ -95,12 +96,12 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 
 ### AUTH-05 Set up the authenticator
 
-- **Session**: a user with a password and no authenticator, logged out at the start. Neither sandbox user is one today. See the PR's open points.
+- **Session**: Setup user, logged out at the start.
 - **Release**: Go-live.
-- **Changes**: adds a verified authenticator to that user.
+- **Changes**: adds a verified authenticator to the setup user.
 - **Start**: `/login`.
 
-1. Log in with that user's email and password.
+1. Log in with the setup user's email and password.
 2. Set Up Authenticator opens, with a QR code and a key to enter by hand.
 3. Add the key to an authenticator, enter the 6-digit code it shows, then click Verify Code.
 4. Log out, then log in again.
