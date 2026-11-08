@@ -23,6 +23,56 @@ function lastThreeMonths(): string {
     : `from ${day(first)}, ${firstYear}, to ${day(last)}, ${lastYear}`;
 }
 
+/** The first of the month this many months from now, in UTC as the app reads it. */
+function monthAt(offset: number): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
+}
+
+/** Such as "2026-10". */
+function monthKey(offset: number): string {
+  return monthAt(offset).toISOString().slice(0, 7);
+}
+
+/** Such as "October 2026". */
+function longMonth(offset: number): string {
+  return monthAt(offset).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Such as "May to July 2026", or "November 2024 to October 2025" across a year. */
+function monthsText(fromOffset: number, toOffset: number): string {
+  const from = monthAt(fromOffset);
+  const to = monthAt(toOffset);
+  const name = from.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  return from.getUTCFullYear() === to.getUTCFullYear()
+    ? `${name} to ${longMonth(toOffset)}`
+    : `${longMonth(fromOffset)} to ${longMonth(toOffset)}`;
+}
+
+/** This Month in words: from the 1st to today. */
+function thisMonthText(): string {
+  const now = new Date();
+  const name = now.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  return `from ${name} 1 to ${name} ${now.getUTCDate()}, ${now.getUTCFullYear()}`;
+}
+
+function periodNav(page: Page) {
+  return page.getByRole("navigation", { name: "Period" });
+}
+
+function shortcut(page: Page, name: string) {
+  return periodNav(page).getByRole("link", { name, exact: true });
+}
+
+/** The phone selects are in the page too, hidden, so these name the shown ones. */
+function monthSelect(page: Page, name: "From" | "To") {
+  return page.getByRole("combobox", { name, exact: true });
+}
+
 /** The no-rows state only shows after picking its account, so sandbox:shot can't reach it. */
 async function picture(page: Page, name: string): Promise<void> {
   const folder = process.env.SANDBOX_SHOT_DIR ?? "sandbox/.shots";
@@ -91,7 +141,10 @@ test("ACC-02: choosing another account shows it, in its own currency", async ({ 
 
   await picker(page).selectOption({ label: GIROKONTO });
 
-  await expect(page).toHaveURL(/\/accounts\?account=[0-9a-f-]+$/);
+  // The picker keeps the period, so the address names it too.
+  await expect(page).toHaveURL(
+    new RegExp(`/accounts\\?account=[0-9a-f-]+&from=${monthKey(-3)}&to=${monthKey(-1)}$`),
+  );
   await expect(page.getByText(`Amounts are in EUR, ${lastThreeMonths()}.`)).toBeVisible();
   await expect(categoryTable(page).getByRole("row").last()).toContainText(/Total€/);
 
@@ -122,4 +175,159 @@ test("ACC-03: an account with no rows points to Import", async ({ page }) => {
 
   await page.getByRole("link", { name: "Go to Import" }).click();
   await expect(page).toHaveURL(/\/import$/);
+});
+
+test("ACC-04: the shortcuts set the period in the address and change every figure", async ({
+  page,
+}) => {
+  await page.goto("/accounts");
+  const table = categoryTable(page);
+  const total = table.getByRole("row").last();
+
+  await expect(shortcut(page, "Last 3 Months")).toHaveAttribute("aria-current", "page");
+  await expect(monthSelect(page, "From")).toHaveValue(monthKey(-3));
+  await expect(monthSelect(page, "To")).toHaveValue(monthKey(-1));
+  await expect(
+    page.getByText(`Change is against ${monthsText(-6, -4)}, the 3 months before.`),
+  ).toBeVisible();
+  await expect(table.getByRole("columnheader", { name: "Change" })).toBeVisible();
+  await expect(total).toContainText(/Total\$[\d,]+\.\d{2}100%([+-]\d+%|0%|New)$/);
+  const lastThree = await total.textContent();
+  await picture(page, "accounts-last-3-months-desktop");
+
+  await shortcut(page, "This Month").click();
+  await expect(page).toHaveURL(new RegExp(`from=${monthKey(0)}&to=${monthKey(0)}$`));
+  await expect(shortcut(page, "This Month")).toHaveAttribute("aria-current", "page");
+  await expect(periodNav(page).locator('[aria-current="page"]')).toHaveCount(1);
+  await expect(page.getByText(`Amounts are in USD, ${thisMonthText()}.`)).toBeVisible();
+  await expect(
+    page.getByText(`Change is against ${longMonth(-1)}, the month before.`),
+  ).toBeVisible();
+
+  await shortcut(page, "Last 12 Months").click();
+  await expect(page).toHaveURL(new RegExp(`from=${monthKey(-12)}&to=${monthKey(-1)}$`));
+  await expect(shortcut(page, "Last 12 Months")).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByText(`Change is against ${monthsText(-24, -13)}, the 12 months before.`),
+  ).toBeVisible();
+  // Last 12 Months holds Last 3 Months and the seeded month before it, so it's more.
+  await expect(total).not.toHaveText(lastThree ?? "");
+
+  await shortcut(page, "All Months").click();
+  await expect(page).toHaveURL(/&period=all$/);
+  await expect(shortcut(page, "All Months")).toHaveAttribute("aria-current", "page");
+  // From is the first month with rows, which is the first month offered.
+  const firstOffered = await monthSelect(page, "From").locator("option").first().getAttribute("value");
+  await expect(monthSelect(page, "From")).toHaveValue(firstOffered ?? "");
+  await expect(
+    page.getByText(
+      "All Months has no earlier period to compare with, so there's no Change column.",
+    ),
+  ).toBeVisible();
+  await expect(table.getByRole("columnheader", { name: "Change" })).toHaveCount(0);
+  await expect(total).toContainText(/Total\$[\d,]+\.\d{2}100%$/);
+  await picture(page, "accounts-all-months-desktop");
+});
+
+test("ACC-04: the period row on a phone", async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto("/accounts");
+
+  const links = periodNav(page).getByRole("link");
+  await expect(links).toHaveText(["This Month", "Last 3 Months", "Last 12 Months", "All Months"]);
+  // Two by two: This Month and Last 12 Months start the two rows.
+  const first = await links.nth(0).boundingBox();
+  const third = await links.nth(2).boundingBox();
+  expect(third?.x).toBe(first?.x);
+  expect(third?.y ?? 0).toBeGreaterThan(first?.y ?? 0);
+
+  const short = monthAt(-3).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  await expect(monthSelect(page, "From").locator("option:checked")).toHaveText(short);
+  const from = await monthSelect(page, "From").boundingBox();
+  const to = await monthSelect(page, "To").boundingBox();
+  expect(to?.y).toBe(from?.y);
+
+  const list = page.getByRole("list", { name: "Spending by category" });
+  await expect(list.getByRole("listitem").last()).toContainText(/100% · ([+-]\d+%|0%|New)/);
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow, "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await picture(page, "accounts-period-phone");
+});
+
+test("ACC-05: From and To choose any range", async ({ page }) => {
+  await page.goto("/accounts");
+
+  await monthSelect(page, "From").selectOption(monthKey(-1));
+  await expect(page).toHaveURL(new RegExp(`from=${monthKey(-1)}&to=${monthKey(-1)}$`));
+  await expect(periodNav(page).locator('[aria-current="page"]')).toHaveCount(0);
+  await expect(page.getByText(`Amounts are in USD, for ${longMonth(-1)}.`)).toBeVisible();
+  await expect(
+    page.getByText(`Change is against ${longMonth(-2)}, the month before.`),
+  ).toBeVisible();
+
+  // A To before From moves From back to it.
+  await monthSelect(page, "To").selectOption(monthKey(-4));
+  await expect(page).toHaveURL(new RegExp(`from=${monthKey(-4)}&to=${monthKey(-4)}$`));
+
+  // A From after To moves To up to it. The month in progress alone is This Month.
+  await monthSelect(page, "From").selectOption(monthKey(0));
+  await expect(page).toHaveURL(new RegExp(`from=${monthKey(0)}&to=${monthKey(0)}$`));
+  await expect(shortcut(page, "This Month")).toHaveAttribute("aria-current", "page");
+
+  // A reversed range in the address falls back to Last 3 Months.
+  await page.goto(`/accounts?from=${monthKey(-1)}&to=${monthKey(-4)}`);
+  await expect(shortcut(page, "Last 3 Months")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByText(`Amounts are in USD, ${lastThreeMonths()}.`)).toBeVisible();
+});
+
+test("ACC-06: the page opens on the account viewed last", async ({ page, context }) => {
+  await page.goto("/accounts");
+  await picker(page).selectOption({ label: GIROKONTO });
+  await expect(page.getByText(`Amounts are in EUR, ${lastThreeMonths()}.`)).toBeVisible();
+
+  await page.goto("/");
+  await page.getByRole("link", { name: "Accounts" }).click();
+  await expect(page).toHaveURL(/\/accounts$/);
+  await expect(picker(page).locator("option:checked")).toHaveText(GIROKONTO);
+
+  // The cookie holds the account's ID and nothing else.
+  const remembered = (await context.cookies()).find(({ name }) => name === "last-account");
+  expect(remembered?.value).toMatch(/^[0-9a-f-]{36}$/);
+
+  // An account that no longer exists opens the first account.
+  await context.addCookies([
+    {
+      name: "last-account",
+      value: "00000000-0000-4000-8000-000000000000",
+      domain: "127.0.0.1",
+      path: "/accounts",
+    },
+  ]);
+  await page.goto("/accounts");
+  await expect(picker(page).locator("option:checked")).toHaveText(CARD);
+});
+
+test("ACC-07: the back button returns to the period before", async ({ page }) => {
+  await page.goto("/accounts");
+  await shortcut(page, "This Month").click();
+  await expect(shortcut(page, "This Month")).toHaveAttribute("aria-current", "page");
+  await shortcut(page, "All Months").click();
+  await expect(shortcut(page, "All Months")).toHaveAttribute("aria-current", "page");
+
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`from=${monthKey(0)}&to=${monthKey(0)}$`));
+  await expect(shortcut(page, "This Month")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByText(`Amounts are in USD, ${thisMonthText()}.`)).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/accounts$/);
+  await expect(shortcut(page, "Last 3 Months")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByText(`Amounts are in USD, ${lastThreeMonths()}.`)).toBeVisible();
 });
