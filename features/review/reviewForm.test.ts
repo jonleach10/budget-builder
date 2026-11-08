@@ -5,6 +5,7 @@ import {
   decisionEdit,
   noMerchantEdit,
   noMerchantForm,
+  rowSavedNotice,
   showsUse,
   START_DECISION,
   withDecisionType,
@@ -68,6 +69,15 @@ describe("a group's decision", () => {
     expect(acceptLabel(6)).toBe("Accept 6 Rows");
     expect(acceptLabel(1)).toBe("Accept 1 Row");
     expect(acceptLabel(1200)).toBe("Accept 1,200 Rows");
+  });
+});
+
+describe("the notice after Save Row", () => {
+  it("is about that row, by its date, with no earlier count", () => {
+    expect(rowSavedNotice(line({ date: "Oct 3" }))).toEqual({
+      tone: "done",
+      text: "The row from Oct 3 was saved.",
+    });
   });
 });
 
