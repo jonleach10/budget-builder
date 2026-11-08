@@ -43,6 +43,18 @@ _In code_: `purchased_on`, `purchasedOn`.
 A calendar month, by posted date. Budgets are set per month, with no rollover.
 _In code_: `YYYY-MM` text, such as the `month` column of `budget_amounts`.
 
+## Accounts
+
+**Account**:
+A bank account the owner imports from: a Chase checking, savings or card account, or a Commerzbank account. Each has one currency and belongs to one country, and the screens name it with its last four digits, such as "Ending 2222".
+_Avoid_: card (for an account in general), wallet
+_In code_: the `accounts` table, `AccountRecord`, and `account_id` on each row.
+
+**Account page**:
+The screen that shows one account's Spending by category over a period, in the account's own currency with no conversion. Its title is Accounts, matching the sidebar, and a picker at the top chooses the account.
+_Avoid_: Accounts page, account view
+_In code_: `/accounts`, `features/accounts/`, `buildAccountScreen`.
+
 ## Statements and import
 
 **Statement**:

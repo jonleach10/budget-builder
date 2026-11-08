@@ -3,6 +3,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   Inbox,
+  Landmark,
   LayoutDashboard,
   List,
   Settings,
@@ -29,6 +30,7 @@ import { LogOutButton } from "@/features/auth/LogOutButton"
 const items = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "Budget", url: "/budget", icon: Wallet },
+  { title: "Accounts", url: "/accounts", icon: Landmark },
   { title: "Transactions", url: "/transactions", icon: List },
   { title: "Review Inbox", url: "/review", icon: Inbox },
   { title: "Import", url: "/import", icon: Upload },

@@ -15,6 +15,7 @@ describe("AppSidebar", () => {
     const labels = [
       "Overview",
       "Budget",
+      "Accounts",
       "Transactions",
       "Review Inbox",
       "Import",
@@ -30,6 +31,7 @@ describe("AppSidebar", () => {
   it.each([
     ["Overview", "/"],
     ["Budget", "/budget"],
+    ["Accounts", "/accounts"],
     ["Transactions", "/transactions"],
     ["Review Inbox", "/review"],
     ["Import", "/import"],

@@ -2,7 +2,12 @@ import { expect, test as setup } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { importStatements } from "@/features/import/importStatements";
 import { fakeRates } from "./fakeRates.ts";
-import { generateStatements, SANDBOX_ACCOUNTS, sandboxMonths } from "./generate.ts";
+import {
+  ACCOUNT_WITH_NO_ROWS,
+  generateStatements,
+  SANDBOX_ACCOUNTS,
+  sandboxMonths,
+} from "./generate.ts";
 import { assertLocalSupabase } from "./guard.ts";
 import { totpCode } from "./totp.ts";
 import {
@@ -201,7 +206,7 @@ setup("seed the fake owner's data", async () => {
   check(await client.from("settings").insert({ base_currency: "USD" }));
   check(
     await client.from("accounts").insert(
-      SANDBOX_ACCOUNTS.map((account) => ({
+      [...SANDBOX_ACCOUNTS, ACCOUNT_WITH_NO_ROWS].map((account) => ({
         name: account.name,
         last_four: account.lastFour,
         format: account.format,

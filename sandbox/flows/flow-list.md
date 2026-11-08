@@ -37,6 +37,7 @@ Months in the sandbox: the seed fills the 12 months up to the current one. "Last
 | `/login/mfa/setup` | Set Up Authenticator | AUTH-05, AUTH-07, AUTH-08 |
 | `/` | Overview | AUTH-01, NAV-01, OVR-01 to OVR-04, EMPTY-01 |
 | `/budget` | Budget | NAV-01, BUD-01 to BUD-07, EMPTY-01, EMPTY-02 |
+| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-03, EMPTY-01 |
 | `/transactions` | Transactions | NAV-01, TXN-01 to TXN-08, EMPTY-01 |
 | `/review` | Review Inbox | NAV-01, REV-01 to REV-14, EMPTY-01 |
 | `/import` | Import | NAV-01, IMP-01 to IMP-05, EMPTY-01 |
@@ -132,7 +133,7 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 - **Start**: `/login`.
 
 1. Log in with the owner's email and password, and stop at Enter Code.
-2. Go to `/`, `/budget`, `/transactions`, `/review`, `/import`, `/rules`, `/settings` and `/login/mfa/setup` in turn.
+2. Go to `/`, `/budget`, `/accounts`, `/transactions`, `/review`, `/import`, `/rules`, `/settings` and `/login/mfa/setup` in turn.
 
 **Result**: each address opens Enter Code at `/login/mfa`. No app screen shows.
 
@@ -145,7 +146,7 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 
 1. Logged in, go to `/login`, `/login/mfa` and `/login/mfa/setup` in turn.
 2. Each one opens the Overview at `/`.
-3. Logged out, go to `/`, `/budget`, `/transactions`, `/review`, `/import`, `/rules`, `/settings`, `/login/mfa` and `/login/mfa/setup` in turn.
+3. Logged out, go to `/`, `/budget`, `/accounts`, `/transactions`, `/review`, `/import`, `/rules`, `/settings`, `/login/mfa` and `/login/mfa/setup` in turn.
 4. Each one opens Log In at `/login`.
 
 **Result**: as in steps 2 and 4.
@@ -160,7 +161,7 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 - **Start**: `/`.
 - **Automated in**: `screens.spec.ts` (each screen loads at both widths).
 
-1. Click each sidebar item in turn: Overview, Budget, Transactions, Review Inbox, Import, Rules and Settings.
+1. Click each sidebar item in turn: Overview, Budget, Accounts, Transactions, Review Inbox, Import, Rules and Settings.
 2. On a phone, open the menu at the top left before each click.
 3. On a desktop, use Toggle Sidebar at the top of the sidebar to fold it to icons, then open it again.
 
@@ -313,6 +314,49 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 1. Open Combined for that month.
 
 **Result**: a panel says Combined figures need a saved EUR rate for that month. The month and view controls still work.
+
+## Accounts
+
+The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card and Sandbox Girokonto, with rows, and Sandbox Commerzbank Savings, with none. The page covers Last 3 Months, the three full months before the current one.
+
+### ACC-01 Open the Account page from the sidebar
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Click Accounts in the sidebar, between Budget and Transactions. On a phone, open the menu at the top left first.
+
+**Result**: the page is titled Accounts, and Accounts is marked as the current item. The Account picker shows the first account by name, Sandbox Card · Ending 2222. The subtitle says amounts are in USD and gives the dates of Last 3 Months, such as "from August 1 to October 31, 2026". Spending by Category lists each category with its Amount and Share, largest first, then a Total row at 100%. Only Spending rows count: no transfer, income or Personal row, no hidden row and no row that needs review. On a phone, each category's share sits under its name, and nothing scrolls sideways.
+
+### ACC-02 Switch accounts
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Open the Account picker.
+2. Select Sandbox Girokonto · Ending 3333.
+3. Reload.
+
+**Result**: step 1 lists all five accounts by name, savings included, each with its last four digits. After step 2, the address holds the account, the subtitle says amounts are in EUR, and the amounts show in euros with no conversion. The reload keeps Sandbox Girokonto.
+
+### ACC-03 An account with no rows
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Select Sandbox Commerzbank Savings · Ending 5555 in the Account picker.
+2. Click Go to Import.
+
+**Result**: step 1 shows "No rows in Sandbox Commerzbank Savings" and "Import a statement for this account to see its spending.", with Go to Import. The subtitle says only "Amounts are in EUR.", with no dates, and there's no Spending by Category. The picker stays, so another account can be chosen. Step 2 opens Import.
 
 ## Transactions
 
@@ -849,6 +893,7 @@ A Commerzbank file dated inside the seeded months uses saved rates. One dated ou
 
 - Overview says "No Statements Imported Yet".
 - Budget says "No categories yet. Add one in Settings to set a budget."
+- Accounts says "No accounts yet", with no Account picker.
 - Transactions says there are no rows in the month, with Go to Import.
 - Review Inbox says "Nothing to review yet", with Go to Import.
 - Import shows the file picker, as for the owner.

@@ -31,6 +31,19 @@ export const SANDBOX_ACCOUNTS: readonly SandboxAccount[] = [
   },
 ];
 
+/**
+ * An account with no statement, so the Account page has one with no rows. It's
+ * apart from the others because every one of those gets a file.
+ */
+export const ACCOUNT_WITH_NO_ROWS: SandboxAccount = {
+  name: "Sandbox Commerzbank Savings",
+  lastFour: "5555",
+  format: "commerzbank",
+  currency: "EUR",
+  country: "DE",
+  isSavings: true,
+};
+
 function account(
   name: string,
   lastFour: string,
