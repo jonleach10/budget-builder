@@ -38,7 +38,7 @@ Months in the sandbox: the seed fills the 12 months up to the current one. "Last
 | `/` | Overview | AUTH-01, NAV-01, OVR-01 to OVR-04, EMPTY-01 |
 | `/budget` | Budget | NAV-01, BUD-01 to BUD-07, EMPTY-01, EMPTY-02 |
 | `/transactions` | Transactions | NAV-01, TXN-01 to TXN-08, EMPTY-01 |
-| `/review` | Review Inbox | NAV-01, REV-01 to REV-11, EMPTY-01 |
+| `/review` | Review Inbox | NAV-01, REV-01 to REV-12, EMPTY-01 |
 | `/import` | Import | NAV-01, IMP-01 to IMP-05, EMPTY-01 |
 | `/rules` | Rules | NAV-01, RUL-01 to RUL-06, EMPTY-01 |
 | `/settings` | Settings | NAV-01, SET-01 to SET-05, EMPTY-01, EMPTY-02 |
@@ -583,6 +583,21 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 1. Click each tab in turn, then reload on Possible Duplicates.
 
 **Result**: each tab shows its own list and marks itself as current. The address holds the tab, so the reload stays on Possible Duplicates. No tab scrolls sideways on a phone.
+
+### REV-12 Review every row
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: decides every row in review: a type and category for each, transfers paired or given a type, and each possible duplicate hidden or dismissed. Reseed after it.
+- **Start**: `/review`.
+
+1. On Merchants, accept each group. Where a rule is offered, add one with the box that sorts the matching rows selected, so they leave too, or click Skip.
+2. When only No Merchant rows are left, Merchants says "All merchants are reviewed." Decide each No Merchant row with Save Row.
+3. On Possible Transfers, mark each match as a transfer, or use Set Type on its rows.
+4. On Possible Duplicates, hide or dismiss each row.
+5. Reload.
+
+**Result**: after the last decision, the inbox shows "All rows are reviewed" with "New rows appear here after your next import." The subtitle says "Nothing left to review.", and the tabs are gone. The reload keeps it. Budget and the Overview say "No rows need review." with no link. Run it as one of the last fake-owner flows, since every review flow after it finds nothing to review.
 
 ## Import
 
