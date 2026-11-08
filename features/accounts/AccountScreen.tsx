@@ -1,6 +1,14 @@
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
-import { Check, CircleMinus, Inbox, Info, Upload, User } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  CircleMinus,
+  Inbox,
+  Info,
+  Upload,
+  User,
+} from "lucide-react";
 import { PageFrame } from "@/components/page-frame";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
@@ -23,6 +31,42 @@ import type {
 
 const GHOST_PILL =
   "h-11 bg-frost-wash text-white shadow-hairline hover:bg-accent md:h-9";
+
+/**
+ * A category's name, linked to its rows in Transactions when it's one category.
+ * It keeps its row's colour, so a muted row stays muted.
+ */
+function CategoryName({
+  href,
+  children,
+}: {
+  href: string | null;
+  children: ReactNode;
+}) {
+  if (href === null) return <>{children}</>;
+  return (
+    <Link
+      href={href}
+      className="rounded-sm underline underline-offset-2 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-ring">
+      {children}
+    </Link>
+  );
+}
+
+/** At the foot of the page, since Transactions is where to go after reading it. */
+function TransactionsLink({ href }: { href: string }) {
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      className="h-11 w-full text-foreground shadow-hairline md:h-9 md:w-fit md:self-start">
+      <Link href={href}>
+        Open in Transactions
+        <ChevronRight strokeWidth={1.5} aria-hidden="true" />
+      </Link>
+    </Button>
+  );
+}
 
 /** The corner that marks a category grouped into Other. */
 function IndentMark() {
@@ -85,7 +129,7 @@ function CategoryTable({ screen }: { screen: ReadyAccount }) {
                 <span className="mr-2.5 inline-block indent-0">
                   <Swatch color={line.swatch} />
                 </span>
-                {line.name}
+                <CategoryName href={line.href}>{line.name}</CategoryName>
               </th>
               <td className={cn("text-right", !line.dropped && "text-moon-mist")}>
                 {line.amount}
@@ -113,8 +157,10 @@ function CategoryTable({ screen }: { screen: ReadyAccount }) {
                   <span className="flex items-center gap-2.5">
                     <IndentMark />
                     {/* Read as "Other: Home", so the row says it's part of Other. */}
-                    <span className="sr-only">{line.name}: </span>
-                    {member.name}
+                    <CategoryName href={member.href}>
+                      <span className="sr-only">{line.name}: </span>
+                      {member.name}
+                    </CategoryName>
                   </span>
                 </th>
                 <td className="text-right">{member.amount}</td>
@@ -151,8 +197,10 @@ function MemberItem({ line, group }: { line: MemberLine; group: string }) {
       <div className="flex min-w-0 items-center gap-2.5 text-moon-mist [overflow-wrap:anywhere]">
         <IndentMark />
         <span>
-          <span className="sr-only">{group}: </span>
-          {line.name}
+          <CategoryName href={line.href}>
+            <span className="sr-only">{group}: </span>
+            {line.name}
+          </CategoryName>
         </span>
       </div>
       <div className="text-right text-muted-foreground">{line.amount}</div>
@@ -180,7 +228,7 @@ function CategoryItem({ line }: { line: CategoryLine }) {
             members.length > 0 && "font-medium",
           )}>
           <Swatch color={line.swatch} />
-          {line.name}
+          <CategoryName href={line.href}>{line.name}</CategoryName>
         </div>
         <div className={muted ? "text-right" : "text-right text-moon-mist"}>
           {line.amount}
@@ -524,6 +572,7 @@ function AccountBody({ screen }: { screen: AccountScreenData | null }) {
           <CategoryCard screen={screen} />
           {screen.trend && <SpendingTrendCard trend={screen.trend} />}
           <MerchantsCard list={screen.merchants} />
+          <TransactionsLink href={screen.transactions} />
         </>
       );
   }

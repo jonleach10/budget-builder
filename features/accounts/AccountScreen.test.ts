@@ -48,6 +48,7 @@ function line(
     amount,
     share,
     change,
+    href: `/transactions?category=${name}`,
     dropped: false,
     swatch,
     members: [],
@@ -100,6 +101,7 @@ const READY: ReadyAccount = {
     ],
     empty: null,
   },
+  transactions: "/transactions?month=2026-10&account=acc-card",
 };
 
 function merchant(rank: string, name: string, visits: string, total: string): MerchantLine {
@@ -130,7 +132,7 @@ const ALL_MONTHS: ReadyAccount = {
   total: { ...READY.total, change: null },
 };
 
-const SHORT = ["Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
+const SHORT =["Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
 
 function spendingLine(values: ChartValue[]) {
   return [{ key: "spending", label: "Spending", color: "chart-2" as const, values }];
@@ -196,6 +198,28 @@ const HIGHLIGHTED_REVIEW: SpendingTrend = {
   hint: "One month has one point, so the chart shows the 12 months up to November 2026.",
 };
 
+const OTHER: CategoryLine = {
+  ...line("Other", "$500.00", "50%", "-4%", "other"),
+  key: "other",
+  href: null,
+  members: [
+    {
+      name: "Home",
+      amount: "$312.00",
+      share: "31%",
+      change: "-22%",
+      href: "/transactions?category=Home",
+    },
+    {
+      name: "Insurance",
+      amount: "$188.00",
+      share: "19%",
+      change: "New",
+      href: "/transactions?category=Insurance",
+    },
+  ],
+};
+
 function render(screen: AccountScreenData | null): string {
   return renderToStaticMarkup(createElement(AccountScreen, { screen }));
 }
@@ -226,7 +250,7 @@ describe("AccountScreen", () => {
     const html = render(READY);
 
     expect(html).toContain("Spending by Category");
-    expect(html).toMatch(/Gas<\/th>.*?\$500\.00.*?50%/);
+    expect(html).toMatch(/Gas<\/a><\/th>.*?\$500\.00.*?50%/);
     expect(html).toMatch(/Total<\/th>.*?\$1,000\.00.*?100%/);
   });
 
@@ -245,8 +269,8 @@ describe("AccountScreen", () => {
 
     expect(html).toContain("Change is against May to July 2026, the 3 months before.");
     expect(html).toMatch(/>Change<\/th>/);
-    expect(html).toMatch(/Gas<\/th>.*?\$500\.00.*?50%.*?\+4%/);
-    expect(html).toMatch(/Groceries<\/th>.*?New/);
+    expect(html).toMatch(/Gas<\/a><\/th>.*?\$500\.00.*?50%.*?\+4%/);
+    expect(html).toMatch(/Groceries<\/a><\/th>.*?New/);
     expect(html).toMatch(/Total<\/th>.*?\$1,000\.00.*?100%.*?-3%/);
     // The phone list puts share and change on one line.
     expect(html).toContain("50% · +4%");
@@ -256,11 +280,11 @@ describe("AccountScreen", () => {
     const html = render(READY);
 
     expect(html).toMatch(
-      /<tr data-dropped="true" class="[^"]*text-muted-foreground[^"]*"><th[^>]*>(?:(?!<\/th>).)*Travel<\/th>.*?\$0\.00.*?0%.*?-100%/,
+      /<tr data-dropped="true" class="[^"]*text-muted-foreground[^"]*"><th[^>]*>(?:(?!<\/th>).)*Travel<\/a><\/th>.*?\$0\.00.*?0%.*?-100%/,
     );
     expect(html.indexOf(">Travel<")).toBeGreaterThan(html.indexOf(">Groceries<"));
     // Its swatch is empty, because it has no slice.
-    expect(html).toMatch(/ring-inset"><\/span><\/span>Travel<\/th>/);
+    expect(html).toMatch(/ring-inset"><\/span><\/span><a [^>]*>Travel<\/a><\/th>/);
   });
 
   it("hides the Change column for All Months, and says why", () => {
@@ -303,20 +327,13 @@ describe("AccountScreen", () => {
       ...READY,
       categories: [
         line("Gas", "$500.00", "50%", "+4%", 1),
-        {
-          ...line("Other", "$500.00", "50%", "-4%", "other"),
-          key: "other",
-          members: [
-            { name: "Home", amount: "$312.00", share: "31%", change: "-22%" },
-            { name: "Insurance", amount: "$188.00", share: "19%", change: "New" },
-          ],
-        },
+        OTHER,
       ],
     });
 
     expect(html).toMatch(/Other<\/th>.*?\$500\.00.*?50%.*?-4%/);
     expect(html).toMatch(
-      /<tr data-member="true".*?Other: <\/span>Home<\/span><\/th>.*?\$312\.00.*?31%.*?-22%/,
+      /<tr data-member="true".*?Other: <\/span>Home<\/a><\/span><\/th>.*?\$312\.00.*?31%.*?-22%/,
     );
     expect(html.indexOf(">Home<")).toBeGreaterThan(html.indexOf(">Other<"));
     expect(html.indexOf(">Insurance<")).toBeLessThan(html.indexOf(">Total<"));
@@ -354,7 +371,49 @@ describe("AccountScreen", () => {
     });
 
     expect(html).toContain("No Spending for October 2026.");
-    expect(html).toMatch(/Travel<\/th>.*?-100%/);
+    expect(html).toMatch(/Travel<\/a><\/th>.*?-100%/);
+  });
+
+  it("opens Transactions from a link at the foot of the page", () => {
+    const html = render(READY);
+
+    expect(html).toMatch(
+      /<a [^>]*href="\/transactions\?month=2026-10&amp;account=acc-card"[^>]*>Open in Transactions<svg/,
+    );
+    expect(html.indexOf("Open in Transactions")).toBeGreaterThan(
+      html.indexOf(">Total<"),
+    );
+  });
+
+  it("has no Transactions link for an account with no rows", () => {
+    const html = render({
+      status: "empty",
+      picker: PICKER,
+      subtitle: "Amounts are in EUR.",
+      title: "No rows in Sample Girokonto",
+      text: "Import a statement for this account to see its spending.",
+    });
+
+    expect(html).not.toContain("Open in Transactions");
+  });
+
+  it("links each category row to its rows in Transactions, in the table and the phone list", () => {
+    const html = render(READY);
+
+    for (const name of ["Gas", "Groceries", "Travel"]) {
+      expect(html.match(new RegExp(`<a [^>]*href="/transactions\\?category=${name}"[^>]*>${name}</a>`, "g"))).toHaveLength(2);
+    }
+  });
+
+  it("links the categories under Other, but not Other itself", () => {
+    const html = render({ ...READY, categories: [OTHER] });
+
+    expect(html).not.toMatch(/>Other<\/a>/);
+    // Each reads as part of Other, link included.
+    expect(
+      html.match(/<a [^>]*href="\/transactions\?category=Home"[^>]*><span class="sr-only">Other: <\/span>Home<\/a>/g),
+    ).toHaveLength(2);
+    expect(html).toContain('href="/transactions?category=Insurance"');
   });
 
   it("shows the Personal total and the needs-review line, linking to the Review inbox", () => {
