@@ -6,6 +6,9 @@ import type { RatesByDate } from "./findRate";
 // Frankfurter blends many sources by default, and the product uses the ECB rate.
 const ECB_RATES_URL = "https://api.frankfurter.dev/v2/providers/ecb/rates";
 
+// A hanging rate service would otherwise run until the host stops the function.
+const REQUEST_TIMEOUT_MS = 8_000;
+
 export type FetchRatesOptions = {
   from: string;
   to: string;
@@ -60,6 +63,33 @@ function readRow(
   return [date, toDecimalString(rate)];
 }
 
+async function requestRates(
+  url: string,
+  signal: AbortSignal,
+  base: string,
+  target: string,
+  fetch: typeof globalThis.fetch,
+): Promise<RatesByDate> {
+  // Both catches drop the original error, whose message can hold response text.
+  let response: Response;
+  try {
+    response = await fetch(url, { signal });
+  } catch {
+    throw new FxError("request-failed");
+  }
+  if (!response.ok) throw new FxError("request-failed");
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new FxError("unexpected-response");
+  }
+  if (!Array.isArray(body)) throw new FxError("unexpected-response");
+
+  return Object.fromEntries(body.map((row) => readRow(row, base, target)));
+}
+
 /** Rate requests carry dates and currency codes, never anything from a row. */
 export async function fetchRates({
   from,
@@ -79,22 +109,29 @@ export async function fetchRates({
 
   const query = new URLSearchParams({ from, to, base, quotes: target });
 
-  // Both catches drop the original error, whose message can hold response text.
-  let response: Response;
-  try {
-    response = await fetch(`${ECB_RATES_URL}?${query}`);
-  } catch {
-    throw new FxError("request-failed");
-  }
-  if (!response.ok) throw new FxError("request-failed");
+  // The race fails on time even if the fetch ignores the signal or the body
+  // stalls, and the abort stops the request itself.
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new FxError("request-failed"));
+      controller.abort();
+    }, REQUEST_TIMEOUT_MS);
+  });
 
-  let body: unknown;
   try {
-    body = await response.json();
-  } catch {
-    throw new FxError("unexpected-response");
+    return await Promise.race([
+      requestRates(
+        `${ECB_RATES_URL}?${query}`,
+        controller.signal,
+        base,
+        target,
+        fetch,
+      ),
+      timedOut,
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
-  if (!Array.isArray(body)) throw new FxError("unexpected-response");
-
-  return Object.fromEntries(body.map((row) => readRow(row, base, target)));
 }
