@@ -37,7 +37,7 @@ Months in the sandbox: the seed fills the 12 months up to the current one. "Last
 | `/login/mfa/setup` | Set Up Authenticator | AUTH-05, AUTH-07, AUTH-08 |
 | `/` | Overview | AUTH-01, NAV-01, OVR-01 to OVR-04, EMPTY-01 |
 | `/budget` | Budget | NAV-01, BUD-01 to BUD-07, EMPTY-01, EMPTY-02 |
-| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-10, EMPTY-01 |
+| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-13, EMPTY-01 |
 | `/transactions` | Transactions | NAV-01, TXN-01 to TXN-08, EMPTY-01 |
 | `/review` | Review Inbox | NAV-01, REV-01 to REV-14, EMPTY-01 |
 | `/import` | Import | NAV-01, IMP-01 to IMP-05, EMPTY-01 |
@@ -317,7 +317,7 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 
 ## Accounts
 
-The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card and Sandbox Girokonto, with rows, and Sandbox Commerzbank Savings, with none. With no period in the address, the page covers Last 3 Months, the three full months before the current one. The default seed fills the 5 months up to the current one, leaving the second of them empty, so a comparison often shows "New". Sandbox Card has Spending in all 9 categories each month, through a rule for each of 7 card merchants plus the Groceries and Dining rules, except in its first month, which has exactly 7: Health and Insurance start in its second month with rows.
+The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card and Sandbox Girokonto, with rows, and Sandbox Commerzbank Savings, with none. With no period in the address, the page covers Last 3 Months, the three full months before the current one. The default seed fills the 5 months up to the current one, leaving the second of them empty, so a comparison often shows "New". Sandbox Card has Spending in all 9 categories each month, through a rule for each of 7 card merchants plus the Groceries and Dining rules, except in its first month, which has exactly 7: Health and Insurance start in its second month with rows. Each month Sandbox Card also has a SAMPLE GIFT SHOP row, which a rule makes Personal, and a row whose bank text is only a card number, so it has no merchant key; the seed puts that row in Shopping, as the owner would by hand, so Top Merchants lists No Merchant. Every row on Sandbox Girokonto needs review.
 
 ### ACC-01 Open the Account page from the sidebar
 
@@ -343,7 +343,7 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 2. Select Sandbox Girokonto · Ending 3333.
 3. Reload.
 
-**Result**: step 1 lists all five accounts by name, savings included, each with its last four digits. After step 2, the address holds the account and keeps the period, as From and To months, the subtitle says amounts are in EUR, and the amounts show in euros with no conversion. The sandbox's Girokonto has no decided Spending in Last 3 Months, so it shows the no-Spending line of ACC-09 instead of amounts. The reload keeps Sandbox Girokonto.
+**Result**: step 1 lists all five accounts by name, savings included, each with its last four digits. After step 2, the address holds the account and keeps the period, as From and To months, the subtitle says amounts are in EUR, and the amounts show in euros with no conversion. Every row on the sandbox's Girokonto needs review, so it shows the panel of ACC-13 instead of amounts. The reload keeps Sandbox Girokonto.
 
 ### ACC-03 An account with no rows
 
@@ -450,7 +450,45 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 
 1. Select Sandbox Savings · Ending 4444 in the Account picker.
 
-**Result**: Spending by Category shows one plain line in place of the donut and the list: "No Spending" and the period's dates, such as "No Spending from August 1 to October 31, 2026.", with "Only Spending rows count here, so transfers and income aren't shown." under it. There's no hint about Change, no donut and no Total. The period controls stay, because the account has rows. If a category had Spending in the period before, the list stays beside the line with that category muted at $0.00 and -100%, then the Total. On a phone, the line fills the card's width and nothing scrolls sideways.
+**Result**: Spending by Category shows one plain line in place of the donut and the list: "No Spending" and the period's dates, such as "No Spending from August 1 to October 31, 2026.", with "Only Spending rows count here, so transfers and income aren't shown." under it. There's no hint about Change, no donut and no Total. Under the line, Personal and the needs-review line of ACC-12 sit side by side, and Top Merchants says "No merchants to show, because there's no Spending in this period." The period controls stay, because the account has rows. If a category had Spending in the period before, the list stays beside the line with that category muted at $0.00 and -100%, then the Total, and Personal and needs review go under the line. On a phone, the line fills the card's width, Personal and needs review follow the card, and nothing scrolls sideways.
+
+### ACC-11 Read the top merchants
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Look at Top Merchants on Sandbox Card, below Spending by Category.
+
+**Result**: the card says "Each merchant is named by the bank text of its latest row." and lists at most 10 merchants, ranked from 1, with Merchant, Visits and Total columns, largest Total first. A tie on Total goes to more visits, then to the name. A merchant is every row with the same merchant key: the PPD ID, else the Ordering Party ID, else the bank text ignoring case, or for redacted text, the text left around the placeholder. It's named by the bank text of its latest row in the period, never by a label. A visit is one Spending row at the merchant, refunds included, and a refund lowers the Total. Rows with no merchant key are grouped as No Merchant, muted, which ranks like any merchant; on Sandbox Card it's in the list. Only decided Spending counts, as in the donut: no Personal row such as SAMPLE GIFT SHOP, no row that needs review and no hidden row. A merchant whose refunds outweigh its Spending isn't listed. With no Spending in the period, the card says "No merchants to show, because there's no Spending in this period." On a phone, each merchant's Total sits beside its name and its visits under it, such as "14 visits" or "1 visit", a long name is cut with "...", and nothing scrolls sideways.
+
+### ACC-12 Personal and rows that need review
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Look under the donut on Sandbox Card.
+2. Click the line that says how many rows need review.
+
+**Result**: step 1 shows, in one frosted box under the donut and beside the list, Personal with its total for the period, less refunds, and "Personal rows aren't in Spending.", then a line such as "4 rows need review and aren't in these totals." with an info icon. Personal rows never appear in the donut or the list, and hidden ones never count. The count is this account's rows in the period that need review. With none, the line says "No rows need review." with a check and no link. Step 2 opens the whole Review Inbox, not filtered to the account. On a phone, the box follows the card, before Top Merchants, and nothing scrolls sideways.
+
+### ACC-13 Every row needs review
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Select Sandbox Girokonto · Ending 3333 in the Account picker.
+2. Click Go to Review Inbox.
+
+**Result**: every row on Sandbox Girokonto in Last 3 Months needs review, so in place of the donut and the list, Spending by Category shows a panel with a blue edge and an inbox icon: "Every row in this period needs review", a line such as "23 rows need review, so there's no Spending to show yet. They count here once they're decided.", and Go to Review Inbox. There's no Change hint, no donut, no list and no no-Spending line, even if a category had Spending in the period before. Personal stays under the panel, at €0.00, with no separate needs-review line. Top Merchants says there's nothing to show. A period with no rows at all shows the no-Spending line of ACC-09 instead. On a phone, the button fills the panel's width, Personal follows the card, and nothing scrolls sideways. Step 2 opens the Review Inbox.
 
 ## Transactions
 

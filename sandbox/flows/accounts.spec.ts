@@ -9,6 +9,8 @@ const SAVINGS = "Sandbox Savings · Ending 4444";
 const GIROKONTO = "Sandbox Girokonto · Ending 3333";
 const NO_ROWS = "Sandbox Commerzbank Savings · Ending 5555";
 
+const ALL_NEED_REVIEW = "Every row in this period needs review";
+
 /** Last 3 Months in words: the three full months before this one. */
 function lastThreeMonths(): string {
   const now = new Date();
@@ -75,7 +77,7 @@ function monthSelect(page: Page, name: "From" | "To") {
 }
 
 /** The no-rows state only shows after picking its account, so sandbox:shot can't reach it. */
-async function picture(page: Page, name: string): Promise<void> {
+async function picture(page: Page, name: string, fullPage = false): Promise<void> {
   const folder = process.env.SANDBOX_SHOT_DIR ?? "sandbox/.shots";
   mkdirSync(folder, { recursive: true });
   // Next's dev badge floats over the page, and it isn't part of the app.
@@ -83,6 +85,7 @@ async function picture(page: Page, name: string): Promise<void> {
   await page.screenshot({
     path: join(folder, `${name}.png`),
     animations: "disabled",
+    fullPage,
   });
 }
 
@@ -170,14 +173,14 @@ test("ACC-02: choosing another account shows it, in its own currency", async ({ 
     new RegExp(`/accounts\\?account=[0-9a-f-]+&from=${monthKey(-3)}&to=${monthKey(-1)}$`),
   );
   await expect(page.getByText(`Amounts are in EUR, ${lastThreeMonths()}.`)).toBeVisible();
-  // The seed's Girokonto has no decided Spending in the period, so it shows the
-  // no-Spending line. Once it has some, its Total is in euros.
+  // Every row on the seed's Girokonto needs review, so it shows the panel of
+  // ACC-13. Once it has decided Spending, its Total is in euros.
   await expect(
     categoryTable(page)
       .getByRole("row")
       .last()
       .filter({ hasText: /^Total€/ })
-      .or(page.getByText(`No Spending ${lastThreeMonths()}.`)),
+      .or(page.getByRole("heading", { name: ALL_NEED_REVIEW })),
   ).toBeVisible();
 
   await page.reload();
@@ -498,6 +501,14 @@ test("ACC-09: an account with no Spending shows a plain line instead of the donu
   await expect(page.getByText(/^Change is against/)).toHaveCount(0);
   // The period controls stay, because the account has rows.
   await expect(shortcut(page, "Last 3 Months")).toHaveAttribute("aria-current", "page");
+  // Personal and needs review sit side by side under the line, and there are no merchants.
+  const personal = sideLine(page, "Personal");
+  const review = reviewLine(page);
+  await expect(personal).toContainText("$0.00");
+  expect((await personal.boundingBox())?.y).toBe((await review.boundingBox())?.y);
+  await expect(
+    page.getByText("No merchants to show, because there's no Spending in this period."),
+  ).toBeVisible();
   await picture(page, "accounts-no-spending-desktop");
 
   await page.setViewportSize(PHONE);
@@ -505,4 +516,151 @@ test("ACC-09: an account with no Spending shows a plain line instead of the donu
   await expect(categoryList(page)).toHaveCount(0);
   expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
   await picture(page, "accounts-no-spending-phone");
+});
+
+/**
+ * One of the lines beside Spending. The page holds a desktop and a phone copy, one
+ * of them hidden, so this names the shown one.
+ */
+function sideLine(page: Page, text: string | RegExp) {
+  return page
+    .locator("[data-side-lines] > div")
+    .filter({ visible: true })
+    .filter({ hasText: text });
+}
+
+function reviewLine(page: Page) {
+  return sideLine(page, /rows? needs? review/);
+}
+
+function merchantTable(page: Page) {
+  return page.getByRole("table", { name: "Top merchants" });
+}
+
+test("ACC-11: Top Merchants lists the card's merchants by total, with visits", async ({
+  page,
+}) => {
+  await page.goto("/accounts");
+  await expect(page.getByRole("heading", { name: "Top Merchants" })).toBeVisible();
+  await expect(
+    page.getByText("Each merchant is named by the bank text of its latest row."),
+  ).toBeVisible();
+
+  const table = merchantTable(page);
+  await expect(table.getByRole("columnheader")).toHaveText(["Rank", "Merchant", "Visits", "Total"]);
+  const rows = table.locator("tbody tr");
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(0);
+  expect(count).toBeLessThanOrEqual(10);
+
+  // Ranked 1 onwards by total, largest first, each with its visits.
+  const ranks = await rows.locator("td:nth-child(1)").allTextContents();
+  expect(ranks).toEqual(Array.from({ length: count }, (_, index) => String(index + 1)));
+  const totals = (await rows.locator("td:nth-child(4)").allTextContents()).map(cents);
+  expect(totals).toEqual([...totals].sort((a, b) => b - a));
+  for (const visits of await rows.locator("td:nth-child(3)").allTextContents()) {
+    expect(visits).toMatch(/^[1-9][\d,]*$/);
+  }
+
+  // Named by bank text, with the rows no merchant key fits under No Merchant.
+  await expect(table.getByRole("rowheader", { name: "SAMPLE STORAGE CO" })).toBeVisible();
+  await expect(table.getByRole("rowheader", { name: "No Merchant" })).toHaveCount(1);
+  // Personal and rows that need review never count.
+  await expect(table.getByRole("rowheader", { name: "SAMPLE GIFT SHOP" })).toHaveCount(0);
+  await expect(table.getByRole("rowheader", { name: "SAMPLE TAQUERIA" })).toHaveCount(0);
+
+  // Below Spending by Category.
+  const card = await categoryTable(page).boundingBox();
+  const merchants = await table.boundingBox();
+  expect(merchants?.y ?? 0).toBeGreaterThan(card?.y ?? 0);
+  await picture(page, "accounts-merchants-desktop", true);
+});
+
+test("ACC-11: Top Merchants on a phone", async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto("/accounts");
+
+  const items = page.getByRole("list", { name: "Top merchants" }).getByRole("listitem");
+  await expect(items.first()).toBeVisible();
+  for (const text of await items.allTextContents()) {
+    expect(text).toMatch(/\$[\d,]+\.\d{2}(1 visit|[\d,]+ visits)$/);
+  }
+  await expect(items.filter({ hasText: /^No Merchant/ })).toHaveCount(1);
+
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await picture(page, "accounts-merchants-phone", true);
+});
+
+test("ACC-12: Personal and the needs-review line, which opens the Review Inbox", async ({
+  page,
+}) => {
+  await page.goto("/accounts");
+
+  const personal = sideLine(page, "Personal");
+  await expect(personal).toContainText(/^Personal\$[\d,]+\.\d{2}Personal rows aren't in Spending\.$/);
+  await expect(personal).not.toContainText("$0.00");
+  // Personal is never a category.
+  await expect(categoryTable(page).getByRole("rowheader", { name: "Personal" })).toHaveCount(0);
+
+  const link = page.getByRole("link", { name: /^[\d,]+ rows? needs? review and (aren't|isn't) in these totals\.$/ });
+  await expect(link).toBeVisible();
+
+  // Under the donut, beside the list.
+  const chart = await donut(page).boundingBox();
+  const line = await personal.boundingBox();
+  const list = await categoryTable(page).boundingBox();
+  expect(line?.y ?? 0).toBeGreaterThan((chart?.y ?? 0) + (chart?.height ?? 0));
+  expect((line?.x ?? 0) + (line?.width ?? 0)).toBeLessThan(list?.x ?? 0);
+
+  await link.click();
+  await expect(page).toHaveURL(/\/review$/);
+});
+
+test("ACC-12: Personal and needs review follow the list on a phone", async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto("/accounts");
+
+  const personal = sideLine(page, "Personal");
+  const list = await categoryList(page).boundingBox();
+  const line = await personal.boundingBox();
+  expect(line?.y ?? 0).toBeGreaterThan((list?.y ?? 0) + (list?.height ?? 0));
+  const merchants = await page.getByRole("heading", { name: "Top Merchants" }).boundingBox();
+  expect(merchants?.y ?? 0).toBeGreaterThan(line?.y ?? 0);
+  await expect(reviewLine(page).getByRole("link")).toBeVisible();
+
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+});
+
+test("ACC-13: a period where every row needs review explains the empty donut", async ({
+  page,
+}) => {
+  await page.goto("/accounts");
+  await picker(page).selectOption({ label: GIROKONTO });
+
+  await expect(page.getByRole("heading", { name: ALL_NEED_REVIEW })).toBeVisible();
+  await expect(
+    page.getByText(
+      /^[\d,]+ rows? needs? review, so there's no Spending to show yet\. (They count|It counts) here once (they're|it's) decided\.$/,
+    ),
+  ).toBeVisible();
+  await expect(donut(page)).toHaveCount(0);
+  await expect(categoryTable(page)).toHaveCount(0);
+  await expect(page.getByText(`No Spending ${lastThreeMonths()}.`)).toHaveCount(0);
+  await expect(page.getByText(/^Change is against/)).toHaveCount(0);
+  // The panel is the needs-review line, so only Personal is left beside it.
+  await expect(sideLine(page, "Personal")).toContainText("€0.00");
+  await expect(reviewLine(page)).toHaveCount(0);
+  await expect(
+    page.getByText("No merchants to show, because there's no Spending in this period."),
+  ).toBeVisible();
+  await picture(page, "accounts-all-need-review-desktop", true);
+
+  await page.setViewportSize(PHONE);
+  await expect(page.getByRole("heading", { name: ALL_NEED_REVIEW })).toBeVisible();
+  await expect(sideLine(page, "Personal")).toBeVisible();
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await picture(page, "accounts-all-need-review-phone", true);
+
+  await page.getByRole("link", { name: "Go to Review Inbox" }).click();
+  await expect(page).toHaveURL(/\/review$/);
 });
