@@ -40,7 +40,34 @@ function account(
   return { name, lastFour, format, currency: "USD", country: "US", isSavings };
 }
 
-const MONTH_COUNT = 5;
+/**
+ * How much data to make. "default" is the sandbox's normal seed. The others are
+ * for speed runs: about the owner's real row count, then 5 and 15 times it.
+ */
+export type DataSize = "default" | "small" | "medium" | "large";
+
+export type GenerateOptions = { size?: DataSize };
+
+/** How many months a size covers, and the random rows in each full month. */
+type SizeProfile = {
+  monthCount: number;
+  cardRows: number;
+  debitRows: number;
+  germanRows: number;
+};
+
+/**
+ * The bigger sizes add months, as years of statements would, and keep each
+ * month's mix of rows. A full month holds about 126 rows.
+ */
+const SIZES: Record<DataSize, SizeProfile> = {
+  // Three fewer card rows than before the PARCELPOINT rows, so the total stays near 400.
+  default: { monthCount: 5, cardRows: 43, debitRows: 20, germanRows: 34 },
+  small: { monthCount: 14, cardRows: 43, debitRows: 20, germanRows: 34 },
+  medium: { monthCount: 65, cardRows: 43, debitRows: 20, germanRows: 34 },
+  large: { monthCount: 192, cardRows: 43, debitRows: 20, germanRows: 34 },
+};
+
 const EMPTY_MONTH_INDEX = 1;
 const LAST_ROW_DAY = 27;
 const OPENING_BALANCE = 500_000;
@@ -93,11 +120,6 @@ const GERMAN_MERCHANTS: readonly string[] = [
   "Muster Tankstelle",
 ];
 
-// Three fewer than before the PARCELPOINT rows, so the total stays near 400.
-const CARD_ROWS_PER_MONTH = 43;
-const DEBIT_ROWS_PER_MONTH = 20;
-const GERMAN_ROWS_PER_MONTH = 34;
-
 type Month = { year: number; number: number };
 
 type BankRow = {
@@ -128,9 +150,18 @@ type GermanRow = {
   purpose: string;
 };
 
+function profileFor({ size = "default" }: GenerateOptions): SizeProfile {
+  return SIZES[size];
+}
+
 /** Each month the sandbox covers, as YYYY-MM, including the empty one. */
-export function sandboxMonths(today: string): string[] {
-  return monthsUpTo(today).map(({ year, number }) => `${year}-${pad(number)}`);
+export function sandboxMonths(
+  today: string,
+  options: GenerateOptions = {},
+): string[] {
+  return monthsUpTo(today, profileFor(options).monthCount).map(
+    ({ year, number }) => `${year}-${pad(number)}`,
+  );
 }
 
 function pad(value: number, length = 2): string {
@@ -158,12 +189,12 @@ function decimal(minor: number, separator: string): string {
 }
 
 /** The months up to today's, oldest first. */
-function monthsUpTo(today: string): Month[] {
+function monthsUpTo(today: string, monthCount: number): Month[] {
   const [year, month] = today.split("-").map(Number);
 
-  return Array.from({ length: MONTH_COUNT }, (_, index) => {
+  return Array.from({ length: monthCount }, (_, index) => {
     const start = new Date(
-      Date.UTC(year, month - MONTH_COUNT + index, 1),
+      Date.UTC(year, month - monthCount + index, 1),
     );
     return { year: start.getUTCFullYear(), number: start.getUTCMonth() + 1 };
   });
@@ -202,7 +233,7 @@ function cardPayment({ number }: Month): number {
   return 120_000 + number * 100;
 }
 
-function checkingRows(month: Month): BankRow[] {
+function checkingRows(month: Month, profile: SizeProfile): BankRow[] {
   const random = randomFor(month);
   const rows: BankRow[] = [
     {
@@ -265,7 +296,7 @@ function checkingRows(month: Month): BankRow[] {
     },
   ];
 
-  for (let index = 0; index < DEBIT_ROWS_PER_MONTH; index += 1) {
+  for (let index = 0; index < profile.debitRows; index += 1) {
     rows.push({
       date: isoDate(month, dayFrom(random)),
       description: pick(DEBIT_MERCHANTS, random),
@@ -375,10 +406,10 @@ function cardEvents(month: Month): CardRow[] {
   ];
 }
 
-function cardRows(month: Month): CardRow[] {
+function cardRows(month: Month, profile: SizeProfile): CardRow[] {
   const random = randomFor(month);
 
-  const purchases = Array.from({ length: CARD_ROWS_PER_MONTH }, () => {
+  const purchases = Array.from({ length: profile.cardRows }, () => {
     const merchant = pick(CARD_MERCHANTS, random);
     return cardRowOn(month, dayFrom(random), {
       description: merchant.name,
@@ -456,7 +487,7 @@ function germanEvents(month: Month): GermanRow[] {
   ];
 }
 
-function germanRows(month: Month): GermanRow[] {
+function germanRows(month: Month, profile: SizeProfile): GermanRow[] {
   const random = randomFor(month);
   const rows: GermanRow[] = [
     {
@@ -472,7 +503,7 @@ function germanRows(month: Month): GermanRow[] {
     ...germanEvents(month),
   ];
 
-  for (let index = 0; index < GERMAN_ROWS_PER_MONTH; index += 1) {
+  for (let index = 0; index < profile.germanRows; index += 1) {
     const recipient = pick(GERMAN_MERCHANTS, random);
     rows.push({
       date: isoDate(month, dayFrom(random)),
@@ -548,16 +579,20 @@ function commerzbankFile(rows: readonly GermanRow[]): string {
   return [COMMERZBANK_HEADER, ...lines].join("\n");
 }
 
-export function generateStatements(today: string): SandboxFile[] {
-  const months = monthsUpTo(today).filter(
+export function generateStatements(
+  today: string,
+  options: GenerateOptions = {},
+): SandboxFile[] {
+  const profile = profileFor(options);
+  const months = monthsUpTo(today, profile.monthCount).filter(
     (_, index) => index !== EMPTY_MONTH_INDEX,
   );
   // A card row posts the day after its purchase, and the post date is the one stored.
   const rowsUpToToday = <Row extends { date: string; postDate?: string }>(
-    rowsFor: (month: Month) => Row[],
+    rowsFor: (month: Month, profile: SizeProfile) => Row[],
   ): Row[] =>
     months
-      .flatMap(rowsFor)
+      .flatMap((month) => rowsFor(month, profile))
       .filter(({ date, postDate }) => (postDate ?? date) <= today);
 
   const stamp = today.replaceAll("-", "");
