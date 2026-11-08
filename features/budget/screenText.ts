@@ -2,10 +2,16 @@ import { monthName, shortDate } from "./months";
 
 export type BudgetAction = "save" | "copy";
 
-export function reviewText(count: number): string {
+/** The totals the rows are kept out of: a budget's, or a page's own. */
+export type ReviewTotals = "the budget totals" | "these totals";
+
+export function reviewText(
+  count: number,
+  totals: ReviewTotals = "the budget totals",
+): string {
   if (count === 0) return "No rows need review.";
-  if (count === 1) return "1 row needs review and isn't in the budget totals.";
-  return `${count.toLocaleString("en-US")} rows need review and aren't in the budget totals.`;
+  if (count === 1) return `1 row needs review and isn't in ${totals}.`;
+  return `${count.toLocaleString("en-US")} rows need review and aren't in ${totals}.`;
 }
 
 /** The review text links to the inbox while there's something in it. */

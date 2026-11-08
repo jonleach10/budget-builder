@@ -14,6 +14,16 @@ describe("reviewText", () => {
       "1,200 rows need review and aren't in the budget totals.",
     );
   });
+
+  it("names these totals on a page that isn't a budget", () => {
+    expect(reviewText(0, "these totals")).toBe("No rows need review.");
+    expect(reviewText(1, "these totals")).toBe(
+      "1 row needs review and isn't in these totals.",
+    );
+    expect(reviewText(4, "these totals")).toBe(
+      "4 rows need review and aren't in these totals.",
+    );
+  });
 });
 
 describe("saveButtonText", () => {
