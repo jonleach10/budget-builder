@@ -1,0 +1,12 @@
+# Secret scan settings. CI runs gitleaks with these on every push and pull request.
+# Keep each allowlist entry to one value in one file, and say why it isn't a secret.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "RFC 6238 appendix B's public test seed, which checks the sandbox's sign-in code generator. It's a published test vector, not a credential."
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^sandbox/totp\.test\.ts$''']
+regexes = ['''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''']
