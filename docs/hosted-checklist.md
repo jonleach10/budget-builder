@@ -30,8 +30,8 @@ Run this part during the first launch check (#126). It needs no Vercel project.
 ### S2. Exposed schemas
 
 - **Where:** the same Data API page.
-- **Pass:** **Exposed schemas** lists only `public` and `graphql_public`.
-- **On a fail:** remove any other schema and click **Save**.
+- **Pass:** **Exposed schemas** lists only `public`.
+- **On a fail:** remove any other schema, including `graphql_public`, and click **Save**. The app doesn't use GraphQL, so it needs no other schema.
 
 ### S3. Signups closed
 
@@ -195,6 +195,12 @@ Run this once the security headers (#122) have shipped. Copy the command, replac
 curl -sI https://YOUR-APP.vercel.app/login | grep -ciE '^(strict-transport-security|content-security-policy|x-content-type-options|referrer-policy):'
 ```
 
+### G11. Off switch A is available
+
+- **Where:** Vercel project, **Firewall**, then **Configure**.
+- **Pass:** a **New Rule** button is there. Don't create a rule.
+- **On a fail:** your plan has no custom firewall rules. Off switch A isn't available, so use off switch B for every case below.
+
 ## Off switch
 
 There are two switches. Pick by what's wrong.
@@ -205,6 +211,8 @@ There are two switches. Pick by what's wrong.
 When in doubt, use both.
 
 ### A. Take the site offline
+
+This needs custom firewall rules, which G11 checks. If G11 failed, use B instead.
 
 1. In the Vercel project, select **Firewall**, then **Configure**.
 2. Click **New Rule**. Name it "Off switch".
