@@ -48,7 +48,11 @@ describe("weirdStatements, for every fixture", () => {
     expect(ibans.every((iban) => iban.startsWith("DE00"))).toBe(true);
   });
 
-  it.each(WEIRD_STATEMENTS)("%s names only the sandbox's own accounts", (name) => {
+  // Not seeded: it's the normal seed's text, whose made-up recipient IBAN is
+  // there on purpose for redaction, and generate.test.ts checks it.
+  it.each(WEIRD_STATEMENTS.filter((name) => name !== "seeded"))(
+    "%s names only the sandbox's own accounts",
+    (name) => {
     const text = weirdStatements(TODAY, [name])
       .map((file) => `${file.name}\n${file.text}`)
       .join("\n");
@@ -62,6 +66,13 @@ describe("weirdStatements, for every fixture", () => {
         SANDBOX_ACCOUNTS.some((account) => account.lastFour === lastFour),
       ),
     ).toBe(true);
+    },
+  );
+
+  it("gives seeded the normal seed's own text, file by file", () => {
+    const seed = generateStatements(TODAY).map(({ text }) => text);
+
+    expect(weirdStatements(TODAY, ["seeded"]).map(({ text }) => text)).toEqual(seed);
   });
 
   it("gives every file its own name, so all of them fit in one folder", () => {

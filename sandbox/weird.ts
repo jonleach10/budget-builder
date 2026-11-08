@@ -5,6 +5,7 @@ import {
   chaseCardFile,
   commerzbankFile,
   type GermanRow,
+  generateStatements,
   type SandboxFile,
 } from "./generate.ts";
 
@@ -23,6 +24,8 @@ export const WEIRD_STATEMENTS = [
   "semicolon-purpose",
   "decomposed-unicode",
   "empty-month",
+  "seeded",
+  "fresh",
 ] as const;
 
 export type WeirdStatement = (typeof WEIRD_STATEMENTS)[number];
@@ -39,6 +42,14 @@ function addDays(date: string, days: number): string {
 /** Never after today, so no row dated here waits for a later import. */
 function firstOfMonth(today: string): string {
   return `${today.slice(0, 7)}-01`;
+}
+
+/** A day in the month before today's, which the normal seed always covers. */
+function lastMonthOn(today: string, day: number): string {
+  const year = yearOf(today);
+  const month = Number(today.slice(5, 7));
+  const [lastYear, lastMonth] = month === 1 ? [year - 1, 12] : [year, month - 1];
+  return `${lastYear}-${String(lastMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function isLeapYear(year: number): boolean {
@@ -257,6 +268,50 @@ function leapDay(today: string): SandboxFile[] {
   ];
 }
 
+/**
+ * The normal seed's own statements, under fixture names. The seed has already
+ * imported every row in them, so uploading them again skips every row.
+ */
+function seeded(today: string): SandboxFile[] {
+  return generateStatements(today).map(({ name, text }) => {
+    const lastFour = name.match(/\d{4}/)?.[0];
+    if (lastFour === undefined) throw new Error(`No account in ${name}.`);
+    return { name: fileName(lastFour, "seeded"), text };
+  });
+}
+
+/**
+ * New rows on every account, last month, with text the seed never uses. The
+ * seed stored the rates for last month, so importing them asks no rates service.
+ */
+function fresh(today: string): SandboxFile[] {
+  return [
+    checkingFile("fresh", [
+      {
+        date: lastMonthOn(today, 10),
+        description: "SAMPLE FRESH DELI",
+        minor: -1890,
+        type: "DEBIT_CARD",
+      },
+    ]),
+    savingsFile("fresh", [
+      {
+        date: lastMonthOn(today, 10),
+        description: "SAMPLE FRESH DEPOSIT",
+        minor: 2500,
+        type: "MISC_CREDIT",
+      },
+    ]),
+    cardFile("fresh", [
+      cardSale(lastMonthOn(today, 9), lastMonthOn(today, 10), "SAMPLE FRESH OUTFITTERS", -4275),
+    ]),
+    germanFile("fresh", [
+      germanDebit(lastMonthOn(today, 10), "Muster Frisch Markt", -1645),
+      germanDebit(lastMonthOn(today, 12), "Muster Frisch Apotheke", -920),
+    ]),
+  ];
+}
+
 const BUILDERS: Record<WeirdStatement, (today: string) => SandboxFile[]> = {
   "leap-day": leapDay,
   "rows-today": rowsToday,
@@ -265,6 +320,8 @@ const BUILDERS: Record<WeirdStatement, (today: string) => SandboxFile[]> = {
   "semicolon-purpose": semicolonPurpose,
   "decomposed-unicode": decomposedUnicode,
   "empty-month": emptyMonth,
+  seeded,
+  fresh,
 };
 
 export function weirdStatements(

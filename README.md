@@ -36,6 +36,8 @@ npm run sandbox:weird -- missing-rate            # reseeds, then changes stored 
 
 Statements: `semicolon-purpose`, `leap-day`, `long-transfer-number`, `zero-rate`, `decomposed-unicode`, `empty-month`, `rows-today`. Stored rows: `missing-rate`, `half-failed-move`. `SANDBOX_WEIRD_DIR` changes where statements go.
 
+For the import flows: `seeded` writes the seed's own statements, which import as all skipped, and `fresh` writes new rows from last month, which import as new without asking the rates service.
+
 History
 - January 20th, 2026 => 0.1: first working version
 
