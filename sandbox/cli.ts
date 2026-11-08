@@ -1,6 +1,12 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { assertLoopbackPorts, assertNoEnvLocal } from "./guard.ts";
+import {
+  assertServerMode,
+  isProductionServer,
+  listenerPidsFrom,
+  serverModeFrom,
+} from "./mode.ts";
 import { readStatus } from "./status.ts";
 
 /**
@@ -13,6 +19,12 @@ const NETWORK = "budget-builder-sandbox";
 const SUPABASE = ["supabase@2.122.0", "--workdir", "sandbox", "--network-id", NETWORK];
 const VM_SIZE = ["--vm-type", "vz", "--cpu", "2", "--memory", "4", "--disk", "30"];
 const LOOPBACK_NETWORK = "com.docker.network.bridge.host_binding_ipv4=127.0.0.1";
+
+const HOST = "127.0.0.1";
+const PORT = "3100";
+const NEXT = "node_modules/next/dist/bin/next";
+/** The exit code for SIGTERM. */
+const STOPPED = 143;
 
 function run(
   command: string,
@@ -56,7 +68,60 @@ function up(): void {
   checkPorts();
 }
 
+function portInUse(): boolean {
+  return succeeds("lsof", ["-nP", `-iTCP:${PORT}`, "-sTCP:LISTEN"]);
+}
+
+/**
+ * The production server's process ID, found through the port itself. The
+ * sandbox is shared by every worktree, so a file kept in one worktree can't be
+ * seen from another, and the port can. Only a process listening on the
+ * sandbox's own address, that ps shows as a server sandbox:prod started, counts.
+ */
+function productionPid(): number | null {
+  const listeners = spawnSync("lsof", ["-nP", "-t", `-iTCP@${HOST}:${PORT}`, "-sTCP:LISTEN"], {
+    encoding: "utf8",
+  }).stdout;
+
+  for (const pid of listenerPidsFrom(listeners ?? "")) {
+    const psLine = spawnSync("ps", ["-p", String(pid), "-o", "pid=,pgid=,command="], {
+      encoding: "utf8",
+    }).stdout;
+    if (isProductionServer((psLine ?? "").trim())) return pid;
+  }
+  return null;
+}
+
+function pause(milliseconds: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+/** Signals the server's whole process group, so no worker keeps the port. */
+function signalProduction(pid: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(-pid, signal);
+  } catch {
+    // It has already ended.
+  }
+}
+
+function stopProduction(): void {
+  const pid = productionPid();
+  if (pid === null) return;
+
+  console.log("Stopping production mode.");
+  signalProduction(pid, "SIGTERM");
+
+  for (let waited = 0; productionPid() !== null && waited < 10_000; waited += 250) {
+    pause(250);
+  }
+
+  const stillServing = productionPid();
+  if (stillServing !== null) signalProduction(stillServing, "SIGKILL");
+}
+
 function down(): void {
+  stopProduction();
   run("npx", [...SUPABASE, "stop"]);
   run("colima", ["stop"]);
 }
@@ -81,13 +146,62 @@ function seed(): void {
   });
 }
 
-function dev(): void {
+/** The app's settings, read from the local stack, which the guard checks. */
+function appEnv(): Record<string, string> {
   const { url, publishableKey } = status();
 
-  run("npx", ["next", "dev", "-H", "127.0.0.1", "-p", "3100"], {
+  return {
     NEXT_PUBLIC_SUPABASE_URL: url,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishableKey,
+  };
+}
+
+function dev(): void {
+  run("npx", ["next", "dev", "-H", HOST, "-p", PORT], appEnv());
+}
+
+/**
+ * Builds the app and serves the build on the sandbox's port, from a running
+ * sandbox. Stays running, like the dev server, until Control-C or sandbox:down.
+ */
+function prod(): void {
+  if (portInUse()) {
+    throw new Error(
+      `Refused: port ${PORT} is in use. Stop the server on it with Control-C in its terminal first.`,
+    );
+  }
+
+  checkPorts();
+  // The build writes the Supabase settings into the browser code, so it gets them too.
+  const env = appEnv();
+  run(process.execPath, [NEXT, "build"], env);
+
+  const server = spawn(process.execPath, [NEXT, "start", "-H", HOST, "-p", PORT], {
+    stdio: "inherit",
+    // Its own process group, so a stop reaches every process it starts, and
+    // ps can tell it from the dev server's worker, which Next titles the same.
+    detached: true,
+    env: { ...process.env, ...env },
   });
+  const pid = server.pid;
+  if (pid === undefined) throw new Error("The production server didn't start.");
+
+  const stop = () => signalProduction(pid, "SIGTERM");
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+  process.on("SIGHUP", stop);
+
+  server.on("exit", (code) => {
+    // Next exits with 143 when it's stopped, from here or from sandbox:down.
+    process.exit(code === null || code === STOPPED ? 0 : code);
+  });
+}
+
+/** Flows and screenshots use whatever holds the port, so check it's the mode asked for. */
+function checkedMode(flags: readonly (string | undefined)[]) {
+  const mode = serverModeFrom(flags);
+  assertServerMode(mode, productionPid() !== null);
+  return mode;
 }
 
 /** One screen by default, because a tall page gets too small to read. */
@@ -96,6 +210,7 @@ function shot(path: string | undefined, ...flags: (string | undefined)[]): void 
     throw new Error("Give a page path, such as /transactions?month=2026-10.");
   }
 
+  checkedMode(flags);
   const project = flags.includes("--phone") ? "shot-phone" : "shot-desktop";
   playwright(project, {
     SANDBOX_SHOT_PATH: path,
@@ -116,11 +231,13 @@ const COMMANDS: Record<string, (...args: (string | undefined)[]) => void> = {
   down,
   seed,
   dev,
+  prod,
   shot,
   // Flows save edits, so each run starts from fresh rows.
-  flows: () => {
+  flows: (...flags) => {
+    const mode = checkedMode(flags);
     seed();
-    playwright("flows");
+    playwright("flows", { SANDBOX_MODE: mode });
   },
 };
 
