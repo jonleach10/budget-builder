@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import type { ChartColor, ChartLayout } from "./lineChartLayout";
+import type { ChartColor, ChartDot, ChartLayout, ChartTag } from "./lineChartLayout";
 
 // Whole class names, so Tailwind can find them.
 const STROKES: Record<ChartColor, string> = {
@@ -53,38 +53,105 @@ function Tooltip({
 }
 
 /**
+ * A month with no figure is a hollow ring on the $0 line. The highlighted month's
+ * dot is larger and brighter. Every other dot is the line's colour.
+ */
+function Dot({ dot, color }: { dot: ChartDot; color: ChartColor }) {
+  return (
+    <span
+      data-dot={dot.missing ? "missing" : dot.highlighted ? "highlighted" : undefined}
+      style={{ left: `${dot.left}%`, top: `${dot.top}%` }}
+      className={cn(
+        "pointer-events-none absolute rounded-full",
+        dot.missing
+          ? "-mt-1.5 -ml-1.5 size-3 bg-background ring-2 ring-chart-1 ring-inset"
+          : dot.highlighted
+            ? "-mt-1.5 -ml-1.5 size-3 bg-chart-1 ring-2 ring-background"
+            : cn("-mt-1 -ml-1 size-2 ring-2 ring-background", FILLS[color]),
+      )}
+    />
+  );
+}
+
+const TAG =
+  "pointer-events-none absolute z-[1] -mt-2.5 rounded-md bg-popover px-2 py-0.5 text-caption whitespace-nowrap text-ice-highlight tabular-nums shadow-modal";
+
+/**
+ * Above its dot on a desktop. A phone has no month labels, so its tag names the
+ * month and sits beside the dot, on the side that keeps it in the card.
+ */
+function Tag({ tag }: { tag: ChartTag }) {
+  const at = { left: `${tag.left}%`, top: `${tag.top}%` };
+
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        data-tag={tag.missing ? "missing" : "figure"}
+        style={at}
+        className={cn(TAG, "hidden -translate-x-1/2 -translate-y-full md:block")}>
+        {tag.text}
+      </span>
+      <span
+        aria-hidden="true"
+        style={at}
+        className={cn(
+          TAG,
+          "-translate-y-full md:hidden",
+          tag.flipped ? "-translate-x-full" : "",
+        )}>
+        {tag.phoneText}
+      </span>
+    </>
+  );
+}
+
+/**
  * A plain SVG line chart. Every month is a button, so the tooltip works by hover,
- * keyboard focus and touch alike, and its label holds the same figures.
+ * keyboard focus and touch alike, and its label holds the same figures. With one
+ * line, the card's title says what it is, so it can go without a title and legend.
  */
 export function LineChart({
   title,
+  legend = true,
   layout,
 }: {
-  title: string;
+  title?: string;
+  legend?: boolean;
   layout: ChartLayout;
 }) {
   const [active, setActive] = useState<number | null>(null);
-  const { columns, endLabels, rangeLabel, series, ticks } = layout;
+  const { band, columns, endLabels, rangeLabel, series, tags, ticks } = layout;
   const slots = {
     gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
   };
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pb-3 md:px-6">
-        <h3 className="text-body-sm font-medium text-moon-mist">{title}</h3>
-        <div className="flex flex-wrap items-center gap-4 text-body-sm text-moon-mist">
-          {series.map(({ key, label, color }) => (
-            <span key={key} className="inline-flex items-center gap-1.5">
-              <LineKey color={color} />
-              {label}
-            </span>
-          ))}
+      {(title !== undefined || legend) && (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pb-3 md:px-6">
+          {title !== undefined && (
+            <h3 className="text-body-sm font-medium text-moon-mist">{title}</h3>
+          )}
+          {legend && (
+            <div className="flex flex-wrap items-center gap-4 text-body-sm text-moon-mist">
+              {series.map(({ key, label, color }) => (
+                <span key={key} className="inline-flex items-center gap-1.5">
+                  <LineKey color={color} />
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       <div
-        className="grid grid-cols-[minmax(0,1fr)] gap-x-2 px-4 pb-5 md:grid-cols-[48px_minmax(0,1fr)_72px] md:px-6"
+        className={cn(
+          "grid grid-cols-[minmax(0,1fr)] gap-x-2 px-4 pb-5 md:grid-cols-[48px_minmax(0,1fr)_72px] md:px-6",
+          // Room above the plot for a tag on a dot at the top.
+          tags.length > 0 && "pt-7",
+        )}
         onMouseLeave={() => setActive(null)}>
         <div aria-hidden="true" className="relative hidden md:block">
           {ticks.map(({ top, label }) => (
@@ -98,6 +165,15 @@ export function LineChart({
         </div>
 
         <div className="relative h-40 md:h-60">
+          {band && (
+            <div
+              aria-hidden="true"
+              data-band="true"
+              style={{ left: `${band.left}%`, width: `${band.width}%` }}
+              className="pointer-events-none absolute -inset-y-2 rounded-md bg-frost-wash shadow-hairline"
+            />
+          )}
+
           {ticks.map(({ top, label }) => (
             <div
               key={label}
@@ -111,31 +187,30 @@ export function LineChart({
             viewBox="0 0 100 100"
             preserveAspectRatio="none"
             className="absolute inset-0 size-full overflow-visible">
-            {series.map(({ key, color, points }) => (
-              <polyline
-                key={key}
-                points={points}
-                fill="none"
-                vectorEffect="non-scaling-stroke"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                className={cn("stroke-2", STROKES[color])}
-              />
-            ))}
+            {series.flatMap(({ key, color, segments }) =>
+              segments.map((points) => (
+                <polyline
+                  key={`${key}-${points}`}
+                  points={points}
+                  fill="none"
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  className={cn("stroke-2", STROKES[color])}
+                />
+              )),
+            )}
           </svg>
 
           {series.flatMap(({ key, color, dots }) =>
-            dots.map(({ left, top }) => (
-              <span
-                key={`${key}-${left}`}
-                style={{ left: `${left}%`, top: `${top}%` }}
-                className={cn(
-                  "pointer-events-none absolute -mt-1 -ml-1 size-2 rounded-full ring-2 ring-background",
-                  FILLS[color],
-                )}
-              />
+            dots.map((dot) => (
+              <Dot key={`${key}-${dot.left}`} dot={dot} color={color} />
             )),
           )}
+
+          {tags.map((tag) => (
+            <Tag key={tag.key} tag={tag} />
+          ))}
 
           {active !== null && (
             <>
@@ -150,7 +225,7 @@ export function LineChart({
             </>
           )}
 
-          <div className="absolute inset-0 grid" style={slots}>
+          <div className="absolute inset-0 z-[2] grid" style={slots}>
             {columns.map(({ name, description }, index) => (
               <button
                 key={name}
@@ -181,8 +256,17 @@ export function LineChart({
           aria-hidden="true"
           style={slots}
           className="col-start-2 mt-2 hidden text-center text-caption text-muted-foreground md:grid">
-          {columns.map(({ name, short }) => (
-            <span key={name}>{short}</span>
+          {columns.map(({ name, short, year, labelled, highlighted }) => (
+            <span
+              key={name}
+              className={cn(highlighted && "font-semibold text-ice-highlight")}>
+              {labelled ? short : ""}
+              {labelled && year !== null && (
+                <span className="block font-normal text-muted-foreground opacity-80">
+                  {year}
+                </span>
+              )}
+            </span>
           ))}
         </div>
 
