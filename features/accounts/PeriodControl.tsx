@@ -55,14 +55,15 @@ function MonthField({ label, select }: { label: string; select: MonthSelect }) {
 
 /**
  * The period lives in the address, so the shortcuts are links. A shortcut is lit
- * only when From and To match it. On a phone the shortcuts go 2 x 2.
+ * only when From and To match it. On a phone the shortcuts go 2 x 2, in a pill
+ * like every toggle, inset at the sides so the corner pills stay inside its ends.
  */
 export function PeriodControl({ period }: { period: PeriodData }) {
   return (
     <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-6">
       <nav
         aria-label="Period"
-        className="grid grid-cols-2 gap-1 rounded-[22px] bg-frost-wash p-[3px] shadow-hairline md:inline-flex md:gap-0.5 md:rounded-full">
+        className="grid grid-cols-2 gap-1 rounded-full bg-frost-wash px-3.5 py-[3px] shadow-hairline md:inline-flex md:gap-0.5 md:px-[3px]">
         {period.shortcuts.map(({ label, href, lit }) => (
           <Link
             key={label}
