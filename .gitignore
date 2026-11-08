@@ -44,9 +44,11 @@ yarn-error.log*
 # supabase link writes the project ID here
 supabase/.temp
 
-# local sandbox: the fake owner's TOTP secret, its session and test output
+# local sandbox: the fake owner's TOTP secret, its session, production mode's
+# process ID and test output
 sandbox/.owner-totp
 sandbox/.session.json
+sandbox/.production.pid
 sandbox/.results
 sandbox/.shots
 
