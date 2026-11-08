@@ -155,9 +155,11 @@ describe("AccountScreen", () => {
     const html = render(READY);
 
     expect(html).toMatch(
-      /<tr data-dropped="true" class="[^"]*text-muted-foreground[^"]*"><th[^>]*>Travel<\/th>.*?\$0\.00.*?0%.*?-100%/,
+      /<tr data-dropped="true" class="[^"]*text-muted-foreground[^"]*"><th[^>]*>(?:(?!<\/th>).)*Travel<\/th>.*?\$0\.00.*?0%.*?-100%/,
     );
     expect(html.indexOf(">Travel<")).toBeGreaterThan(html.indexOf(">Groceries<"));
+    // Its swatch is empty, because it has no slice.
+    expect(html).toMatch(/ring-inset"><\/span><\/span>Travel<\/th>/);
   });
 
   it("hides the Change column for All Months, and says why", () => {
@@ -184,6 +186,73 @@ describe("AccountScreen", () => {
     expect(html).not.toContain("Spending by Category");
     expect(html).not.toContain('aria-label="Period"');
     expect(html).toMatch(/<select[^>]*aria-label="Account"/);
+  });
+
+  it("shows the donut as one image, named with its middle figure", () => {
+    const html = render(READY);
+
+    expect(html).toMatch(
+      /<svg role="img" aria-label="Spending by category, \$1,000\.00 in all\. The list gives every figure\."/,
+    );
+    expect(html).toContain(">$1,000.00</text>");
+  });
+
+  it("lists Other's categories under it, each saying it's part of Other", () => {
+    const html = render({
+      ...READY,
+      categories: [
+        line("Gas", "$500.00", "50%", "+4%", 1),
+        {
+          ...line("Other", "$500.00", "50%", "-4%", "other"),
+          key: "other",
+          members: [
+            { name: "Home", amount: "$312.00", share: "31%", change: "-22%" },
+            { name: "Insurance", amount: "$188.00", share: "19%", change: "New" },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toMatch(/Other<\/th>.*?\$500\.00.*?50%.*?-4%/);
+    expect(html).toMatch(
+      /<tr data-member="true".*?Other: <\/span>Home<\/span><\/th>.*?\$312\.00.*?31%.*?-22%/,
+    );
+    expect(html.indexOf(">Home<")).toBeGreaterThan(html.indexOf(">Other<"));
+    expect(html.indexOf(">Insurance<")).toBeLessThan(html.indexOf(">Total<"));
+    // The phone list nests them in Other's item.
+    expect(html).toContain('<ul aria-label="In Other">');
+  });
+
+  it("shows the no-Spending line in place of the donut and the list", () => {
+    const html = render({
+      ...READY,
+      chart: null,
+      noSpending: {
+        title: "No Spending from August 1 to October 31, 2026.",
+        text: "Only Spending rows count here, so transfers and income aren't shown.",
+      },
+      categories: [],
+      total: { amount: "$0.00", share: "0%", change: "0%" },
+    });
+
+    expect(html).toContain("Spending by Category");
+    expect(html).toContain("No Spending from August 1 to October 31, 2026.");
+    expect(html).not.toContain("<svg role=\"img\"");
+    expect(html).not.toContain("<table");
+    expect(html).not.toContain("Change is against");
+  });
+
+  it("keeps the list beside the no-Spending line when a category dropped to zero", () => {
+    const html = render({
+      ...READY,
+      chart: null,
+      noSpending: { title: "No Spending for October 2026.", text: "Why." },
+      categories: [{ ...line("Travel", "$0.00", "0%", "-100%", null), dropped: true }],
+      total: { amount: "$0.00", share: "0%", change: "-100%" },
+    });
+
+    expect(html).toContain("No Spending for October 2026.");
+    expect(html).toMatch(/Travel<\/th>.*?-100%/);
   });
 
   it("says when the page can't be loaded", () => {
