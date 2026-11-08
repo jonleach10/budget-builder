@@ -206,6 +206,7 @@ test("ACC-03: an account with no rows points to Import", async ({ page }) => {
   await expect(page.getByText("Amounts are in EUR.", { exact: true })).toBeVisible();
   await expect(page.getByText(/from .* to /)).toHaveCount(0);
   await expect(page.getByText("Spending by Category")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Open in Transactions" })).toHaveCount(0);
   await expect(picker(page)).toBeVisible();
   await picture(page, "accounts-no-rows-desktop");
 
