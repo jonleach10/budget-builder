@@ -431,7 +431,7 @@ export function buildAccountScreen({
               })),
               total: middle,
             }),
-            label: `Spending by category, ${middle} in all. The list gives every figure.`,
+            label: `Spending by category, ${middle} in all. The list shows every figure.`,
           },
     noSpending:
       slices.length === 0

@@ -74,7 +74,7 @@ const READY: ReadyAccount = {
       ],
       total: "$1,000.00",
     }),
-    label: "Spending by category, $1,000.00 in all. The list gives every figure.",
+    label: "Spending by category, $1,000.00 in all. The list shows every figure.",
   },
   noSpending: null,
   categories: [
@@ -192,7 +192,7 @@ describe("AccountScreen", () => {
     const html = render(READY);
 
     expect(html).toMatch(
-      /<svg role="img" aria-label="Spending by category, \$1,000\.00 in all\. The list gives every figure\."/,
+      /<svg role="img" aria-label="Spending by category, \$1,000\.00 in all\. The list shows every figure\."/,
     );
     expect(html).toContain(">$1,000.00</text>");
   });

@@ -926,7 +926,7 @@ describe("buildAccountScreen: the donut", () => {
 
   it("names the chart by its figure, and points to the list for the rest", () => {
     expect(nine().chart?.label).toBe(
-      "Spending by category, $6,240.00 in all. The list gives every figure.",
+      "Spending by category, $6,240.00 in all. The list shows every figure.",
     );
   });
 

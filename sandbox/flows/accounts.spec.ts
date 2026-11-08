@@ -107,7 +107,7 @@ function donut(page: Page) {
 /** The figure the donut's name gives, such as "$829.14". */
 async function donutFigure(page: Page): Promise<string> {
   const name = await donut(page).getAttribute("aria-label");
-  const figure = name?.match(/^Spending by category, (\S+) in all\. The list gives every figure\.$/);
+  const figure = name?.match(/^Spending by category, (\S+) in all\. The list shows every figure\.$/);
   expect(figure, `the donut's name: ${name}`).not.toBeNull();
   return figure?.[1] ?? "";
 }
