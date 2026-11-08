@@ -37,7 +37,7 @@ Months in the sandbox: the seed fills the 12 months up to the current one. "Last
 | `/login/mfa/setup` | Set Up Authenticator | AUTH-05, AUTH-07, AUTH-08 |
 | `/` | Overview | AUTH-01, NAV-01, OVR-01 to OVR-04, EMPTY-01 |
 | `/budget` | Budget | NAV-01, BUD-01 to BUD-07, EMPTY-01, EMPTY-02 |
-| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-09, EMPTY-01 |
+| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-10, EMPTY-01 |
 | `/transactions` | Transactions | NAV-01, TXN-01 to TXN-08, EMPTY-01 |
 | `/review` | Review Inbox | NAV-01, REV-01 to REV-14, EMPTY-01 |
 | `/import` | Import | NAV-01, IMP-01 to IMP-05, EMPTY-01 |
@@ -317,7 +317,7 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 
 ## Accounts
 
-The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card and Sandbox Girokonto, with rows, and Sandbox Commerzbank Savings, with none. With no period in the address, the page covers Last 3 Months, the three full months before the current one. The default seed fills the 5 months up to the current one, leaving the second of them empty, so a comparison often shows "New".
+The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card and Sandbox Girokonto, with rows, and Sandbox Commerzbank Savings, with none. With no period in the address, the page covers Last 3 Months, the three full months before the current one. The default seed fills the 5 months up to the current one, leaving the second of them empty, so a comparison often shows "New". Sandbox Card has Spending in all 9 categories each month, through a rule for each of 7 card merchants plus the Groceries and Dining rules, except in its first month, which has exactly 7: Health and Insurance start in its second month with rows.
 
 ### ACC-01 Open the Account page from the sidebar
 
@@ -425,7 +425,20 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 
 1. Look at Spending by Category on Sandbox Card.
 
-**Result**: a donut sits to the left of the list, with "Spending" and the period's Spending in its middle, the same amount as the Total row. Its slices run clockwise from the top in the list's order, and each row in the list has a swatch in its slice's colour. Colours go by place in the list, not by category. Slices of 8% or more carry their share on the ring, and every share on the ring is in the list's Share column. With more than 7 categories, the top 6 get a slice each and the rest are grouped into Other, the only hatched slice, and the list shows Other's categories under it with their own Amount, Share and Change. With exactly 7 there's no Other, and the 7th slice is solid. A category at $0.00 or below, such as one that had Spending before and none now, is listed muted after the slices with an empty swatch, and has no slice. A screen reader reads the donut as one image named with its middle figure, such as "Spending by category, $829.14 in all. The list shows every figure.", and the list as usual. On a phone, the donut sits above the list, smaller, and nothing scrolls sideways. The sandbox has only Groceries and Dining with Spending, so its donut has 2 slices and no Other.
+**Result**: a donut sits to the left of the list, with "Spending" and the period's Spending in its middle, the same amount as the Total row. Its slices run clockwise from the top in the list's order, and each row in the list has a swatch in its slice's colour. Colours go by place in the list, not by category. Slices of 8% or more carry their share on the ring, and every share on the ring is in the list's Share column. With more than 7 categories, the top 6 get a slice each and the rest are grouped into Other, the only hatched slice, and the list shows Other's categories under it with their own Amount, Share and Change. With exactly 7 there's no Other, and the 7th slice is solid. A category at $0.00 or below, such as one that had Spending before and none now, is listed muted after the slices with an empty swatch, and has no slice. A screen reader reads the donut as one image named with its middle figure, such as "Spending by category, $829.14 in all. The list shows every figure.", and the list as usual. On a phone, the donut sits above the list, smaller, and nothing scrolls sideways. On Sandbox Card, Last 3 Months has 9 categories, so the donut has 6 slices and Other.
+
+### ACC-10 See Other and its categories
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Look at Spending by Category on Sandbox Card for Last 3 Months.
+2. Select the first month with rows in both From and To.
+
+**Result**: step 1 shows 9 categories: 6 rows with their own swatches, then Other, the last slice, hatched on the ring and in its swatch, with its share on the ring when it's 8% or more. Under Other, on a frosted band, its 3 categories are listed one by one with their own Amount, Share and Change, and Other's Amount is their sum. A screen reader reads each as part of Other, such as "Other: Health". On a phone, Other's categories sit indented under it, each with its share and change on a second line. Step 2 covers a month with exactly 7 categories, so there's no Other and nothing is hatched: the 7th slice and its swatch are a solid, faint blue.
 
 ### ACC-09 An account with no Spending
 

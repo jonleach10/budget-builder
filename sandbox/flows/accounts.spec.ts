@@ -409,6 +409,78 @@ test("ACC-08: the donut sits above the list on a phone", async ({ page }) => {
   await picture(page, "accounts-donut-phone");
 });
 
+/** "$1,234.56" in cents, to add up figures the page shows. */
+function cents(money: string): number {
+  return Math.round(Number(money.replace(/[$,\s]/g, "")) * 100);
+}
+
+function slices(page: Page) {
+  return donut(page).locator("path[data-slice]");
+}
+
+test("ACC-10: Other groups the smaller categories, listed under it", async ({ page }) => {
+  await page.goto("/accounts");
+  const table = categoryTable(page);
+
+  // The top 6, then Other, the only hatched slice.
+  await expect(slices(page)).toHaveCount(7);
+  await expect(donut(page).locator('path[data-slice="other"]')).toHaveCount(1);
+  await expect(slices(page).last()).toHaveAttribute("data-slice", "other");
+
+  const other = table.getByRole("row").filter({
+    has: page.getByRole("rowheader", { name: "Other", exact: true }),
+  });
+  await expect(other).toHaveCount(1);
+
+  // Its categories under it, each read as part of Other, adding up to it.
+  const members = table.locator("tr[data-member]");
+  await expect(members).toHaveCount(3);
+  for (const header of await members.getByRole("rowheader").allTextContents()) {
+    expect(header).toMatch(/^Other: \S/);
+  }
+  const memberAmounts = await members.locator("td:nth-child(2)").allTextContents();
+  const otherAmount = await other.getByRole("cell").first().textContent();
+  expect(memberAmounts.reduce((sum, amount) => sum + cents(amount), 0)).toBe(
+    cents(otherAmount ?? ""),
+  );
+  for (const share of await members.locator("td:nth-child(3)").allTextContents()) {
+    expect(share).toMatch(/^\d+%$/);
+  }
+  // Then the Total, after Other's categories.
+  await expect(table.getByRole("row").last()).toContainText("Total");
+  await picture(page, "accounts-other-desktop");
+});
+
+test("ACC-10: Other's categories sit under it on a phone", async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto("/accounts");
+
+  const list = categoryList(page);
+  await expect(list.getByRole("listitem").filter({ hasText: /^Other/ }).first()).toBeVisible();
+  const members = page.getByRole("list", { name: "In Other" }).getByRole("listitem");
+  await expect(members).toHaveCount(3);
+  for (const text of await members.allTextContents()) {
+    expect(text).toMatch(/^Other: .+\$[\d,]+\.\d{2}\d+% · ([+-]\d+%|0%|New)$/);
+  }
+
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await picture(page, "accounts-other-phone");
+});
+
+test("ACC-10: a month with exactly 7 categories has no Other", async ({ page }) => {
+  // The card's first month with rows has 7 categories with Spending.
+  await page.goto(`/accounts?from=${monthKey(-4)}&to=${monthKey(-4)}`);
+  const table = categoryTable(page);
+
+  await expect(slices(page)).toHaveCount(7);
+  await expect(donut(page).locator('path[data-slice="other"]')).toHaveCount(0);
+  await expect(slices(page).last()).toHaveAttribute("data-slice", "7");
+  await expect(table.getByRole("rowheader", { name: "Other", exact: true })).toHaveCount(0);
+  await expect(table.locator("tr[data-member]")).toHaveCount(0);
+  await expect(table.locator("tbody tr")).toHaveCount(7);
+  await picture(page, "accounts-seven-desktop");
+});
+
 test("ACC-09: an account with no Spending shows a plain line instead of the donut", async ({
   page,
 }) => {
