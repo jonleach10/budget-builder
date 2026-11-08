@@ -11,6 +11,7 @@ import {
   generateStatements,
   SANDBOX_ACCOUNTS,
   sandboxMonths,
+  SORTED_CARD_MERCHANTS,
 } from "./generate.ts";
 
 const TODAY = "2026-11-15";
@@ -50,20 +51,21 @@ function digestOf(files: unknown): string {
   return createHash("sha256").update(JSON.stringify(files)).digest("hex");
 }
 
-// Taken from the generator before it had sizes. The sandbox's flows and
-// screenshots rely on this output, so a change here must be on purpose.
+// First taken from the generator before it had sizes, then again when #158 added
+// the sorted card rows. The sandbox's flows and screenshots rely on this output,
+// so a change here must be on purpose.
 const DEFAULT_DIGESTS: Record<string, string> = {
   "2026-11-03":
-    "fb21319adf179724600cd3a2e006b0b446a40311f866396c26133b676b532ed6",
+    "60d871e334803b6267f555eb9cc84395ff129b7767aa6ee98cc40bbc11f8a090",
   "2026-11-15":
-    "9f759d915bbe3419be1b3ad91dc819c48d6e3569e88e600fa9337c443c9c73be",
+    "b0072982ee0a135e2d41a71f6e3f8e22c05c46f4520fc079977309cb31f4995f",
   "2027-02-15":
-    "2452e599611285a9d8278411cd634ca6e1453a8ccb847097b16ea2357d877eb4",
+    "4f3ad7bf9c2db92af19e9d0f4e6d716aaffd2c523d4df6bb0b7e11ff247e3ad8",
 };
 
 describe("generateStatements at the default size", () => {
   it.each(Object.entries(DEFAULT_DIGESTS))(
-    "gives exactly the files it gave before sizes, on %s",
+    "gives exactly the files the flows rely on, on %s",
     (today, digest) => {
       expect(digestOf(generateStatements(today))).toBe(digest);
       expect(digestOf(generateStatements(today, { size: "default" }))).toBe(
@@ -166,11 +168,11 @@ describe("generateStatements", () => {
     expect(generateStatements(TODAY)).toEqual(generateStatements(TODAY));
   });
 
-  it("gives about 400 rows", async () => {
+  it("gives about 470 rows", async () => {
     const { length } = await parsedRows();
 
-    expect(length).toBeGreaterThanOrEqual(350);
-    expect(length).toBeLessThanOrEqual(450);
+    expect(length).toBeGreaterThanOrEqual(420);
+    expect(length).toBeLessThanOrEqual(520);
   });
 
   it("covers five months, with the second one empty", async () => {
@@ -273,6 +275,44 @@ describe("generateStatements", () => {
       );
 
       expect(grocer).not.toHaveLength(0);
+    },
+  );
+
+  // With the seed's rules, they give the card 9 categories in a month, so the
+  // Account page has an Other, and exactly 7 in the first month, so it has none.
+  it("writes the sorted card merchants each month, two of them from the second", async () => {
+    const rows = await parsedRows();
+    const sortedIn = (month: string) =>
+      rows
+        .filter(
+          ({ postedOn, description }) =>
+            postedOn.startsWith(month) &&
+            SORTED_CARD_MERCHANTS.some(({ name }) => name === description),
+        )
+        .map(({ description }) => description);
+
+    expect(sortedIn("2026-07")).toHaveLength(5);
+    expect(sortedIn("2026-07")).not.toContain("SAMPLE CLINIC");
+    expect(sortedIn("2026-07")).not.toContain("SAMPLE RENTERS COVER");
+    expect(new Set(sortedIn("2026-09"))).toEqual(
+      new Set(SORTED_CARD_MERCHANTS.map(({ name }) => name)),
+    );
+    expect(new Set(sortedIn("2026-10")).size).toBe(7);
+  });
+
+  // The rule for SAMPLE COFFEE puts it in Dining, so with Groceries' monthly row
+  // the first month has exactly 7 categories however the random rows fall.
+  it.each(["2026-11-15", "2027-01-15", "2027-06-15"])(
+    "writes a SAMPLE COFFEE row in every month with rows, on %s",
+    async (today) => {
+      const rows = await parsedRows(today);
+      const coffeeMonths = new Set(
+        rows
+          .filter(({ description }) => description.startsWith("SAMPLE COFFEE"))
+          .map(({ postedOn }) => postedOn.slice(0, 7)),
+      );
+
+      expect([...coffeeMonths].sort()).toEqual(monthsOf(rows));
     },
   );
 
