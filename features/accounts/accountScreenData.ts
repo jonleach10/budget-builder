@@ -12,6 +12,7 @@ import { needsReview } from "@/features/categorize/needsReview";
 import { countsAgainstBudget } from "@/features/categorize/transactionType";
 import { formatMoney, sumMinor } from "@/lib/money";
 import { accountHref } from "./accountParams";
+import { layoutDonut, type DonutLayout, type SliceColor } from "./donutLayout";
 import {
   comparisonRange,
   comparisonText,
@@ -70,17 +71,37 @@ export type PeriodControl = {
   to: MonthSelect;
 };
 
-export type CategoryLine = {
+/** A category grouped into Other, listed under it. */
+export type MemberLine = {
   name: string;
   amount: string;
+  /** Of the donut, like every share. */
   share: string;
   /** Against the period before, or null for All Months, which has none. */
   change: string | null;
-  /** Spending in the period before and none now: listed muted, after the others. */
+};
+
+export type CategoryLine = MemberLine & {
+  /** Unique in the list, even if a category is called Other. */
+  key: string;
+  /**
+   * Spending of $0 or below in the period, as when Spending stopped or a purchase
+   * was refunded: listed muted, after the slices, and never a slice.
+   */
   dropped: boolean;
+  /** Its slice's colour, or null for a muted row, which has no slice. */
+  swatch: SliceColor | null;
+  /** Other's categories; empty on every other row. */
+  members: MemberLine[];
 };
 
 export type TotalLine = { amount: string; share: string; change: string | null };
+
+/** The donut, and its accessible name, which carries the middle figure. */
+export type SpendingChart = { layout: DonutLayout; label: string };
+
+/** In the donut's place when no category has Spending above zero. */
+export type NoSpendingLine = { title: string; text: string };
 
 export type ReadyAccount = {
   status: "ready";
@@ -90,7 +111,12 @@ export type ReadyAccount = {
   /** The card's hint: what Change is against, or why there's none. */
   hint: string;
   showChange: boolean;
+  /** Null when there's no Spending, and noSpending says so instead. */
+  chart: SpendingChart | null;
+  noSpending: NoSpendingLine | null;
+  /** The slices' rows, Other last among them, then the muted rows. */
   categories: CategoryLine[];
+  /** Every listed row, muted ones too, so it can differ from the middle figure. */
   total: TotalLine;
 };
 
@@ -143,6 +169,10 @@ function pickerFor(
     })),
   };
 }
+
+/** The most slices the donut has: with more categories, the 7th is Other. */
+const SLICES = 7;
+const SLOTS: readonly SliceColor[] = [1, 2, 3, 4, 5, 6, 7];
 
 /** A share for display only, worked out from minor units and never fed back. */
 function percent(part: number, whole: number): string {
@@ -324,18 +354,60 @@ export function buildAccountScreen({
     [nameB, b]: [string, number],
   ) => b - a || position(nameA) - position(nameB) || nameA.localeCompare(nameB);
 
-  // Spending before and none now, or a net refund now, as when a purchase was
-  // returned. Such a category is listed after the others and is never a slice.
-  const isDropped = (name: string) =>
-    (before.get(name) ?? 0) > 0 && (now.get(name) ?? 0) <= 0;
-  const totals = [...now].filter(([name]) => !isDropped(name)).sort(largestFirst);
-  const dropped = [...before].filter(([name]) => isDropped(name)).sort(largestFirst);
-  // Every listed row, dropped ones too, so the Amount column adds up to it.
+  // Only Spending above zero makes a slice. A category at $0 or below, because its
+  // Spending stopped or refunds outweighed it, is listed muted after the slices.
+  const sliced = [...now].filter(([, amount]) => amount > 0).sort(largestFirst);
+  const muted = [...new Set([...now.keys(), ...before.keys()])]
+    .filter((name) => {
+      const amount = now.get(name);
+      return amount === undefined ? (before.get(name) ?? 0) > 0 : amount <= 0;
+    })
+    .map((name): [string, number] => [name, before.get(name) ?? 0])
+    .sort(largestFirst);
+
+  // The top 6 get a slice each and the rest are Other, unless 7 fit without it.
+  const own = sliced.length > SLICES ? sliced.slice(0, SLICES - 1) : sliced;
+  const grouped = sliced.slice(own.length);
+
+  // A share is of the donut, the sum of the slices, worked out in minor units.
+  const sliceSum = sumMinor(sliced.map(([, amount]) => amount));
+  // Every listed row, muted ones too, so the Amount column adds up to it.
   const total = sumMinor([...now.values()]);
   const totalBefore = sumMinor([...before.values()]);
   const money = (minor: number) => formatMoney({ minor, currency });
   const changeOf = (amount: number, name: string) =>
     showChange ? change(amount, before.get(name) ?? 0) : null;
+  const member = ([name, amount]: [string, number]): MemberLine => ({
+    name,
+    amount: money(amount),
+    share: percent(amount, sliceSum),
+    change: changeOf(amount, name),
+  });
+
+  const slices = own.map(([name, amount], index) => ({
+    key: `category:${name}`,
+    minor: amount,
+    line: member([name, amount]),
+    color: SLOTS[index],
+    members: [] as MemberLine[],
+  }));
+  if (grouped.length > 0) {
+    const amount = sumMinor(grouped.map(([, minor]) => minor));
+    const amountBefore = sumMinor(grouped.map(([name]) => before.get(name) ?? 0));
+    slices.push({
+      key: "other",
+      minor: amount,
+      line: {
+        name: "Other",
+        amount: money(amount),
+        share: percent(amount, sliceSum),
+        change: showChange ? change(amount, amountBefore) : null,
+      },
+      color: "other",
+      members: grouped.map(member),
+    });
+  }
+  const middle = money(sliceSum);
 
   return {
     status: "ready",
@@ -346,22 +418,47 @@ export function buildAccountScreen({
       ? comparisonText(range)
       : "All Months has no earlier period to compare with, so there's no Change column.",
     showChange,
+    chart:
+      slices.length === 0
+        ? null
+        : {
+            layout: layoutDonut({
+              slices: slices.map(({ key, minor, line, color }) => ({
+                key,
+                minor,
+                share: line.share,
+                color,
+              })),
+              total: middle,
+            }),
+            label: `Spending by category, ${middle} in all. The list shows every figure.`,
+          },
+    noSpending:
+      slices.length === 0
+        ? {
+            title: `No Spending ${periodText(range, today)}.`,
+            text: "Only Spending rows count here, so transfers and income aren't shown.",
+          }
+        : null,
     categories: [
-      ...totals.map(([name, amount]) => ({
-        name,
-        amount: money(amount),
-        share: percent(amount, total),
-        change: changeOf(amount, name),
+      ...slices.map(({ key, line, color, members }) => ({
+        ...line,
+        key,
         dropped: false,
+        swatch: color,
+        members,
       })),
-      ...dropped.map(([name]) => {
+      ...muted.map(([name]) => {
         const amount = now.get(name) ?? 0;
         return {
+          key: `category:${name}`,
           name,
           amount: money(amount),
           share: "0%",
           change: changeOf(amount, name),
           dropped: true,
+          swatch: null,
+          members: [],
         };
       }),
     ],

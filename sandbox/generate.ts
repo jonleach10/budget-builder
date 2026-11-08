@@ -118,6 +118,22 @@ const CARD_MERCHANTS: readonly Merchant[] = [
   { name: "SAMPLE HARDWARE", category: "Home", typical: 3900 },
 ];
 
+/**
+ * One card row each a month, at a fixed amount, which the seed's rules sort into
+ * a category each. With Groceries and Dining that's 9 categories with Spending,
+ * so the Account page's donut has an Other. Health and Insurance start in the
+ * second month with rows, so the first has exactly 7, with no Other.
+ */
+export const SORTED_CARD_MERCHANTS = [
+  { name: "SAMPLE STORAGE CO", category: "Housing", bankCategory: "Home", minor: 18_500, day: 2 },
+  { name: "SAMPLE OUTFITTERS", category: "Shopping", bankCategory: "Shopping", minor: 14_250, day: 6 },
+  { name: "SAMPLE SERVICE STATION", category: "Gas", bankCategory: "Gas", minor: 9_600, day: 11 },
+  { name: "SAMPLE GARDEN CENTER", category: "Home", bankCategory: "Home", minor: 7_400, day: 13 },
+  { name: "SAMPLE CINEMA", category: "Entertainment", bankCategory: "Entertainment", minor: 5_200, day: 19 },
+  { name: "SAMPLE CLINIC", category: "Health", bankCategory: "Health & Wellness", minor: 3_600, day: 23, later: true },
+  { name: "SAMPLE RENTERS COVER", category: "Insurance", bankCategory: "Bills & Utilities", minor: 2_900, day: 25, later: true },
+] as const;
+
 const DEBIT_MERCHANTS: readonly string[] = [
   "SAMPLE DELI",
   "SAMPLE LAUNDRY",
@@ -419,7 +435,35 @@ function cardEvents(month: Month): CardRow[] {
   ];
 }
 
-function cardRows(month: Month, profile: SizeProfile): CardRow[] {
+/**
+ * A coffee every month, beside the random ones, so Dining is always one of the 7.
+ * Its amount is above any random coffee's, so it's never a possible duplicate.
+ */
+const MONTHLY_COFFEE = 1_150;
+
+function sortedCardRows(month: Month, first: boolean): CardRow[] {
+  const coffee = cardRowOn(month, 7, {
+    description: "SAMPLE COFFEE 118",
+    category: "Food & Drink",
+    type: "Sale",
+    minor: -MONTHLY_COFFEE,
+    memo: "",
+  });
+  const sorted = SORTED_CARD_MERCHANTS.filter(
+    (merchant) => !first || !("later" in merchant),
+  ).map(({ name, bankCategory, minor, day }) =>
+    cardRowOn(month, day, {
+      description: name,
+      category: bankCategory,
+      type: "Sale",
+      minor: -minor,
+      memo: "",
+    }),
+  );
+  return [coffee, ...sorted];
+}
+
+function cardRows(month: Month, profile: SizeProfile, first = false): CardRow[] {
   const random = randomFor(month);
 
   const purchases = Array.from({ length: profile.cardRows }, () => {
@@ -432,7 +476,7 @@ function cardRows(month: Month, profile: SizeProfile): CardRow[] {
       memo: "",
     });
   });
-  return [...purchases, ...cardEvents(month)];
+  return [...purchases, ...cardEvents(month), ...sortedCardRows(month, first)];
 }
 
 function germanRowOn(
@@ -620,7 +664,9 @@ export function generateStatements(
     },
     {
       name: `Chase2222_Activity_${stamp}.csv`,
-      text: chaseCardFile(rowsUpToToday(cardRows)),
+      text: chaseCardFile(
+        rowsUpToToday((month, size) => cardRows(month, size, month === months[0])),
+      ),
     },
     {
       name: "DE3333_EUR_export.csv",

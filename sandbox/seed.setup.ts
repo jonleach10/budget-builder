@@ -7,6 +7,7 @@ import {
   generateStatements,
   SANDBOX_ACCOUNTS,
   sandboxMonths,
+  SORTED_CARD_MERCHANTS,
 } from "./generate.ts";
 import { assertLocalSupabase } from "./guard.ts";
 import { totpCode } from "./totp.ts";
@@ -238,6 +239,13 @@ setup("seed the fake owner's data", async () => {
         position: 2,
         type: "income",
       },
+      // So the card has Spending in 9 categories, and the Account page an Other.
+      ...SORTED_CARD_MERCHANTS.map(({ name, category }, index) => ({
+        match_on: "descriptionStartsWith",
+        value: name,
+        position: 3 + index,
+        category_id: categoryIds.get(category),
+      })),
     ]),
   );
 
