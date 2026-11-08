@@ -37,7 +37,7 @@ Months in the sandbox: the seed fills the 12 months up to the current one. "Last
 | `/login/mfa/setup` | Set Up Authenticator | AUTH-05, AUTH-07, AUTH-08 |
 | `/` | Overview | AUTH-01, NAV-01, OVR-01 to OVR-04, EMPTY-01 |
 | `/budget` | Budget | NAV-01, BUD-01 to BUD-07, EMPTY-01, EMPTY-02 |
-| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-07, EMPTY-01 |
+| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-09, EMPTY-01 |
 | `/transactions` | Transactions | NAV-01, TXN-01 to TXN-08, EMPTY-01 |
 | `/review` | Review Inbox | NAV-01, REV-01 to REV-14, EMPTY-01 |
 | `/import` | Import | NAV-01, IMP-01 to IMP-05, EMPTY-01 |
@@ -343,7 +343,7 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 2. Select Sandbox Girokonto · Ending 3333.
 3. Reload.
 
-**Result**: step 1 lists all five accounts by name, savings included, each with its last four digits. After step 2, the address holds the account and keeps the period, as From and To months, the subtitle says amounts are in EUR, and the amounts show in euros with no conversion. The reload keeps Sandbox Girokonto.
+**Result**: step 1 lists all five accounts by name, savings included, each with its last four digits. After step 2, the address holds the account and keeps the period, as From and To months, the subtitle says amounts are in EUR, and the amounts show in euros with no conversion. The sandbox's Girokonto has no decided Spending in Last 3 Months, so it shows the no-Spending line of ACC-09 instead of amounts. The reload keeps Sandbox Girokonto.
 
 ### ACC-03 An account with no rows
 
@@ -414,6 +414,30 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 2. Use the browser's back button twice.
 
 **Result**: the first back returns to This Month, with its address, lit shortcut and figures. The second returns to `/accounts` on Last 3 Months.
+
+### ACC-08 Read the donut of Spending by category
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Look at Spending by Category on Sandbox Card.
+
+**Result**: a donut sits to the left of the list, with "Spending" and the period's Spending in its middle, the same amount as the Total row. Its slices run clockwise from the top in the list's order, and each row in the list has a swatch in its slice's colour. Colours go by place in the list, not by category. Slices of 8% or more carry their share on the ring, and every share on the ring is in the list's Share column. With more than 7 categories, the top 6 get a slice each and the rest are grouped into Other, the only hatched slice, and the list shows Other's categories under it with their own Amount, Share and Change. With exactly 7 there's no Other, and the 7th slice is solid. A category at $0.00 or below, such as one that had Spending before and none now, is listed muted after the slices with an empty swatch, and has no slice. A screen reader reads the donut as one image named with its middle figure, such as "Spending by category, $829.14 in all. The list gives every figure.", and the list as usual. On a phone, the donut sits above the list, smaller, and nothing scrolls sideways. The sandbox has only Groceries and Dining with Spending, so its donut has 2 slices and no Other.
+
+### ACC-09 An account with no Spending
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Select Sandbox Savings · Ending 4444 in the Account picker.
+
+**Result**: Spending by Category shows one plain line in place of the donut and the list: "No Spending" and the period's dates, such as "No Spending from August 1 to October 31, 2026.", with "Only Spending rows count here, so transfers and income aren't shown." under it. There's no hint about Change, no donut and no Total. The period controls stay, because the account has rows. If a category had Spending in the period before, the list stays beside the line with that category muted at $0.00 and -100%, then the Total. On a phone, the line fills the card's width and nothing scrolls sideways.
 
 ## Transactions
 

@@ -5,6 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 const PHONE = { width: 390, height: 844 };
 
 const CARD = "Sandbox Card · Ending 2222";
+const SAVINGS = "Sandbox Savings · Ending 4444";
 const GIROKONTO = "Sandbox Girokonto · Ending 3333";
 const NO_ROWS = "Sandbox Commerzbank Savings · Ending 5555";
 
@@ -94,6 +95,29 @@ function categoryTable(page: Page) {
   return page.getByRole("table", { name: "Spending by category" });
 }
 
+function categoryList(page: Page) {
+  return page.getByRole("list", { name: "Spending by category" });
+}
+
+/** The donut is one image, named with the figure in its middle. */
+function donut(page: Page) {
+  return page.getByRole("img", { name: /^Spending by category, / });
+}
+
+/** The figure the donut's name gives, such as "$829.14". */
+async function donutFigure(page: Page): Promise<string> {
+  const name = await donut(page).getAttribute("aria-label");
+  const figure = name?.match(/^Spending by category, (\S+) in all\. The list gives every figure\.$/);
+  expect(figure, `the donut's name: ${name}`).not.toBeNull();
+  return figure?.[1] ?? "";
+}
+
+async function overflow(page: Page): Promise<number> {
+  return page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+}
+
 test("ACC-01: the sidebar opens the Account page on the first account", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Accounts" }).click();
@@ -136,7 +160,7 @@ test("ACC-02: choosing another account shows it, in its own currency", async ({ 
     "Sandbox Checking · Ending 1111",
     NO_ROWS,
     GIROKONTO,
-    "Sandbox Savings · Ending 4444",
+    SAVINGS,
   ]);
 
   await picker(page).selectOption({ label: GIROKONTO });
@@ -146,7 +170,15 @@ test("ACC-02: choosing another account shows it, in its own currency", async ({ 
     new RegExp(`/accounts\\?account=[0-9a-f-]+&from=${monthKey(-3)}&to=${monthKey(-1)}$`),
   );
   await expect(page.getByText(`Amounts are in EUR, ${lastThreeMonths()}.`)).toBeVisible();
-  await expect(categoryTable(page).getByRole("row").last()).toContainText(/Total€/);
+  // The seed's Girokonto has no decided Spending in the period, so it shows the
+  // no-Spending line. Once it has some, its Total is in euros.
+  await expect(
+    categoryTable(page)
+      .getByRole("row")
+      .last()
+      .filter({ hasText: /^Total€/ })
+      .or(page.getByText(`No Spending ${lastThreeMonths()}.`)),
+  ).toBeVisible();
 
   await page.reload();
   await expect(picker(page).locator("option:checked")).toHaveText(GIROKONTO);
@@ -330,4 +362,75 @@ test("ACC-07: the back button returns to the period before", async ({ page }) =>
   await expect(page).toHaveURL(/\/accounts$/);
   await expect(shortcut(page, "Last 3 Months")).toHaveAttribute("aria-current", "page");
   await expect(page.getByText(`Amounts are in USD, ${lastThreeMonths()}.`)).toBeVisible();
+});
+
+test("ACC-08: the donut shows Spending by category beside the list", async ({ page }) => {
+  await page.goto("/accounts");
+  const table = categoryTable(page);
+  await expect(donut(page)).toBeVisible();
+
+  // The middle figure is the sum of the slices, which here is the Total.
+  const figure = await donutFigure(page);
+  await expect(donut(page).getByText(figure, { exact: true })).toBeAttached();
+  await expect(donut(page).getByText("Spending", { exact: true })).toBeAttached();
+  await expect(table.getByRole("row").last()).toContainText(`Total${figure}100%`);
+
+  // Every share on the ring is in the list, which carries every figure.
+  const shares = await table.locator("tbody tr > td:nth-child(3)").allTextContents();
+  const ringLabels = (await donut(page).locator("text").allTextContents()).filter((text) =>
+    /^\d+%$/.test(text),
+  );
+  expect(ringLabels.length).toBeGreaterThan(0);
+  for (const label of ringLabels) expect(shares).toContain(label);
+
+  // Beside the list on a desktop.
+  const chart = await donut(page).boundingBox();
+  const list = await table.boundingBox();
+  expect(chart?.x ?? 0).toBeLessThan(list?.x ?? 0);
+  expect(chart?.width).toBe(280);
+  await picture(page, "accounts-donut-desktop");
+});
+
+test("ACC-08: the donut sits above the list on a phone", async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await page.goto("/accounts");
+  await expect(donut(page)).toBeVisible();
+
+  const figure = await donutFigure(page);
+  const list = categoryList(page);
+  await expect(list.getByRole("listitem").last()).toContainText(`Total${figure}`);
+
+  const chart = await donut(page).boundingBox();
+  const listBox = await list.boundingBox();
+  expect((chart?.y ?? 0) + (chart?.height ?? 0)).toBeLessThanOrEqual(listBox?.y ?? 0);
+  expect(chart?.width).toBe(248);
+
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await picture(page, "accounts-donut-phone");
+});
+
+test("ACC-09: an account with no Spending shows a plain line instead of the donut", async ({
+  page,
+}) => {
+  await page.goto("/accounts");
+  await picker(page).selectOption({ label: SAVINGS });
+  await expect(page.getByText(`Amounts are in USD, ${lastThreeMonths()}.`)).toBeVisible();
+
+  await expect(page.getByText(`No Spending ${lastThreeMonths()}.`)).toBeVisible();
+  await expect(
+    page.getByText("Only Spending rows count here, so transfers and income aren't shown."),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Spending by Category" })).toBeVisible();
+  await expect(donut(page)).toHaveCount(0);
+  await expect(categoryTable(page)).toHaveCount(0);
+  await expect(page.getByText(/^Change is against/)).toHaveCount(0);
+  // The period controls stay, because the account has rows.
+  await expect(shortcut(page, "Last 3 Months")).toHaveAttribute("aria-current", "page");
+  await picture(page, "accounts-no-spending-desktop");
+
+  await page.setViewportSize(PHONE);
+  await expect(page.getByText(`No Spending ${lastThreeMonths()}.`)).toBeVisible();
+  await expect(categoryList(page)).toHaveCount(0);
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await picture(page, "accounts-no-spending-phone");
 });
