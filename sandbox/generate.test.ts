@@ -5,7 +5,12 @@ import { passThroughHash } from "@/features/import/__fixtures__/load";
 import { parseStatement } from "@/features/import/parseStatement";
 import { REDACTED } from "@/features/import/redact";
 import type { Account, Transaction } from "@/features/import/types";
-import { generateStatements, SANDBOX_ACCOUNTS, sandboxMonths } from "./generate.ts";
+import {
+  type DataSize,
+  generateStatements,
+  SANDBOX_ACCOUNTS,
+  sandboxMonths,
+} from "./generate.ts";
 
 const TODAY = "2026-11-15";
 
@@ -16,13 +21,24 @@ const accounts: Account[] = SANDBOX_ACCOUNTS.map((account) => ({
   currency: account.currency,
 }));
 
-async function parsedRows(today = TODAY): Promise<Transaction[]> {
+async function parsedRows(
+  today = TODAY,
+  size?: DataSize,
+): Promise<Transaction[]> {
   const statements = await Promise.all(
-    generateStatements(today).map(({ name, text }) =>
+    generateStatements(today, { size }).map(({ name, text }) =>
       parseStatement({ fileName: name, text, accounts, hash: passThroughHash }),
     ),
   );
   return statements.flatMap(({ transactions }) => transactions);
+}
+
+const SIZES: readonly DataSize[] = ["default", "small", "medium", "large"];
+
+function allText(size?: DataSize): string {
+  return generateStatements(TODAY, { size })
+    .map((file) => file.text)
+    .join("\n");
 }
 
 function monthsOf(rows: readonly Transaction[]): string[] {
@@ -49,6 +65,9 @@ describe("generateStatements at the default size", () => {
     "gives exactly the files it gave before sizes, on %s",
     (today, digest) => {
       expect(digestOf(generateStatements(today))).toBe(digest);
+      expect(digestOf(generateStatements(today, { size: "default" }))).toBe(
+        digest,
+      );
     },
   );
 
@@ -60,6 +79,53 @@ describe("generateStatements at the default size", () => {
       "2026-10",
       "2026-11",
     ]);
+  });
+});
+
+describe("generateStatements at a set size", () => {
+  // About the owner's real row count, then 5 and 15 times it.
+  it.each([
+    ["small", 1_600],
+    ["medium", 8_000],
+    ["large", 24_000],
+  ] as const)("at %s, gives about %i rows", async (size, target) => {
+    const { length } = await parsedRows(TODAY, size);
+
+    expect(length).toBeGreaterThanOrEqual(target * 0.9);
+    expect(length).toBeLessThanOrEqual(target * 1.1);
+  });
+
+  it.each(SIZES)("at %s, spreads rows across every account in both currencies", async (size) => {
+    const rows = await parsedRows(TODAY, size);
+
+    expect(new Set(rows.map(({ accountId }) => accountId))).toEqual(
+      new Set(accounts.map(({ id }) => id)),
+    );
+    expect(new Set(rows.map(({ amount }) => amount.currency))).toEqual(
+      new Set(["USD", "EUR"]),
+    );
+  });
+
+  it.each(SIZES)("at %s, lists every month that has rows", async (size) => {
+    const listed = sandboxMonths(TODAY, { size });
+
+    // The second month listed is the empty one.
+    expect(monthsOf(await parsedRows(TODAY, size))).toEqual(
+      listed.filter((_, index) => index !== 1),
+    );
+  });
+
+  it.each(SIZES)("at %s, gives the same files for the same day", (size) => {
+    expect(generateStatements(TODAY, { size })).toEqual(
+      generateStatements(TODAY, { size }),
+    );
+  });
+
+  it.each(SIZES)("at %s, uses only an IBAN that can't be a real account", (size) => {
+    const ibans = allText(size).match(/\b[A-Z]{2}\d{2}(?: ?\d){10,}/g) ?? [];
+
+    expect(ibans.length).toBeGreaterThan(0);
+    expect(ibans.every((iban) => iban.startsWith("DE00"))).toBe(true);
   });
 });
 
