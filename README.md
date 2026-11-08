@@ -25,7 +25,18 @@ npm run sandbox:shot -- "/transactions?month=2026-10" --phone
 npm run sandbox:down    # stops it and frees its memory
 ```
 
-Rows come from `sandbox/generate.ts` and go through the real import. A fake owner signs in at the real login and MFA pages. Nothing here changes hosted, and it isn't part of CI.
+Rows come from `sandbox/generate.ts` and go through the real import. A fake owner signs in at the real login and MFA pages. A second fake user, `second-user@sandbox.invalid`, has its own MFA and owns no rows, so the owner's rows can be tried as someone else. A third, `setup-user@sandbox.invalid`, has only a password, so MFA setup can be tried. Nothing here changes hosted, and it isn't part of CI.
+
+Odd states come on request, and the normal seed never has them:
+
+```bash
+npm run sandbox:weird -- leap-day zero-rate      # writes statements to sandbox/.weird to import by hand
+npm run sandbox:weird -- missing-rate            # reseeds, then changes stored rows the import can't
+```
+
+Statements: `semicolon-purpose`, `leap-day`, `long-transfer-number`, `zero-rate`, `decomposed-unicode`, `empty-month`, `rows-today`. Stored rows: `missing-rate`, `half-failed-move`. `SANDBOX_WEIRD_DIR` changes where statements go.
+
+For the import flows: `seeded` writes the seed's own statements, which import as all skipped, and `fresh` writes new rows from last month, which import as new without asking the rates service.
 
 History
 - January 20th, 2026 => 0.1: first working version

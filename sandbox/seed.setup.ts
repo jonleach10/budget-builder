@@ -1,10 +1,19 @@
 import { expect, test as setup } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { importStatements } from "@/features/import/importStatements";
+import { fakeRates } from "./fakeRates.ts";
 import { generateStatements, SANDBOX_ACCOUNTS, sandboxMonths } from "./generate.ts";
 import { assertLocalSupabase } from "./guard.ts";
-import { OWNER_EMAIL, OWNER_PASSWORD, saveTotpSecret } from "./owner.ts";
 import { totpCode } from "./totp.ts";
+import {
+  type Credentials,
+  OWNER,
+  type SandboxUser,
+  SECOND_USER,
+  SETUP_USER,
+  saveTotpSecret,
+} from "./users.ts";
+import { applyWeirdRows, WEIRD_ROWS, type WeirdRows, weirdRowsIn } from "./weirdRows.ts";
 
 const CATEGORIES = [
   "Groceries",
@@ -44,34 +53,6 @@ const SCHEMA_WAIT_MS = 200;
 /** PostgREST's codes for a database it can't reach yet or a schema it hasn't read. */
 const SCHEMA_LOADING = new Set(["PGRST000", "PGRST001", "PGRST002", "PGRST205"]);
 
-/** Made up, and the same for every day, so no call reaches the rates service. */
-const EUR_TO_USD = 1.08;
-
-function daysBetween(from: string, to: string): string[] {
-  const days: string[] = [];
-  const end = Date.parse(to);
-
-  for (let day = Date.parse(from); day <= end; day += 86_400_000) {
-    days.push(new Date(day).toISOString().slice(0, 10));
-  }
-  return days;
-}
-
-const fakeRates: typeof fetch = async (input) => {
-  const query = new URL(String(input)).searchParams;
-  const base = query.get("base");
-  const quote = query.get("quotes");
-
-  return Response.json(
-    daysBetween(query.get("from") ?? "", query.get("to") ?? "").map((date) => ({
-      date,
-      base,
-      quote,
-      rate: base === "EUR" ? EUR_TO_USD : 1 / EUR_TO_USD,
-    })),
-  );
-};
-
 function check({ error }: { error: unknown }): void {
   if (error) throw error instanceof Error ? error : new Error(JSON.stringify(error));
 }
@@ -98,25 +79,32 @@ async function waitForSchema(client: SupabaseClient): Promise<void> {
   throw new Error("The local API never loaded the schema.");
 }
 
-async function createOwner(url: string, secretKey: string): Promise<void> {
-  const admin = createClient(url, secretKey, {
+/** Through the admin API, which works while signups stay closed. */
+async function createUser(user: Credentials): Promise<void> {
+  const admin = createClient(required("SANDBOX_URL"), required("SANDBOX_SECRET_KEY"), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   check(
     await admin.auth.admin.createUser({
-      email: OWNER_EMAIL,
-      password: OWNER_PASSWORD,
+      email: user.email,
+      password: user.password,
       email_confirm: true,
     }),
   );
 }
 
+function userClient(): SupabaseClient {
+  return createClient(required("SANDBOX_URL"), required("SANDBOX_PUBLISHABLE_KEY"), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 /** The same calls the MFA setup page makes, so the session reaches `aal2` for real. */
-async function signInWithMfa(client: SupabaseClient): Promise<void> {
+async function signInWithMfa(client: SupabaseClient, user: SandboxUser): Promise<void> {
   check(
     await client.auth.signInWithPassword({
-      email: OWNER_EMAIL,
-      password: OWNER_PASSWORD,
+      email: user.email,
+      password: user.password,
     }),
   );
 
@@ -129,7 +117,15 @@ async function signInWithMfa(client: SupabaseClient): Promise<void> {
       code: totpCode(totp.secret, Date.now() / 1000),
     }),
   );
-  saveTotpSecret(totp.secret);
+  saveTotpSecret(user, totp.secret);
+}
+
+/** Names from SANDBOX_WEIRD_ROWS, comma-separated, refusing any it doesn't know. */
+function weirdRowsAsked(): WeirdRows[] {
+  const asked = (process.env.SANDBOX_WEIRD_ROWS ?? "").split(",").filter(Boolean);
+  const unknown = asked.filter((name) => !(WEIRD_ROWS as readonly string[]).includes(name));
+  if (unknown.length > 0) throw new Error(`No weird rows called ${unknown.join(", ")}.`);
+  return weirdRowsIn(asked);
 }
 
 async function addCategories(client: SupabaseClient): Promise<Map<string, string>> {
@@ -194,15 +190,12 @@ async function labelGroceryRow(
 }
 
 setup("seed the fake owner's data", async () => {
-  const url = required("SANDBOX_URL");
-  assertLocalSupabase(url);
+  assertLocalSupabase(required("SANDBOX_URL"));
+  const weirdRows = weirdRowsAsked();
 
-  await createOwner(url, required("SANDBOX_SECRET_KEY"));
-
-  const client = createClient(url, required("SANDBOX_PUBLISHABLE_KEY"), {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  await signInWithMfa(client);
+  await createUser(OWNER);
+  const client = userClient();
+  await signInWithMfa(client, OWNER);
   await waitForSchema(client);
 
   check(await client.from("settings").insert({ base_currency: "USD" }));
@@ -262,4 +255,23 @@ setup("seed the fake owner's data", async () => {
   if (result.ok) console.log(JSON.stringify(result.summary));
 
   await labelGroceryRow(client, today, categoryIds.get("Groceries"));
+
+  // Only on request, after everything the normal seed gives.
+  await applyWeirdRows(client, today, weirdRows);
+  if (weirdRows.length > 0) console.log(`Weird rows: ${weirdRows.join(", ")}`);
+});
+
+/** Signs up with MFA like the owner, and is given nothing: no settings, accounts or rows. */
+setup("seed the second user", async () => {
+  assertLocalSupabase(required("SANDBOX_URL"));
+
+  await createUser(SECOND_USER);
+  await signInWithMfa(userClient(), SECOND_USER);
+});
+
+/** A password and nothing else: no authenticator, settings, accounts or rows. */
+setup("seed the setup user", async () => {
+  assertLocalSupabase(required("SANDBOX_URL"));
+
+  await createUser(SETUP_USER);
 });

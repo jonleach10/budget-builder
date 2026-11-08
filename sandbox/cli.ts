@@ -1,5 +1,6 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { assertLoopbackPorts, assertNoEnvLocal } from "./guard.ts";
 import {
   assertServerMode,
@@ -8,6 +9,8 @@ import {
   serverModeFrom,
 } from "./mode.ts";
 import { readStatus } from "./status.ts";
+import { WEIRD_STATEMENTS, weirdStatements } from "./weird.ts";
+import { WEIRD_ROWS, weirdRowsIn } from "./weirdRows.ts";
 
 /**
  * Runs the local sandbox, from the root of a worktree with no `.env.local`.
@@ -134,7 +137,7 @@ function playwright(project: string, env: Record<string, string> = {}): void {
   );
 }
 
-function seed(): void {
+function seed(weirdRows: readonly string[] = []): void {
   run("npx", [...SUPABASE, "db", "reset", "--local"]);
   checkPorts();
 
@@ -143,7 +146,41 @@ function seed(): void {
     SANDBOX_URL: url,
     SANDBOX_PUBLISHABLE_KEY: publishableKey,
     SANDBOX_SECRET_KEY: secretKey,
+    SANDBOX_WEIRD_ROWS: weirdRows.join(","),
   });
+}
+
+function isOneOf(names: readonly string[]) {
+  return (name: string) => names.includes(name);
+}
+
+/**
+ * Odd states on request. Weird rows reseed from scratch with them applied.
+ * Weird statements are written as files to import by hand, never imported here.
+ */
+function weird(...args: (string | undefined)[]): void {
+  const names = args.filter((name): name is string => Boolean(name));
+  const known = [...WEIRD_STATEMENTS, ...WEIRD_ROWS];
+  const unknown = names.filter((name) => !isOneOf(known)(name));
+
+  if (names.length === 0 || unknown.length > 0) {
+    throw new Error(`Name one or more of: ${known.join(", ")}.`);
+  }
+
+  const rows = weirdRowsIn(names);
+  if (rows.length > 0) seed(rows);
+
+  const statements = WEIRD_STATEMENTS.filter(isOneOf(names));
+  if (statements.length === 0) return;
+
+  const folder = process.env.SANDBOX_WEIRD_DIR ?? "sandbox/.weird";
+  mkdirSync(folder, { recursive: true });
+  const today = new Date().toLocaleDateString("en-CA");
+  for (const { name, text } of weirdStatements(today, statements)) {
+    const path = join(folder, name);
+    writeFileSync(path, text);
+    console.log(path);
+  }
 }
 
 /** The app's settings, read from the local stack, which the guard checks. */
@@ -229,10 +266,11 @@ const COMMANDS: Record<string, (...args: (string | undefined)[]) => void> = {
   start,
   up,
   down,
-  seed,
+  seed: () => seed(),
   dev,
   prod,
   shot,
+  weird,
   // Flows save edits, so each run starts from fresh rows.
   flows: (...flags) => {
     const mode = checkedMode(flags);

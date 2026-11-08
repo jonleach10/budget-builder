@@ -122,14 +122,14 @@ const GERMAN_MERCHANTS: readonly string[] = [
 
 type Month = { year: number; number: number };
 
-type BankRow = {
+export type BankRow = {
   date: string;
   description: string;
   minor: number;
   type: string;
 };
 
-type CardRow = {
+export type CardRow = {
   date: string;
   postDate: string;
   description: string;
@@ -139,7 +139,7 @@ type CardRow = {
   memo: string;
 };
 
-type GermanRow = {
+export type GermanRow = {
   date: string;
   type: string;
   bookingText: string;
@@ -524,7 +524,7 @@ function byDate<Row extends { date: string }>(a: Row, b: Row): number {
 }
 
 /** Newest first, with a balance that runs through every row like the bank's. */
-function chaseBankFile(rows: readonly BankRow[]): string {
+export function chaseBankFile(rows: readonly BankRow[]): string {
   let balance = OPENING_BALANCE;
 
   const lines = [...rows].sort(byDate).map(({ date, description, minor, type }) => {
@@ -537,7 +537,7 @@ function chaseBankFile(rows: readonly BankRow[]): string {
   return [CHASE_BANK_HEADER, ...lines.reverse()].join("\n");
 }
 
-function chaseCardFile(rows: readonly CardRow[]): string {
+export function chaseCardFile(rows: readonly CardRow[]): string {
   const lines = [...rows]
     .sort(byDate)
     .reverse()
@@ -556,7 +556,7 @@ function chaseCardFile(rows: readonly CardRow[]): string {
   return [CHASE_CARD_HEADER, ...lines].join("\n");
 }
 
-function commerzbankFile(rows: readonly GermanRow[]): string {
+export function commerzbankFile(rows: readonly GermanRow[]): string {
   const lines = [...rows]
     .sort(byDate)
     .reverse()
