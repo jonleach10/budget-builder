@@ -11,7 +11,7 @@ import {
 } from "../supabase/tests/harness";
 import { fakeRates } from "./fakeRates.ts";
 import { generateStatements } from "./generate.ts";
-import { applyWeirdRows, WEIRD_ROWS } from "./weirdRows.ts";
+import { applyWeirdRows, WEIRD_ROWS, weirdRowsIn } from "./weirdRows.ts";
 
 const TODAY = "2026-11-15";
 
@@ -136,6 +136,22 @@ describe("applyWeirdRows, half-failed move", () => {
     const [checking, savings] = await rowsOnThe5th(db, "2026-10");
     expect(checking.transfer_pair_id).not.toBeNull();
     expect(checking.transfer_pair_id).toBe(savings.transfer_pair_id);
+  });
+});
+
+describe("weirdRowsIn", () => {
+  it("names a repeated weird row once, so asking twice still breaks one move", async () => {
+    const asked = weirdRowsIn(["half-failed-move", "half-failed-move"]);
+
+    await applyWeirdRows(databaseClient(db), TODAY, asked);
+
+    expect(await halfPaired(db)).toHaveLength(1);
+  });
+
+  it("keeps only the weird-row names, in their usual order", () => {
+    expect(
+      weirdRowsIn(["leap-day", "half-failed-move", "missing-rate", "missing-rate"]),
+    ).toEqual(["missing-rate", "half-failed-move"]);
   });
 });
 

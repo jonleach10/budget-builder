@@ -10,7 +10,7 @@ import {
 } from "./mode.ts";
 import { readStatus } from "./status.ts";
 import { WEIRD_STATEMENTS, weirdStatements } from "./weird.ts";
-import { WEIRD_ROWS } from "./weirdRows.ts";
+import { WEIRD_ROWS, weirdRowsIn } from "./weirdRows.ts";
 
 /**
  * Runs the local sandbox, from the root of a worktree with no `.env.local`.
@@ -167,7 +167,7 @@ function weird(...args: (string | undefined)[]): void {
     throw new Error(`Name one or more of: ${known.join(", ")}.`);
   }
 
-  const rows = names.filter(isOneOf(WEIRD_ROWS));
+  const rows = weirdRowsIn(names);
   if (rows.length > 0) seed(rows);
 
   const statements = WEIRD_STATEMENTS.filter(isOneOf(names));

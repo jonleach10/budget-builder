@@ -6,7 +6,7 @@ import { generateStatements, SANDBOX_ACCOUNTS, sandboxMonths } from "./generate.
 import { assertLocalSupabase } from "./guard.ts";
 import { totpCode } from "./totp.ts";
 import { OWNER, type SandboxUser, SECOND_USER, saveTotpSecret } from "./users.ts";
-import { applyWeirdRows, WEIRD_ROWS, type WeirdRows } from "./weirdRows.ts";
+import { applyWeirdRows, WEIRD_ROWS, type WeirdRows, weirdRowsIn } from "./weirdRows.ts";
 
 const CATEGORIES = [
   "Groceries",
@@ -118,7 +118,7 @@ function weirdRowsAsked(): WeirdRows[] {
   const asked = (process.env.SANDBOX_WEIRD_ROWS ?? "").split(",").filter(Boolean);
   const unknown = asked.filter((name) => !(WEIRD_ROWS as readonly string[]).includes(name));
   if (unknown.length > 0) throw new Error(`No weird rows called ${unknown.join(", ")}.`);
-  return asked as WeirdRows[];
+  return weirdRowsIn(asked);
 }
 
 async function addCategories(client: SupabaseClient): Promise<Map<string, string>> {

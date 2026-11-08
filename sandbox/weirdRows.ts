@@ -11,6 +11,15 @@ export const WEIRD_ROWS = ["missing-rate", "half-failed-move"] as const;
 
 export type WeirdRows = (typeof WEIRD_ROWS)[number];
 
+/**
+ * The weird-row names among those given, each once, in WEIRD_ROWS order. Each
+ * state is applied once however often it's asked for, because a second
+ * half-failed-move would break a second move.
+ */
+export function weirdRowsIn(names: readonly string[]): WeirdRows[] {
+  return WEIRD_ROWS.filter((name) => names.includes(name));
+}
+
 /** How far back findRate looks for a first of the month with no rate of its own. */
 const RATE_LOOKBACK_DAYS = 7;
 
