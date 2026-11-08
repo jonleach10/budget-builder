@@ -37,10 +37,36 @@ beforeEach(() => {
 });
 
 describe("server actions", () => {
-  it("cover accepting a group and confirming a transfer", () => {
+  it("cover accepting a group, confirming a transfer and a rule from the inbox", () => {
     expect(ACTIONS.map(([name]) => name).sort()).toEqual([
       "acceptGroupAction",
+      "addRuleFromInboxAction",
       "confirmTransferAction",
+      "sortByRuleAction",
+      "undoRuleSortAction",
+    ]);
+  });
+
+  it("refreshes the Rules screen and every screen a rule's sort changes", async () => {
+    vi.mocked(serverClient).mockResolvedValue(
+      clientWithNoRows() as unknown as Awaited<ReturnType<typeof serverClient>>,
+    );
+
+    await reviewActions.undoRuleSortAction({
+      ruleId: "rule-1",
+      created: false,
+      type: "transfer",
+      categoryId: null,
+      fromNoType: ["row-1"],
+      fromSpending: [],
+    });
+
+    expect(vi.mocked(revalidatePath).mock.calls.flat().sort()).toEqual([
+      "/",
+      "/budget",
+      "/review",
+      "/rules",
+      "/transactions",
     ]);
   });
 
@@ -69,6 +95,7 @@ describe("server actions", () => {
       "/",
       "/budget",
       "/review",
+      "/rules",
       "/transactions",
     ]);
   });
@@ -84,6 +111,7 @@ describe("server actions", () => {
       "/",
       "/budget",
       "/review",
+      "/rules",
       "/transactions",
     ]);
   });

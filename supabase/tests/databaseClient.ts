@@ -28,6 +28,9 @@ export function databaseClient(
   function from(table: string) {
     let columns = "";
     let changes: Readonly<Record<string, unknown>> | null = null;
+    let insert: Readonly<Record<string, unknown>> | null = null;
+    let remove = false;
+    let single = false;
     const conditions: string[] = [];
     const values: unknown[] = [];
 
@@ -37,8 +40,21 @@ export function databaseClient(
       return builder;
     }
 
+    function placeholders(row: Readonly<Record<string, unknown>>): string[] {
+      return Object.values(row).map((value) => {
+        values.push(value);
+        return `$${values.length}`;
+      });
+    }
+
     function statement(): string {
       const where = conditions.length ? `where ${conditions.join(" and ")}` : "";
+      const returning = columns === "" ? "" : `returning ${columns}`;
+      if (insert !== null) {
+        return `insert into public.${table} (${Object.keys(insert).join(", ")})
+          values (${placeholders(insert).join(", ")}) ${returning}`;
+      }
+      if (remove) return `delete from public.${table} ${where} ${returning}`;
       if (changes === null) {
         return `select ${columns} from public.${table} ${where}`;
       }
@@ -47,7 +63,7 @@ export function databaseClient(
         return `${column} = $${values.length}`;
       });
       return `update public.${table} set ${assignments.join(", ")} ${where}
-        returning ${columns}`;
+        ${returning}`;
     }
 
     const builder = {
@@ -57,6 +73,19 @@ export function databaseClient(
       },
       update(patch: Readonly<Record<string, unknown>>) {
         changes = patch;
+        return builder;
+      },
+      insert(row: Readonly<Record<string, unknown>>) {
+        insert = row;
+        return builder;
+      },
+      delete() {
+        remove = true;
+        return builder;
+      },
+      /** As Supabase's API does, an error unless exactly one row comes back. */
+      single() {
+        single = true;
         return builder;
       },
       // Postgres writes a boolean as text the way String() does: true or false.
@@ -95,7 +124,9 @@ export function databaseClient(
           const read = await tx.query(statement(), values, {
             parsers: { [DATE_TYPE]: (value) => value },
           });
-          return read.rows;
+          if (!single) return read.rows;
+          if (read.rows.length !== 1) throw new Error("Expected one row");
+          return read.rows[0];
         }).then(onDone);
       },
     };

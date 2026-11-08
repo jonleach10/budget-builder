@@ -100,6 +100,16 @@ function batchingStore(failFrom = Number.POSITIVE_INFINITY) {
   return { store, batches };
 }
 
+/** A whole or partial save: `total` is how many rows were sent. */
+function saved(rows: number, total: number) {
+  return {
+    ok: true,
+    notice: `${rows} rows were saved.`,
+    saved: rows,
+    total,
+  };
+}
+
 const SPENDING_GROCERIES = {
   type: "spending",
   category_id: OWNER.categoryId,
@@ -112,7 +122,7 @@ describe("accepting a group", () => {
 
     const result = await accept(ids, { categoryId: OWNER.categoryId });
 
-    expect(result).toEqual({ ok: true, notice: "3 rows were saved." });
+    expect(result).toEqual(saved(3, 3));
     for (const row of await decisionsOn(ids)) {
       expect(row).toMatchObject(SPENDING_GROCERIES);
     }
@@ -123,7 +133,7 @@ describe("accepting a group", () => {
 
     const result = await accept(ids, { categoryId: OWNER.categoryId });
 
-    expect(result).toEqual({ ok: true, notice: "2 rows were saved." });
+    expect(result).toEqual(saved(2, 2));
     for (const row of await decisionsOn(ids)) {
       expect(row).toMatchObject(SPENDING_GROCERIES);
     }
@@ -135,6 +145,8 @@ describe("accepting a group", () => {
     await expect(accept(ids, { categoryId: OWNER.categoryId })).resolves.toEqual({
       ok: true,
       notice: "1 row was saved.",
+      saved: 1,
+      total: 1,
     });
   });
 
@@ -160,7 +172,7 @@ describe("accepting a group", () => {
       categoryId: OWNER.categoryId,
     });
 
-    expect(result).toEqual({ ok: true, notice: "2 rows were saved." });
+    expect(result).toEqual(saved(2, 2));
     for (const row of await decisionsOn([...untyped, ...spending])) {
       expect(row).toMatchObject(SPENDING_GROCERIES);
     }
@@ -178,7 +190,8 @@ describe("accepting a group", () => {
       categoryId: OWNER.categoryId,
     });
 
-    expect(result).toEqual({ ok: true, notice: "2 rows were saved." });
+    // Fewer saved than sent, so the inbox offers no rule for this accept.
+    expect(result).toEqual(saved(2, 3));
     await expect(decisionsOn([changed])).resolves.toMatchObject([
       { type: "spending", category_id: dining },
     ]);
@@ -192,7 +205,7 @@ describe("accepting a group", () => {
       categoryId: OWNER.categoryId,
     });
 
-    expect(result).toEqual({ ok: true, notice: "2 rows were saved." });
+    expect(result).toEqual(saved(2, 3));
     await expect(decisionsOn([hidden])).resolves.toMatchObject([
       { type: null, category_id: null },
     ]);
@@ -244,7 +257,7 @@ describe("a large group", () => {
 
     const result = await editRows(store, ids, { categoryId: OWNER.categoryId }, 2);
 
-    expect(result).toEqual({ ok: true, notice: "5 rows were saved." });
+    expect(result).toEqual(saved(5, 5));
     expect(batches).toEqual([ids.slice(0, 2), ids.slice(2, 4), ids.slice(4)]);
   });
 
@@ -281,7 +294,7 @@ describe("a large group", () => {
 
     const result = await accept(ids, { categoryId: OWNER.categoryId }, 2);
 
-    expect(result).toEqual({ ok: true, notice: "3 rows were saved." });
+    expect(result).toEqual(saved(3, 5));
     for (const row of await decisionsOn(ids)) {
       expect(row).toMatchObject(SPENDING_GROCERIES);
     }

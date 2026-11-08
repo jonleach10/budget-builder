@@ -23,7 +23,9 @@ const REDACTED_PREFIX = "redacted:";
  * payees: its past category only suggests (see `isRedactedKey`). A row with no
  * letter or digit left, or a blank description, has no key.
  */
-export function merchantKey(transaction: Transaction): string | undefined {
+export function merchantKey(
+  transaction: Pick<Transaction, "ppdId" | "orderingPartyId" | "description">,
+): string | undefined {
   const { ppdId, orderingPartyId, description } = transaction;
   if (hasText(ppdId)) return `ppdId:${ppdId}`;
   if (hasText(orderingPartyId)) return `orderingPartyId:${orderingPartyId}`;

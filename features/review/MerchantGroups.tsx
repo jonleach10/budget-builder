@@ -10,13 +10,21 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Notice, type NoticeMessage } from "@/components/ui/notice";
 import { AmountWithOriginal } from "@/features/budget/ScreenParts";
 import type { TransactionType } from "@/features/categorize/transactionType";
-import { TYPE_OPTIONS } from "@/features/rules/rules";
+import { RuleDialog } from "@/features/rules/RuleDialog";
+import { TYPE_OPTIONS, type RuleItem } from "@/features/rules/rules";
 import { EditRowDialog } from "@/features/transactions/EditRow";
 import type { RowEdit } from "@/features/transactions/rowEdits";
 import type { TransactionLine } from "@/features/transactions/transactionsScreenData";
 import { useServerAction } from "@/hooks/use-server-action";
 import { cn } from "@/lib/utils";
-import { acceptGroupAction } from "./actions";
+import {
+  acceptGroupAction,
+  sortByRuleAction,
+  undoRuleSortAction,
+} from "./actions";
+import { offerText, storedRuleItem } from "./ruleDialogView";
+import type { InboxRuleOffer } from "./ruleFromCorrection";
+import { mergeUndo, type SortNotice, type SortUndo } from "./ruleSort";
 import {
   acceptLabel,
   decisionEdit,
@@ -363,8 +371,89 @@ function OpenGroup({
 }
 
 /**
+ * What the notice holds: a message, and the actions it offers while it shows.
+ * A rule offer keeps the plain result for Skip.
+ */
+type InboxNotice = NoticeMessage & {
+  offer?: { rule: InboxRuleOffer; plain: string };
+  undo?: SortUndo | null;
+  sortRest?: SortNotice["sortRest"];
+};
+
+type SortRest = NonNullable<SortNotice["sortRest"]>;
+
+/** The Add Rule dialog for an offer, or Edit Rule for the earlier rule it names. */
+type RuleDialogTarget = { offer: InboxRuleOffer } | { earlier: RuleItem } | null;
+
+function fromSort(notice: SortNotice): InboxNotice {
+  return {
+    tone: notice.tone,
+    text: notice.text,
+    undo: notice.undo,
+    sortRest: notice.sortRest,
+  };
+}
+
+function NoticeActions({
+  notice,
+  pending,
+  onAddRule,
+  onSkip,
+  onSortRest,
+  onUndo,
+}: {
+  notice: InboxNotice | null;
+  pending: boolean;
+  onAddRule: (offer: InboxRuleOffer) => void;
+  onSkip: (plain: string) => void;
+  onSortRest: (target: SortRest) => void;
+  onUndo: (undo: SortUndo) => void;
+}) {
+  if (notice === null) return null;
+  const { offer, sortRest, undo } = notice;
+  if (offer === undefined && !sortRest && !undo) return null;
+
+  return (
+    <>
+      {offer !== undefined && (
+        <>
+          <OutlineButton disabled={pending} onClick={() => onAddRule(offer.rule)}>
+            Add Rule...
+          </OutlineButton>
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-11 md:h-9"
+            disabled={pending}
+            onClick={() => onSkip(offer.plain)}>
+            Skip
+          </Button>
+        </>
+      )}
+      {sortRest && (
+        <OutlineButton disabled={pending} onClick={() => onSortRest(sortRest)}>
+          {pending ? "Sorting..." : "Sort the Rest"}
+        </OutlineButton>
+      )}
+      {undo && (
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-11 md:h-9"
+          disabled={pending}
+          onClick={() => onUndo(undo)}>
+          Undo
+        </Button>
+      )}
+    </>
+  );
+}
+
+/**
  * One group is open at a time, so the screen has one Accept. When the open
- * group is accepted it leaves the list, and the largest one left opens.
+ * group is accepted it leaves the list, and the largest one left opens. After a
+ * whole group saves, the notice may offer a rule; after a rule sorts rows, it
+ * offers Undo until the next accept replaces it.
  */
 export function MerchantGroups({
   groups,
@@ -376,7 +465,8 @@ export function MerchantGroups({
   // Undefined opens the largest group, which is first.
   const [openKey, setOpenKey] = useState<string | null | undefined>(undefined);
   const [changing, setChanging] = useState<TransactionLine | null>(null);
-  const [message, setMessage] = useState<NoticeMessage | null>(null);
+  const [message, setMessage] = useState<InboxNotice | null>(null);
+  const [ruleTarget, setRuleTarget] = useState<RuleDialogTarget>(null);
   const { pending, run } = useServerAction();
   const panelPrefix = useId();
 
@@ -398,21 +488,75 @@ export function MerchantGroups({
     run(
       () => acceptGroupAction(group.rows.map(({ id }) => id), edit),
       (result) => {
-        if (result.ok) {
-          setOpenKey(undefined);
-          setMessage(
-            result.notice === undefined ? null : { tone: "done", text: result.notice },
-          );
-        } else {
+        if (!result.ok) {
           setMessage({ tone: "error", text: result.message });
+          return;
         }
+        setOpenKey(undefined);
+        setMessage(
+          "offer" in result
+            ? {
+                tone: "done",
+                lead: result.offer.name,
+                text: offerText(result.offer),
+                offer: { rule: result.offer, plain: result.notice },
+              }
+            : { tone: "done", text: result.notice },
+        );
       },
     );
   }
 
+  function sortRest(target: SortRest) {
+    const before = message?.undo ?? null;
+    run(
+      async () => ({
+        ok: true as const,
+        sorted: await sortByRuleAction(target.ruleId, target.created),
+      }),
+      (result) => {
+        if (!result.ok) {
+          setMessage({ tone: "error", text: result.message, undo: before, sortRest: target });
+          return;
+        }
+        const next = fromSort(result.sorted);
+        const undo =
+          before !== null && next.undo
+            ? mergeUndo(before, next.undo)
+            : (next.undo ?? before);
+        setMessage({ ...next, undo });
+      },
+    );
+  }
+
+  function undo(token: SortUndo) {
+    run(
+      async () => ({ ok: true as const, sorted: await undoRuleSortAction(token) }),
+      (result) => {
+        if (result.ok) setMessage(fromSort(result.sorted));
+        else setMessage({ tone: "error", text: result.message, undo: token });
+      },
+    );
+  }
+
+  const earlierItem = (offer: InboxRuleOffer, ruleId: string) =>
+    storedRuleItem(offer, categories, ruleId);
+
   return (
     <>
-      <Notice message={message} />
+      <Notice
+        message={message}
+        actions={
+          <NoticeActions
+            notice={message}
+            pending={pending}
+            onAddRule={(offer) => setRuleTarget({ offer })}
+            onSkip={(plain) => setMessage({ tone: "done", text: plain })}
+            onSortRest={sortRest}
+            onUndo={undo}
+          />
+        }
+      />
       <section
         aria-label="Merchants"
         className="overflow-hidden rounded-2xl bg-card shadow-glass">
@@ -456,6 +600,30 @@ export function MerchantGroups({
         categories={categories}
         onClose={() => setChanging(null)}
       />
+      {ruleTarget !== null && "offer" in ruleTarget ? (
+        <RuleDialog
+          target="new"
+          categories={categories}
+          onClose={() => setRuleTarget(null)}
+          inbox={{
+            offer: ruleTarget.offer,
+            onSaved: (notice) => {
+              setRuleTarget(null);
+              setMessage(fromSort(notice));
+            },
+            onEditEarlier: (ruleId) => {
+              const item = earlierItem(ruleTarget.offer, ruleId);
+              setRuleTarget(item === null ? null : { earlier: item });
+            },
+          }}
+        />
+      ) : (
+        <RuleDialog
+          target={ruleTarget === null ? null : ruleTarget.earlier}
+          categories={categories}
+          onClose={() => setRuleTarget(null)}
+        />
+      )}
     </>
   );
 }
