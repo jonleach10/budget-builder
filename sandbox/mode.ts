@@ -11,13 +11,17 @@ export function serverModeFrom(
   return flags.includes("--prod") ? "production" : "development";
 }
 
-/** A whole positive number above 1, because a stop signals its process group. */
-export function serverPidFrom(text: string | undefined): number | null {
-  const trimmed = text?.trim() ?? "";
-  if (!/^\d+$/.test(trimmed)) return null;
-
-  const pid = Number(trimmed);
-  return pid > 1 ? pid : null;
+/**
+ * The processes `lsof -t` found listening on the sandbox's port. Each is a
+ * whole number above 1, because a stop signals its process group.
+ */
+export function listenerPidsFrom(lsofOutput: string): number[] {
+  return lsofOutput
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^\d+$/.test(line))
+    .map(Number)
+    .filter((pid) => pid > 1);
 }
 
 /**

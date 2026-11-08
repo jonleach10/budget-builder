@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   assertServerMode,
   isProductionServer,
+  listenerPidsFrom,
   serverModeFrom,
-  serverPidFrom,
 } from "./mode.ts";
 
 describe("serverModeFrom", () => {
@@ -37,23 +37,30 @@ describe("assertServerMode", () => {
   });
 });
 
-describe("serverPidFrom", () => {
-  it("reads the process ID the production server saved", () => {
-    expect(serverPidFrom("48213\n")).toBe(48213);
+// Output as `lsof -t` prints it: one process ID a line, or nothing.
+describe("listenerPidsFrom", () => {
+  it("reads the process listening on the port", () => {
+    expect(listenerPidsFrom("48213\n")).toEqual([48213]);
+  });
+
+  it("reads each process when more than one listens", () => {
+    expect(listenerPidsFrom("48213\n48990\n")).toEqual([48213, 48990]);
+  });
+
+  it("finds none when nothing listens", () => {
+    expect(listenerPidsFrom("")).toEqual([]);
   });
 
   // A stop signals the ID's whole process group, and 0 or 1 would be this
   // process's own group or every process.
   it.each([
-    ["no file", undefined],
-    ["an empty file", ""],
     ["text that isn't a number", "next-server"],
     ["zero", "0"],
     ["the first process", "1"],
     ["a negative number", "-48213"],
     ["a fraction", "482.13"],
-  ])("finds no ID in %s", (_name, text) => {
-    expect(serverPidFrom(text)).toBeNull();
+  ])("skips %s", (_name, line) => {
+    expect(listenerPidsFrom(`${line}\n48213\n`)).toEqual([48213]);
   });
 });
 

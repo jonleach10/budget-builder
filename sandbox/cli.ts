@@ -1,11 +1,11 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { assertLoopbackPorts, assertNoEnvLocal } from "./guard.ts";
 import {
   assertServerMode,
   isProductionServer,
+  listenerPidsFrom,
   serverModeFrom,
-  serverPidFrom,
 } from "./mode.ts";
 import { readStatus } from "./status.ts";
 
@@ -23,8 +23,6 @@ const LOOPBACK_NETWORK = "com.docker.network.bridge.host_binding_ipv4=127.0.0.1"
 const HOST = "127.0.0.1";
 const PORT = "3100";
 const NEXT = "node_modules/next/dist/bin/next";
-/** Where production mode keeps its process ID, so a stop from any terminal can find it. */
-const PRODUCTION_PID_FILE = "sandbox/.production.pid";
 /** The exit code for SIGTERM. */
 const STOPPED = 143;
 
@@ -70,17 +68,28 @@ function up(): void {
   checkPorts();
 }
 
-/** The production server's process ID, if the one it saved is still that server. */
+function portInUse(): boolean {
+  return succeeds("lsof", ["-nP", `-iTCP:${PORT}`, "-sTCP:LISTEN"]);
+}
+
+/**
+ * The production server's process ID, found through the port itself. The
+ * sandbox is shared by every worktree, so a file kept in one worktree can't be
+ * seen from another, and the port can. Only a process listening on the
+ * sandbox's own address, that ps shows as a server sandbox:prod started, counts.
+ */
 function productionPid(): number | null {
-  if (!existsSync(PRODUCTION_PID_FILE)) return null;
-
-  const pid = serverPidFrom(readFileSync(PRODUCTION_PID_FILE, "utf8"));
-  if (pid === null) return null;
-
-  const psLine = spawnSync("ps", ["-p", String(pid), "-o", "pid=,pgid=,command="], {
+  const listeners = spawnSync("lsof", ["-nP", "-t", `-iTCP@${HOST}:${PORT}`, "-sTCP:LISTEN"], {
     encoding: "utf8",
   }).stdout;
-  return isProductionServer((psLine ?? "").trim()) ? pid : null;
+
+  for (const pid of listenerPidsFrom(listeners ?? "")) {
+    const psLine = spawnSync("ps", ["-p", String(pid), "-o", "pid=,pgid=,command="], {
+      encoding: "utf8",
+    }).stdout;
+    if (isProductionServer((psLine ?? "").trim())) return pid;
+  }
+  return null;
 }
 
 function pause(milliseconds: number): void {
@@ -98,18 +107,17 @@ function signalProduction(pid: number, signal: NodeJS.Signals): void {
 
 function stopProduction(): void {
   const pid = productionPid();
+  if (pid === null) return;
 
-  if (pid !== null) {
-    console.log("Stopping production mode.");
-    signalProduction(pid, "SIGTERM");
+  console.log("Stopping production mode.");
+  signalProduction(pid, "SIGTERM");
 
-    for (let waited = 0; productionPid() !== null && waited < 10_000; waited += 250) {
-      pause(250);
-    }
-    if (productionPid() !== null) signalProduction(pid, "SIGKILL");
+  for (let waited = 0; productionPid() !== null && waited < 10_000; waited += 250) {
+    pause(250);
   }
 
-  rmSync(PRODUCTION_PID_FILE, { force: true });
+  const stillServing = productionPid();
+  if (stillServing !== null) signalProduction(stillServing, "SIGKILL");
 }
 
 function down(): void {
@@ -157,9 +165,9 @@ function dev(): void {
  * sandbox. Stays running, like the dev server, until Control-C or sandbox:down.
  */
 function prod(): void {
-  if (productionPid() !== null || succeeds("lsof", ["-nP", `-iTCP:${PORT}`, "-sTCP:LISTEN"])) {
+  if (portInUse()) {
     throw new Error(
-      `Refused: port ${PORT} is in use. Stop the dev server with Control-C in its terminal first.`,
+      `Refused: port ${PORT} is in use. Stop the server on it with Control-C in its terminal first.`,
     );
   }
 
@@ -170,14 +178,13 @@ function prod(): void {
 
   const server = spawn(process.execPath, [NEXT, "start", "-H", HOST, "-p", PORT], {
     stdio: "inherit",
-    // Its own process group, so a stop reaches every process it starts.
+    // Its own process group, so a stop reaches every process it starts, and
+    // ps can tell it from the dev server's worker, which Next titles the same.
     detached: true,
     env: { ...process.env, ...env },
   });
   const pid = server.pid;
   if (pid === undefined) throw new Error("The production server didn't start.");
-
-  writeFileSync(PRODUCTION_PID_FILE, String(pid));
 
   const stop = () => signalProduction(pid, "SIGTERM");
   process.on("SIGINT", stop);
@@ -185,7 +192,6 @@ function prod(): void {
   process.on("SIGHUP", stop);
 
   server.on("exit", (code) => {
-    rmSync(PRODUCTION_PID_FILE, { force: true });
     // Next exits with 143 when it's stopped, from here or from sandbox:down.
     process.exit(code === null || code === STOPPED ? 0 : code);
   });
