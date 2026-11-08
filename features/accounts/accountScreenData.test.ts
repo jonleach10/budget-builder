@@ -41,6 +41,7 @@ const CATEGORIES = [
   { id: "cat-groceries", name: "Groceries", position: 0 },
   { id: "cat-dining", name: "Dining", position: 1 },
   { id: "cat-gas", name: "Gas", position: 2 },
+  { id: "cat-clothing", name: "Clothing", position: 3 },
 ];
 
 let nextId = 0;
@@ -667,6 +668,43 @@ describe("buildAccountScreen: change against the period before", () => {
       { name: "Dining", amount: "$0.00", share: "0%", change: "-100%", dropped: true },
     ]);
     expect(screen.total).toEqual({ amount: "$0.00", share: "0%", change: "-100%" });
+  });
+
+  it("counts a category bought and returned in the period as dropped to zero", () => {
+    const screen = ready({
+      rows: [
+        row({ posted_on: "2026-09-10", amount_minor: -5000 }),
+        row({ category_id: "cat-clothing", posted_on: "2026-07-12", amount_minor: -12000 }),
+        row({ category_id: "cat-clothing", posted_on: "2026-10-03", amount_minor: -8000 }),
+        row({ category_id: "cat-clothing", posted_on: "2026-10-17", amount_minor: 8000 }),
+      ],
+    });
+
+    expect(changes(screen)).toEqual([
+      { name: "Groceries", amount: "$50.00", share: "100%", change: "New", dropped: false },
+      { name: "Clothing", amount: "$0.00", share: "0%", change: "-100%", dropped: true },
+    ]);
+    // $50.00 against $120.00.
+    expect(screen.total).toEqual({ amount: "$50.00", share: "100%", change: "-58%" });
+  });
+
+  it("counts a category refunded in the period as dropped, at its net refund", () => {
+    const screen = ready({
+      rows: [
+        row({ posted_on: "2026-09-10", amount_minor: -5000 }),
+        row({ category_id: "cat-clothing", posted_on: "2026-07-12", amount_minor: -8000 }),
+        row({ category_id: "cat-clothing", posted_on: "2026-08-02", amount_minor: 8000 }),
+      ],
+    });
+
+    // The refund outweighs the period's Spending, so the total is below zero and
+    // there's nothing for a share to be part of. The column still adds up.
+    expect(changes(screen)).toEqual([
+      { name: "Groceries", amount: "$50.00", share: "0%", change: "New", dropped: false },
+      { name: "Clothing", amount: "-$80.00", share: "0%", change: "-100%", dropped: true },
+    ]);
+    // -$30.00 against $80.00 is -138%, but Change never goes below -100%.
+    expect(screen.total).toEqual({ amount: "-$30.00", share: "0%", change: "-100%" });
   });
 
   it("gives the total no change when neither period has Spending", () => {

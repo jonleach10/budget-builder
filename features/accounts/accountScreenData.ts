@@ -152,9 +152,11 @@ function percent(part: number, whole: number): string {
 /**
  * A change for display only: "+18%", "-12%" with an ASCII hyphen, or "New" when
  * there was no Spending before. Never coloured: more spending isn't over budget.
+ * Never below -100%: Spending that falls to zero or to a net refund has stopped.
  */
 function change(now: number, before: number): string {
   if (before <= 0) return now === 0 ? "0%" : "New";
+  if (now <= 0) return "-100%";
   const value = Math.round(((now - before) / before) * 100);
   if (value === 0) return "0%";
   return value > 0 ? `+${value}%` : `${value}%`;
@@ -322,11 +324,14 @@ export function buildAccountScreen({
     [nameB, b]: [string, number],
   ) => b - a || position(nameA) - position(nameB) || nameA.localeCompare(nameB);
 
-  const totals = [...now].sort(largestFirst);
-  const dropped = [...before]
-    .filter(([name, amount]) => amount > 0 && !now.has(name))
-    .sort(largestFirst);
-  const total = sumMinor(totals.map(([, amount]) => amount));
+  // Spending before and none now, or a net refund now, as when a purchase was
+  // returned. Such a category is listed after the others and is never a slice.
+  const isDropped = (name: string) =>
+    (before.get(name) ?? 0) > 0 && (now.get(name) ?? 0) <= 0;
+  const totals = [...now].filter(([name]) => !isDropped(name)).sort(largestFirst);
+  const dropped = [...before].filter(([name]) => isDropped(name)).sort(largestFirst);
+  // Every listed row, dropped ones too, so the Amount column adds up to it.
+  const total = sumMinor([...now.values()]);
   const totalBefore = sumMinor([...before.values()]);
   const money = (minor: number) => formatMoney({ minor, currency });
   const changeOf = (amount: number, name: string) =>
@@ -349,18 +354,21 @@ export function buildAccountScreen({
         change: changeOf(amount, name),
         dropped: false,
       })),
-      ...dropped.map(([name]) => ({
-        name,
-        amount: money(0),
-        share: "0%",
-        change: changeOf(0, name),
-        dropped: true,
-      })),
+      ...dropped.map(([name]) => {
+        const amount = now.get(name) ?? 0;
+        return {
+          name,
+          amount: money(amount),
+          share: "0%",
+          change: changeOf(amount, name),
+          dropped: true,
+        };
+      }),
     ],
     total: {
       amount: money(total),
-      // With no Spending there's nothing for the total to be all of.
-      share: total === 0 ? "0%" : "100%",
+      // With no Spending, or a net refund, there's nothing for it to be all of.
+      share: total <= 0 ? "0%" : "100%",
       change: showChange ? change(total, totalBefore) : null,
     },
   };
