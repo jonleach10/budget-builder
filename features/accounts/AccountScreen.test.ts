@@ -264,6 +264,7 @@ describe("AccountScreen", () => {
       },
       categories: [],
       total: { amount: "$0.00", share: "0%", change: "0%" },
+      merchants: NO_MERCHANTS,
     });
 
     expect(html).toContain("Spending by Category");
@@ -284,6 +285,99 @@ describe("AccountScreen", () => {
 
     expect(html).toContain("No Spending for October 2026.");
     expect(html).toMatch(/Travel<\/th>.*?-100%/);
+  });
+
+  it("shows the Personal total and the needs-review line, linking to the Review inbox", () => {
+    const html = render(READY);
+
+    expect(html).toMatch(/Personal<\/span><span[^>]*>\$286\.50</);
+    expect(html).toContain("Personal rows aren&#x27;t in Spending.");
+    expect(html).toMatch(
+      /<a[^>]*href="\/review"[^>]*>4 rows need review and aren&#x27;t in these totals\.<\/a>/,
+    );
+  });
+
+  it("puts Personal and needs review under the donut on a desktop and after the card on a phone", () => {
+    const html = render(READY);
+    const desktop = html.indexOf('data-side-lines="desktop"');
+    const phone = html.indexOf('data-side-lines="phone"');
+
+    expect(desktop).toBeGreaterThan(html.indexOf("<svg role=\"img\""));
+    expect(desktop).toBeLessThan(html.indexOf("<table"));
+    expect(phone).toBeGreaterThan(html.indexOf("</section>"));
+    expect(html).toMatch(/data-side-lines="desktop"[^>]*class="[^"]*hidden[^"]*md:flex/);
+    expect(html).toMatch(/data-side-lines="phone"[^>]*class="[^"]*md:hidden/);
+  });
+
+  it("says when no rows need review, with no link", () => {
+    const html = render({
+      ...READY,
+      review: { text: "No rows need review.", href: null },
+    });
+
+    expect(html).toContain("No rows need review.");
+    expect(html).not.toContain('href="/review"');
+  });
+
+  it("lists the top merchants with their rank, visits and total", () => {
+    const html = render(READY);
+
+    expect(html).toMatch(/<h2[^>]*>Top Merchants<\/h2>/);
+    expect(html).toContain("Each merchant is named by the bank text of its latest row.");
+    expect(html).toMatch(/>Merchant<\/th>.*?>Visits<\/th>.*?>Total<\/th>/);
+    expect(html).toMatch(/>1<\/td><th[^>]*>SAMPLE GROCER<\/th><td[^>]*>14<\/td><td[^>]*>\$1,104\.62</);
+    // On a phone, the visits go on a second line, in words.
+    expect(html).toMatch(/SAMPLE GROCER.*?\$1,104\.62.*?14 visits/);
+    expect(html).toContain("1 visit<");
+    expect(html.indexOf("Top Merchants")).toBeGreaterThan(html.indexOf("Spending by Category"));
+  });
+
+  it("mutes No Merchant like a missing value, in its place by total", () => {
+    const html = render(READY);
+
+    expect(html).toMatch(/<th[^>]*text-muted-foreground[^>]*>No Merchant<\/th>/);
+    expect(html.indexOf(">No Merchant<")).toBeGreaterThan(html.indexOf(">SAMPLE GROCER<"));
+    expect(html.indexOf(">No Merchant<")).toBeLessThan(html.indexOf(">SAMPLE CAFE<"));
+  });
+
+  it("says why there are no merchants, with no hint and no table", () => {
+    const html = render({ ...READY, merchants: NO_MERCHANTS });
+
+    expect(html).toContain("Top Merchants");
+    expect(html).toContain(
+      "No merchants to show, because there&#x27;s no Spending in this period.",
+    );
+    expect(html).not.toContain("Each merchant is named");
+    expect(html).not.toContain(">Visits</th>");
+  });
+
+  it("shows the all-needs-review panel in place of the donut and the list", () => {
+    const html = render({
+      ...READY,
+      chart: null,
+      categories: [],
+      total: { amount: "$0.00", share: "0%", change: "-100%" },
+      allNeedReview: {
+        title: "Every row in this period needs review",
+        text: "23 rows need review, so there's no Spending to show yet. They count here once they're decided.",
+        href: "/review",
+      },
+      personal: "$0.00",
+      review: { text: "23 rows need review and aren't in these totals.", href: "/review" },
+      merchants: NO_MERCHANTS,
+    });
+
+    expect(html).toMatch(/<h3[^>]*>Every row in this period needs review<\/h3>/);
+    expect(html).toContain(
+      "23 rows need review, so there&#x27;s no Spending to show yet. They count here once they&#x27;re decided.",
+    );
+    expect(html).toMatch(/<a[^>]*href="\/review"[^>]*>Go to Review Inbox<\/a>/);
+    expect(html).not.toContain("<svg role=\"img\"");
+    expect(html).not.toContain("<table");
+    expect(html).not.toContain("Change is against");
+    // The panel is the needs-review line, so Personal stays on its own.
+    expect(html).not.toContain("aren&#x27;t in these totals.");
+    expect(html).toMatch(/Personal<\/span><span[^>]*>\$0\.00</);
   });
 
   it("says when the page can't be loaded", () => {
