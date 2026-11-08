@@ -58,6 +58,7 @@ The rules above, plus:
 - The change matches its issue's acceptance criteria.
 - A change that touches a one-way door names it under Merge Danger.
 - A UI-facing PR has a sandbox screenshot in its Proof section that shows the change itself.
+- A PR that adds a screen, a route or a new way through a screen adds its flows to `sandbox/flows/flow-list.md`. A PR that changes what a flow does or shows updates that flow.
 - A PR that adds a domain term, or settles a decision that's hard to reverse, surprising and a real trade-off, updates `GLOSSARY.md` or `docs/adr/` in the same PR.
 
 ## PR policy

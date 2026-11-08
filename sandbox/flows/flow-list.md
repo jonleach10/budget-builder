@@ -6,6 +6,8 @@ A flow names where it starts, what the user does, and what they should see. It n
 
 ## Keeping it complete
 
+The first two rules are also review criteria in `CLAUDE.md`, so a review checks them.
+
 - A ticket that adds a screen, a route or a new way through a screen adds its flows here, in the same PR.
 - A ticket that changes what a flow does or shows updates that flow.
 - A screen the features line reaches that isn't on this list is reported as a missing flow.
