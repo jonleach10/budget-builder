@@ -697,14 +697,33 @@ describe("buildAccountScreen: change against the period before", () => {
       ],
     });
 
-    // The refund outweighs the period's Spending, so the total is below zero and
-    // there's nothing for a share to be part of. The column still adds up.
+    // A share is of the donut, which holds only Spending above zero, so Groceries is
+    // all of it. The refund outweighs the period's Spending, so the Total is below
+    // zero and there's nothing for its share to be part of. The column still adds up.
     expect(changes(screen)).toEqual([
-      { name: "Groceries", amount: "$50.00", share: "0%", change: "New", dropped: false },
+      { name: "Groceries", amount: "$50.00", share: "100%", change: "New", dropped: false },
       { name: "Clothing", amount: "-$80.00", share: "0%", change: "-100%", dropped: true },
     ]);
     // -$30.00 against $80.00 is -138%, but Change never goes below -100%.
     expect(screen.total).toEqual({ amount: "-$30.00", share: "0%", change: "-100%" });
+    // The middle figure is the slices' sum, so here it isn't the Total.
+    expect(screen.chart?.layout.middle.total.text).toBe("$50.00");
+  });
+
+  it("mutes a category with only refunds in the period, at New, and never makes it a slice", () => {
+    const screen = ready({
+      rows: [
+        row({ posted_on: "2026-09-10", amount_minor: -5000 }),
+        row({ category_id: "cat-clothing", posted_on: "2026-09-12", amount_minor: 2000 }),
+      ],
+    });
+
+    expect(changes(screen)).toEqual([
+      { name: "Groceries", amount: "$50.00", share: "100%", change: "New", dropped: false },
+      { name: "Clothing", amount: "-$20.00", share: "0%", change: "New", dropped: true },
+    ]);
+    expect(screen.categories[1].swatch).toBeNull();
+    expect(screen.chart?.layout.arcs.map(({ color }) => color)).toEqual([1]);
   });
 
   it("gives the total no change when neither period has Spending", () => {
@@ -740,5 +759,234 @@ describe("buildAccountScreen: change against the period before", () => {
     });
 
     expect(screen.categories[0].change).toBe("0%");
+  });
+});
+
+/** Nine categories, as on a busy card, by position. */
+const NINE = [
+  "Groceries",
+  "Dining",
+  "Shopping",
+  "Entertainment",
+  "Gas",
+  "Health",
+  "Home",
+  "Insurance",
+  "Clothing",
+].map((name, position) => ({ id: `cat-${name.toLowerCase()}`, name, position }));
+
+/** In September, adding up to $6,240.00. */
+const NINE_SPENT: [string, number][] = [
+  ["cat-groceries", 187240],
+  ["cat-dining", 131015],
+  ["cat-shopping", 99860],
+  ["cat-entertainment", 62400],
+  ["cat-gas", 49925],
+  ["cat-health", 37440],
+  ["cat-home", 31200],
+  ["cat-insurance", 18720],
+  ["cat-clothing", 6200],
+];
+
+function nine(extra: TransactionRow[] = []): ReadyAccount {
+  return ready({
+    categories: NINE,
+    rows: [
+      ...NINE_SPENT.map(([category, minor]) => spent(category, "2026-09", minor)),
+      ...extra,
+    ],
+  });
+}
+
+function legend(screen: ReadyAccount) {
+  return screen.categories.map(({ name, amount, share, swatch }) => ({
+    name,
+    amount,
+    share,
+    swatch,
+  }));
+}
+
+describe("buildAccountScreen: the donut", () => {
+  it("gives the top 6 categories a slice each and groups the rest as Other", () => {
+    const screen = nine();
+
+    expect(legend(screen)).toEqual([
+      { name: "Groceries", amount: "$1,872.40", share: "30%", swatch: 1 },
+      { name: "Dining", amount: "$1,310.15", share: "21%", swatch: 2 },
+      { name: "Shopping", amount: "$998.60", share: "16%", swatch: 3 },
+      { name: "Entertainment", amount: "$624.00", share: "10%", swatch: 4 },
+      { name: "Gas", amount: "$499.25", share: "8%", swatch: 5 },
+      { name: "Health", amount: "$374.40", share: "6%", swatch: 6 },
+      { name: "Other", amount: "$561.20", share: "9%", swatch: "other" },
+    ]);
+    expect(screen.chart?.layout.arcs.map(({ color }) => color)).toEqual([
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      "other",
+    ]);
+  });
+
+  it("lists Other's categories under it, with their amounts, shares and change", () => {
+    const screen = nine([
+      // May to July: Home was more, Insurance the same, Clothing had none.
+      spent("cat-home", "2026-06", 40000),
+      spent("cat-insurance", "2026-06", 18720),
+      spent("cat-groceries", "2026-06", 187240),
+    ]);
+    const other = screen.categories.find(({ name }) => name === "Other");
+
+    // $561.20 against $587.20.
+    expect(other?.change).toBe("-4%");
+    expect(other?.members).toEqual([
+      { name: "Home", amount: "$312.00", share: "5%", change: "-22%" },
+      { name: "Insurance", amount: "$187.20", share: "3%", change: "0%" },
+      { name: "Clothing", amount: "$62.00", share: "1%", change: "New" },
+    ]);
+    expect(screen.categories[0].members).toEqual([]);
+  });
+
+  it("gives every slice a colour by its place, and hatches only Other", () => {
+    const screen = nine();
+
+    expect(screen.categories.map(({ swatch }) => swatch)).toEqual([
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      "other",
+    ]);
+  });
+
+  it("has no Other with exactly 7 categories, and gives the 7th a solid slot", () => {
+    const screen = ready({
+      categories: NINE,
+      rows: NINE_SPENT.slice(0, 7).map(([category, minor]) =>
+        spent(category, "2026-09", minor),
+      ),
+    });
+
+    expect(screen.categories.map(({ name }) => name)).toEqual([
+      "Groceries",
+      "Dining",
+      "Shopping",
+      "Entertainment",
+      "Gas",
+      "Health",
+      "Home",
+    ]);
+    expect(screen.categories.map(({ swatch }) => swatch)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(screen.categories.every(({ members }) => members.length === 0)).toBe(true);
+  });
+
+  it("orders tied categories by position, then name, across the edge of Other", () => {
+    const categories = [
+      { id: "cat-a", name: "Alpha", position: 3 },
+      { id: "cat-b", name: "Bravo", position: 0 },
+      { id: "cat-c", name: "Charlie", position: 5 },
+      { id: "cat-d", name: "Delta", position: 1 },
+      { id: "cat-e", name: "Echo", position: 4 },
+      { id: "cat-f", name: "Foxtrot", position: 2 },
+      // Golf and Hotel share a position, so the name decides.
+      { id: "cat-h", name: "Hotel", position: 6 },
+      { id: "cat-g", name: "Golf", position: 6 },
+    ];
+    const screen = ready({
+      categories,
+      rows: categories.map(({ id }) => spent(id, "2026-09", 1000)),
+    });
+
+    expect(screen.categories.map(({ name }) => name)).toEqual([
+      "Bravo",
+      "Delta",
+      "Foxtrot",
+      "Alpha",
+      "Echo",
+      "Charlie",
+      "Other",
+    ]);
+    expect(screen.categories[6].members.map(({ name }) => name)).toEqual([
+      "Golf",
+      "Hotel",
+    ]);
+  });
+
+  it("puts the sum of the slices in the middle, which is the Total", () => {
+    const screen = nine();
+
+    expect(screen.chart?.layout.middle.total.text).toBe("$6,240.00");
+    expect(screen.total.amount).toBe("$6,240.00");
+  });
+
+  it("names the chart by its figure, and points to the list for the rest", () => {
+    expect(nine().chart?.label).toBe(
+      "Spending by category, $6,240.00 in all. The list gives every figure.",
+    );
+  });
+
+  it("puts a muted category after Other and before Total, with no slice", () => {
+    const withTravel = ready({
+      categories: [...NINE, { id: "cat-travel", name: "Travel", position: 9 }],
+      rows: [
+        ...NINE_SPENT.map(([category, minor]) => spent(category, "2026-09", minor)),
+        spent("cat-travel", "2026-06", 41200),
+      ],
+    });
+
+    expect(withTravel.categories.map(({ name }) => name).slice(-2)).toEqual([
+      "Other",
+      "Travel",
+    ]);
+    expect(withTravel.categories.at(-1)).toMatchObject({
+      dropped: true,
+      swatch: null,
+      members: [],
+    });
+    expect(withTravel.chart?.layout.arcs).toHaveLength(7);
+  });
+
+  it("shows no donut and says why when the period has no Spending", () => {
+    const screen = ready({
+      rows: [
+        row({ type: "transfer", category_id: null, amount_minor: 25000 }),
+        row({ type: "income", category_id: null, amount_minor: 1200 }),
+      ],
+    });
+
+    expect(screen.chart).toBeNull();
+    expect(screen.categories).toEqual([]);
+    expect(screen.noSpending).toEqual({
+      title: "No Spending from August 1 to October 31, 2026.",
+      text: "Only Spending rows count here, so transfers and income aren't shown.",
+    });
+  });
+
+  it("names a single month in the no-Spending line", () => {
+    const screen = ready({
+      period: range("2026-10", "2026-10"),
+      rows: [row({ posted_on: "2026-10-05", type: "transfer", category_id: null })],
+    });
+
+    expect(screen.noSpending?.title).toBe("No Spending for October 2026.");
+  });
+
+  it("keeps a category that dropped to zero listed when the period has no Spending", () => {
+    const screen = ready({ rows: [spent("cat-dining", "2026-06", 5000)] });
+
+    expect(screen.chart).toBeNull();
+    expect(screen.noSpending).not.toBeNull();
+    expect(screen.categories.map(({ name, dropped }) => ({ name, dropped }))).toEqual([
+      { name: "Dining", dropped: true },
+    ]);
+  });
+
+  it("has no no-Spending line when there's a donut", () => {
+    expect(nine().noSpending).toBeNull();
   });
 });

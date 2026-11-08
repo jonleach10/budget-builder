@@ -1,8 +1,13 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { AccountScreenData, ReadyAccount } from "./accountScreenData";
+import type {
+  AccountScreenData,
+  CategoryLine,
+  ReadyAccount,
+} from "./accountScreenData";
 import { AccountScreen } from "./AccountScreen";
+import { layoutDonut, type SliceColor } from "./donutLayout";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
@@ -26,6 +31,25 @@ function monthSelect(selected: string) {
   };
 }
 
+function line(
+  name: string,
+  amount: string,
+  share: string,
+  change: string | null,
+  swatch: SliceColor | null,
+): CategoryLine {
+  return {
+    key: `category:${name}`,
+    name,
+    amount,
+    share,
+    change,
+    dropped: false,
+    swatch,
+    members: [],
+  };
+}
+
 const READY: ReadyAccount = {
   status: "ready",
   picker: PICKER,
@@ -42,10 +66,21 @@ const READY: ReadyAccount = {
   },
   hint: "Change is against May to July 2026, the 3 months before.",
   showChange: true,
+  chart: {
+    layout: layoutDonut({
+      slices: [
+        { key: "category:Gas", minor: 50000, share: "50%", color: 1 },
+        { key: "category:Groceries", minor: 50000, share: "50%", color: 2 },
+      ],
+      total: "$1,000.00",
+    }),
+    label: "Spending by category, $1,000.00 in all. The list gives every figure.",
+  },
+  noSpending: null,
   categories: [
-    { name: "Gas", amount: "$500.00", share: "50%", change: "+4%", dropped: false },
-    { name: "Groceries", amount: "$500.00", share: "50%", change: "New", dropped: false },
-    { name: "Travel", amount: "$0.00", share: "0%", change: "-100%", dropped: true },
+    line("Gas", "$500.00", "50%", "+4%", 1),
+    line("Groceries", "$500.00", "50%", "New", 2),
+    { ...line("Travel", "$0.00", "0%", "-100%", null), dropped: true },
   ],
   total: { amount: "$1,000.00", share: "100%", change: "-3%" },
 };
