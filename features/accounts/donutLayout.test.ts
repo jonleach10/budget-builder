@@ -79,15 +79,47 @@ describe("layoutDonut", () => {
     ]);
   });
 
-  it("still draws a tiny slice, 1 degree wide at its middle, with no label", () => {
+  it("still draws a tiny slice 1 degree wide, taking the room from the largest, with no label", () => {
     const layout = layoutDonut({
       slices: slices([99900, "100%"], [100, "0%"]),
       total: "$1,000.00",
     });
 
-    // 0.1% is 0.36 degrees, from 359.64 to 360, so its middle is 359.82.
-    expect(layout.arcs[1]).toMatchObject({ from: 359.32, to: 360.32 });
+    // 0.1% is 0.36 degrees, too little for 1 degree and a gap of 0.7 each side, so
+    // it takes 2.4 and the largest gives up the rest: 0 to 357.6, then to 360.
+    expect(layout.arcs).toMatchObject([
+      { from: 0.7, to: 356.9 },
+      { from: 358.3, to: 359.3 },
+    ]);
     expect(layout.labels.map(({ key }) => key)).toEqual(["slice-1"]);
+  });
+
+  it("keeps two small slices side by side clear of each other, with the gap between", () => {
+    // A quarter on a card: five large categories, then two small ones, such as a
+    // $3.00 foreign transaction fee and a $2.50 donation. Exactly 7, so no Other.
+    const quarter: DonutSlice[] = [
+      { key: "category:Groceries", minor: 150000, share: "40%", color: 1 },
+      { key: "category:Dining", minor: 90000, share: "24%", color: 2 },
+      { key: "category:Shopping", minor: 60000, share: "16%", color: 3 },
+      { key: "category:Gas", minor: 40000, share: "11%", color: 4 },
+      { key: "category:Entertainment", minor: 30000, share: "8%", color: 5 },
+      { key: "category:Fees", minor: 300, share: "0%", color: 6 },
+      { key: "category:Charity", minor: 250, share: "0%", color: 7 },
+    ];
+    const { arcs } = layoutDonut({ slices: quarter, total: "$3,705.50" });
+
+    for (let index = 0; index + 1 < arcs.length; index += 1) {
+      expect(
+        arcs[index].to,
+        `${arcs[index].key} ends after ${arcs[index + 1].key} starts`,
+      ).toBeLessThanOrEqual(arcs[index + 1].from);
+      // 0.7 degrees on each side of the boundary between them.
+      expect(arcs[index + 1].from - arcs[index].to).toBeCloseTo(1.4, 1);
+    }
+    // Every slice is at least 1 degree wide, and the last stops short of the first.
+    for (const { from, to } of arcs) expect(to - from).toBeGreaterThanOrEqual(1 - 0.01);
+    expect(arcs[arcs.length - 1].to).toBeCloseTo(359.3, 1);
+    expect(arcs[0].from).toBeCloseTo(0.7, 1);
   });
 
   it("labels slices of 8% or more, and leaves smaller ones to the legend", () => {

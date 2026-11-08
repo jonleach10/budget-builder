@@ -39,7 +39,8 @@ const RADIUS = 102;
 const STROKE = 36;
 // Each slice starts this far after its boundary and ends this far before the next.
 const GAP = 0.7;
-// A slice smaller than this is still drawn this wide, so it never disappears.
+// A slice smaller than this is still drawn this wide, with its gaps, so it never
+// disappears; the largest slice gives up the room.
 const MIN_ARC = 1;
 const LABEL_FROM = 8;
 // The light slots, which need dark text.
@@ -111,34 +112,55 @@ function middleOf(total: string): DonutLayout["middle"] {
 }
 
 /**
+ * Each slice's angle by its share, except that a slice too small for MIN_ARC and
+ * a gap each side gets just that, and the largest slice gives up the difference.
+ * So no slice covers another, however small, and the boundaries never cross.
+ */
+function spansOf(slices: readonly DonutSlice[]): number[] {
+  const sum = slices.reduce((all, { minor }) => all + minor, 0);
+  const least = MIN_ARC + 2 * GAP;
+  const spans = slices.map(({ minor }) => (minor / sum) * 360);
+  if (spans.length < 2) return spans;
+
+  const largest = spans.indexOf(Math.max(...spans));
+  let owed = 0;
+  spans.forEach((span, index) => {
+    if (index === largest || span >= least) return;
+    owed += least - span;
+    spans[index] = least;
+  });
+  spans[largest] -= owed;
+  return spans;
+}
+
+/**
  * Works out the ring in a 280 box: each slice an arc in legend order, clockwise
  * from 12 o'clock, its share on it when it's big enough to hold one.
  */
 export function layoutDonut({ slices, total }: DonutInput): DonutLayout {
   const sum = slices.reduce((all, { minor }) => all + minor, 0);
+  const spans = spansOf(slices);
   const arcs: DonutLayout["arcs"] = [];
   const labels: DonutLayout["labels"] = [];
 
-  let before = 0;
-  for (const { key, minor, share, color } of slices) {
-    const start = (before / sum) * 360;
-    before += minor;
-    const end = (before / sum) * 360;
+  let start = 0;
+  slices.forEach(({ key, minor, share, color }, index) => {
+    const end = start + spans[index];
     const middle = (start + end) / 2;
 
     if (slices.length === 1) {
       arcs.push({ key, color, from: 0, to: 360, path: arcPath(0, 360) });
     } else {
-      const half = Math.max(end - start - 2 * GAP, MIN_ARC) / 2;
-      const from = rounded(middle - half);
-      const to = rounded(middle + half);
-      arcs.push({ key, color, from, to, path: arcPath(middle - half, middle + half) });
+      const from = start + GAP;
+      const to = end - GAP;
+      arcs.push({ key, color, from: rounded(from), to: rounded(to), path: arcPath(from, to) });
     }
+    start = end;
 
     if (Math.round((minor / sum) * 100) >= LABEL_FROM) {
       labels.push({ key, text: share, ...pointAt(middle), dark: LIGHT.includes(color) });
     }
-  }
+  });
 
   return { size: SIZE, radius: RADIUS, stroke: STROKE, arcs, labels, middle: middleOf(total) };
 }
