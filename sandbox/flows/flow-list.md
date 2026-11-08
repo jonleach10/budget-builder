@@ -38,7 +38,7 @@ Months in the sandbox: the seed fills the 12 months up to the current one. "Last
 | `/` | Overview | AUTH-01, NAV-01, OVR-01 to OVR-04, EMPTY-01 |
 | `/budget` | Budget | NAV-01, BUD-01 to BUD-07, EMPTY-01, EMPTY-02 |
 | `/transactions` | Transactions | NAV-01, TXN-01 to TXN-08, EMPTY-01 |
-| `/review` | Review Inbox | NAV-01, REV-01 to REV-12, EMPTY-01 |
+| `/review` | Review Inbox | NAV-01, REV-01 to REV-14, EMPTY-01 |
 | `/import` | Import | NAV-01, IMP-01 to IMP-05, EMPTY-01 |
 | `/rules` | Rules | NAV-01, RUL-01 to RUL-06, EMPTY-01 |
 | `/settings` | Settings | NAV-01, SET-01 to SET-05, EMPTY-01, EMPTY-02 |
@@ -471,7 +471,7 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 3. Click Use beside the suggestion.
 4. Click Accept.
 
-**Result**: after step 2, that row leaves the group and the group shows "Suggested:" with that category. The category field stays empty until step 3, which fills it in. A suggestion never applies itself. After step 4, the group leaves the list.
+**Result**: after step 2, a notice says the row from that date was saved, that row leaves the group and the group shows "Suggested:" with that category. The category field stays empty until step 3, which fills it in. A suggestion never applies itself. After step 4, the group leaves the list.
 
 ### REV-04 A group with redacted text
 
@@ -598,6 +598,37 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 5. Reload.
 
 **Result**: after the last decision, the inbox shows "All rows are reviewed" with "New rows appear here after your next import." The subtitle says "Nothing left to review.", and the tabs are gone. The reload keeps it. Budget and the Overview say "No rows need review." with no link. Run it as one of the last fake-owner flows, since every review flow after it finds nothing to review.
+
+### REV-13 Change one row, and the group keeps its place
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: one group's rows, then one row of another group.
+- **Start**: `/review`.
+- **Automated in**: `reviewGroupEdits.spec.ts`.
+
+1. Accept a small group, so the notice says how many rows were saved. Click Skip if it offers a rule.
+2. Open a group that has the same count as the group below it.
+3. Click Change on one row, select Personal in Type, and click Save Row.
+4. Close the group.
+
+**Result**: after step 3, the notice says the row from that date was saved, and no earlier count stays on screen. The group shows one row fewer, and stays open where it was, though the group below it is now larger. After step 4, the list is largest first again, so the group moves below the larger one. A rule sort's Undo goes once a row is saved this way.
+
+### REV-14 Label every row in a group
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: the label of every row in one group, and of one of its rows before that.
+- **Start**: `/review`.
+- **Automated in**: `reviewGroupEdits.spec.ts`.
+
+1. Open a group. Click Change on one row, type a label, and click Save Row.
+2. Click Change All, beside Accept.
+3. Leave Label blank, then type a label.
+4. Click Save Label.
+5. On Transactions, look at the group's rows in each month.
+
+**Result**: step 2 opens Label All Rows, with the group's bank text and row count. In step 3, a blank label says saving clears the label on every row, and the button reads Clear Labels. With a label typed, it says 1 row already has a different label and that saving replaces it. After step 4, the notice says how many rows got the label. The group stays open in its place with the same count, because its rows stay in review, and each row shows the label with its bank text under it. In step 5, every row of the group shows the label and Needs Review. On a phone, Change All sits beside Accept and the dialog fills the screen.
 
 ## Import
 
