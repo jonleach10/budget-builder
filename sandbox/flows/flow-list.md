@@ -37,7 +37,7 @@ Months in the sandbox: the seed fills the 12 months up to the current one. "Last
 | `/login/mfa/setup` | Set Up Authenticator | AUTH-05, AUTH-07, AUTH-08 |
 | `/` | Overview | AUTH-01, NAV-01, OVR-01 to OVR-04, EMPTY-01 |
 | `/budget` | Budget | NAV-01, BUD-01 to BUD-07, EMPTY-01, EMPTY-02 |
-| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-13, EMPTY-01 |
+| `/accounts` | Accounts | NAV-01, ACC-01 to ACC-13, ACC-20 to ACC-28, EMPTY-01 |
 | `/transactions` | Transactions | NAV-01, TXN-01 to TXN-08, EMPTY-01 |
 | `/review` | Review Inbox | NAV-01, REV-01 to REV-14, EMPTY-01 |
 | `/import` | Import | NAV-01, IMP-01 to IMP-05, EMPTY-01 |
@@ -450,7 +450,7 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 
 1. Select Sandbox Savings · Ending 4444 in the Account picker.
 
-**Result**: Spending by Category shows one plain line in place of the donut and the list: "No Spending" and the period's dates, such as "No Spending from August 1 to October 31, 2026.", with "Only Spending rows count here, so transfers and income aren't shown." under it. There's no hint about Change, no donut and no Total. Under the line, Personal and the needs-review line of ACC-12 sit side by side, and Top Merchants says "No merchants to show, because there's no Spending in this period." The period controls stay, because the account has rows. If a category had Spending in the period before, the list stays beside the line with that category muted at $0.00 and -100%, then the Total, and Personal and needs review go under the line. On a phone, the line fills the card's width, Personal and needs review follow the card, and nothing scrolls sideways.
+**Result**: Spending by Category shows one plain line in place of the donut and the list: "No Spending" and the period's dates, such as "No Spending from August 1 to October 31, 2026.", with "Only Spending rows count here, so transfers and income aren't shown." under it. There's no hint about Change, no donut and no Total. Under the line, Personal and the needs-review line of ACC-12 sit side by side, and Top Merchants says "No merchants to show, because there's no Spending in this period." The period controls stay, because the account has rows. If a category had Spending in the period before, the list stays beside the line with that category muted at $0.00 and -100%, then the Total, and Personal and needs review go under the line. Sandbox Savings has no Spending in any month, so there's no Monthly Spending card either, as ACC-26 checks. On a phone, the line fills the card's width, Personal and needs review follow the card, and nothing scrolls sideways.
 
 ### ACC-11 Read the top merchants
 
@@ -489,6 +489,117 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 2. Click Go to Review Inbox.
 
 **Result**: every row on Sandbox Girokonto in Last 3 Months needs review, so in place of the donut and the list, Spending by Category shows a panel with a blue edge and an inbox icon: "Every row in this period needs review", a line such as "23 rows need review, so there's no Spending to show yet. They count here once they're decided.", and Go to Review Inbox. There's no Change hint, no donut, no list and no no-Spending line, even if a category had Spending in the period before. Personal stays under the panel, at €0.00, with no separate needs-review line. Top Merchants says there's nothing to show. A period with no rows at all shows the no-Spending line of ACC-09 instead. On a phone, the button fills the panel's width, Personal follows the card, and nothing scrolls sideways. Step 2 opens the Review Inbox.
+
+### ACC-20 Read the monthly trend for Last 3 Months
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Look at Monthly Spending on Sandbox Card, under Spending by Category.
+2. Hold the pointer over each month, or move to it with the Tab key.
+
+**Result**: Monthly Spending shows one line, Sandbox Card's Spending in each of the 3 months, with "Spending" beside its last point and no legend. Only Spending counts, as in the list above it. A month with no Spending is a point at $0: the seed leaves the first of these months empty, so its point sits on the $0 line. The year shows under the first month and under any January. There's no hint and no highlighted month. Step 2 shows each month's name and Spending, and a screen reader reads each month as a button named with them, such as "September 2026: spending $2,412.30". On a phone, the chart is shorter and names its first and last months and its range under it, and nothing scrolls sideways.
+
+### ACC-21 One month shows the 12 months up to it
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`, with last month in both From and To.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Look at Monthly Spending.
+
+**Result**: a hint says "One month has one point, so the chart shows the 12 months up to" the month, such as "October 2026.". The chart has 12 points, ending at the month, with months before the seed's first at $0. The month is highlighted: a frosted band behind it, a larger, brighter point, its name in bold under the chart, and its Spending in a tag above the point, the same amount as the Total row. On a phone, the tag sits to the left of the point and names the month too, such as "Oct $2,630.50", and nothing scrolls sideways.
+
+### ACC-22 This Month in the trend
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Click This Month.
+
+**Result**: Monthly Spending shows the 12 months up to the month in progress, with it highlighted as in ACC-21, and the hint names the current month.
+
+### ACC-23 Last 12 Months in the trend
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Click Last 12 Months.
+
+**Result**: Monthly Spending shows the 12 full months before the current one, a point each, with none highlighted and no hint. The months before the seed's first, and its empty month, are at $0.
+
+### ACC-24 All Months in the trend
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Click All Months.
+
+**Result**: Monthly Spending runs from the account's first month with rows to its last, the same months as From and To, with none highlighted. On Sandbox Card that's the seed's first month to the current one, or to last month if nothing has posted yet this month. Past about 30 months, only every third month is named under the chart, January, April, July and October, with the year under each January; every month is still a point. The sandbox's seed covers only 5 months, so it never reaches that. On a phone, the chart names its first and last months, and nothing scrolls sideways.
+
+### ACC-25 The trend in a period with no Spending
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`, with the seed's empty month, the second it covers, in both From and To.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Look at the page.
+
+**Result**: Spending by Category shows the no-Spending line of ACC-09, but Monthly Spending stays, because other months in it have Spending. It shows the 12 months up to the empty month, which is highlighted, with its tag at $0.00.
+
+### ACC-26 No trend when every month is $0
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. Select Sandbox Savings · Ending 4444 in the Account picker.
+2. Click All Months.
+
+**Result**: there's no Monthly Spending card, for Last 3 Months or All Months, because every month in the trend is $0 and the no-Spending line already says so.
+
+### ACC-27 The trend as a table
+
+- **Session**: Fake owner.
+- **Release**: Go-live.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
+
+1. In Monthly Spending, click Show Table.
+2. Click Show Chart.
+
+**Result**: step 1 swaps the chart for a table of Month and Spending, a row for each point with the same figures. Step 2 brings the chart back. On a phone, the table fits with no sideways scroll of the page.
+
+### ACC-28 A month whose rows all need review
+
+- **Session**: Fake owner, after an import of a statement whose rows all need review, for a month with no other rows on that account.
+- **Release**: Go-live.
+- **Changes**: Nothing beyond the import.
+- **Start**: `/accounts`, on that account, with a period that covers the month.
+
+1. Look at Monthly Spending.
+2. Click Show Table.
+
+**Result**: the month isn't plotted as $0, which would look like spending stopped. It's a hollow point on the $0 line with a "Needs Review" tag, and the line stops before it and starts again after it; it isn't drawn to the point. A screen reader reads it as, for example, "November 2026: spending needs review". If it's the highlighted month of a one-month period, the highlight stays. "Spending" sits beside the last month that has a figure. A hidden row doesn't count, but any decided row in the month does, even income, so then the month shows its Spending, which may be $0. On a phone, the tag names the month, such as "Nov · Needs Review". In step 2, the table says Needs Review for the month, not $0.00. The default seed has no such month, so this flow isn't automated yet.
 
 ## Transactions
 

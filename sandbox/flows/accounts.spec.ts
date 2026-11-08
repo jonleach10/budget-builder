@@ -484,6 +484,210 @@ test("ACC-10: a month with exactly 7 categories has no Other", async ({ page }) 
   await picture(page, "accounts-seven-desktop");
 });
 
+function trendCard(page: Page) {
+  return page.getByRole("region", { name: "Monthly spending" });
+}
+
+/** Each month of the trend is a button named with its month and figure. */
+function trendMonths(page: Page) {
+  return trendCard(page).getByRole("button", { name: /^\w+ \d{4}: spending / });
+}
+
+function trendMonth(page: Page, offset: number) {
+  return trendCard(page).getByRole("button", {
+    name: new RegExp(`^${longMonth(offset)}: spending `),
+  });
+}
+
+/** The month names of the trend's points, in order. */
+async function trendMonthNames(page: Page): Promise<string[]> {
+  const labels = await trendMonths(page).evaluateAll((buttons) =>
+    buttons.map((button) => button.getAttribute("aria-label") ?? ""),
+  );
+  return labels.map((label) => label.split(":")[0]);
+}
+
+/** Such as ["October 2026", "November 2026"], from the first offset to the last. */
+function monthNames(fromOffset: number, toOffset: number): string[] {
+  return Array.from({ length: toOffset - fromOffset + 1 }, (_, index) =>
+    longMonth(fromOffset + index),
+  );
+}
+
+function oneMonthHint(offset: number): string {
+  return `One month has one point, so the chart shows the 12 months up to ${longMonth(offset)}.`;
+}
+
+test("ACC-20: Last 3 Months has a point for each month, an empty one at $0", async ({ page }) => {
+  await page.goto("/accounts");
+  const card = trendCard(page);
+
+  await expect(card.getByRole("heading", { name: "Monthly Spending" })).toBeVisible();
+  // It comes after Spending by Category.
+  const category = await page.getByRole("heading", { name: "Spending by Category" }).boundingBox();
+  const trend = await card.boundingBox();
+  expect(trend?.y ?? 0).toBeGreaterThan(category?.y ?? 0);
+
+  expect(await trendMonthNames(page)).toEqual(monthNames(-3, -1));
+  // The seed leaves its second month, the first of Last 3 Months, empty.
+  await expect(trendMonth(page, -3)).toHaveAttribute(
+    "aria-label",
+    `${longMonth(-3)}: spending $0.00`,
+  );
+  await expect(trendMonth(page, -1)).toHaveAttribute(
+    "aria-label",
+    /: spending \$[\d,]+\.\d{2}$/,
+  );
+  // Several months need no hint and highlight none.
+  await expect(card.getByText(/^One month has one point/)).toHaveCount(0);
+  await expect(card.locator("[data-band]")).toHaveCount(0);
+  // One line, so no legend: the label beside its end names it.
+  await expect(card.getByText("Spending", { exact: true })).toHaveCount(1);
+  await picture(page, "accounts-trend-last-3-months-desktop");
+});
+
+test("ACC-21: a one-month period shows the 12 months up to it, highlighted", async ({ page }) => {
+  await page.goto(`/accounts?from=${monthKey(-1)}&to=${monthKey(-1)}`);
+  const card = trendCard(page);
+
+  await expect(card.getByText(oneMonthHint(-1))).toBeVisible();
+  expect(await trendMonthNames(page)).toEqual(monthNames(-12, -1));
+  // Months before the seed's first are $0.
+  await expect(trendMonth(page, -12)).toHaveAttribute(
+    "aria-label",
+    `${longMonth(-12)}: spending $0.00`,
+  );
+
+  // The highlight: a band over the month, a larger dot and its figure in a tag.
+  await expect(card.locator("[data-band]")).toBeVisible();
+  await expect(card.locator('[data-dot="highlighted"]')).toHaveCount(1);
+  const label = await trendMonth(page, -1).getAttribute("aria-label");
+  const figure = label?.split(": spending ")[1] ?? "";
+  await expect(card.locator('[data-tag="figure"]')).toHaveText(figure);
+  // It's the period's Spending, the list's Total.
+  await expect(categoryTable(page).getByRole("row").last()).toContainText(`Total${figure}`);
+  // The year sits under the first month and under January.
+  await expect(card.getByText(String(monthAt(-12).getUTCFullYear()), { exact: true })).toBeVisible();
+  await picture(page, "accounts-trend-one-month-desktop");
+
+  await page.setViewportSize(PHONE);
+  const short = monthAt(-1).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  await expect(card.getByText(`${short} ${figure}`, { exact: true })).toBeVisible();
+  await expect(card.getByText(longMonth(-12), { exact: true })).toBeVisible();
+  await expect(card.getByText(longMonth(-1), { exact: true })).toBeVisible();
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await picture(page, "accounts-trend-one-month-phone");
+});
+
+test("ACC-22: This Month shows the 12 months up to the month in progress", async ({ page }) => {
+  await page.goto("/accounts");
+  await shortcut(page, "This Month").click();
+  await expect(shortcut(page, "This Month")).toHaveAttribute("aria-current", "page");
+  const card = trendCard(page);
+
+  await expect(card.getByText(oneMonthHint(0))).toBeVisible();
+  expect(await trendMonthNames(page)).toEqual(monthNames(-11, 0));
+  await expect(card.locator("[data-band]")).toBeVisible();
+});
+
+test("ACC-23: Last 12 Months shows 12 points with none highlighted", async ({ page }) => {
+  await page.goto("/accounts");
+  await shortcut(page, "Last 12 Months").click();
+  await expect(shortcut(page, "Last 12 Months")).toHaveAttribute("aria-current", "page");
+  const card = trendCard(page);
+
+  expect(await trendMonthNames(page)).toEqual(monthNames(-12, -1));
+  await expect(card.locator("[data-band]")).toHaveCount(0);
+  await expect(card.getByText(/^One month has one point/)).toHaveCount(0);
+  // Months before the seed's first, and its empty month, are $0.
+  for (const offset of [-12, -5, -3]) {
+    await expect(trendMonth(page, offset)).toHaveAttribute(
+      "aria-label",
+      `${longMonth(offset)}: spending $0.00`,
+    );
+  }
+});
+
+test("ACC-24: All Months runs from the first month with rows to the last", async ({ page }) => {
+  await page.goto("/accounts");
+  await shortcut(page, "All Months").click();
+  await expect(shortcut(page, "All Months")).toHaveAttribute("aria-current", "page");
+  const card = trendCard(page);
+
+  // From and To hold the first and last months with rows: the seed's first month,
+  // and this month unless nothing has posted in it yet.
+  await expect(monthSelect(page, "From")).toHaveValue(monthKey(-4));
+  const last = await monthSelect(page, "To").inputValue();
+  const lastOffset = last === monthKey(0) ? 0 : -1;
+  expect(await trendMonthNames(page)).toEqual(monthNames(-4, lastOffset));
+  await expect(card.locator("[data-band]")).toHaveCount(0);
+  await picture(page, "accounts-trend-all-months-desktop");
+
+  await page.setViewportSize(PHONE);
+  await expect(card.getByText(longMonth(-4), { exact: true })).toBeVisible();
+  await expect(card.getByText(longMonth(lastOffset), { exact: true })).toBeVisible();
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await picture(page, "accounts-trend-all-months-phone");
+});
+
+test("ACC-25: the trend stays when the period has no Spending but other months do", async ({
+  page,
+}) => {
+  // The seed's empty month.
+  await page.goto(`/accounts?from=${monthKey(-3)}&to=${monthKey(-3)}`);
+  const card = trendCard(page);
+
+  await expect(page.getByText(`No Spending for ${longMonth(-3)}.`)).toBeVisible();
+  await expect(card.getByText(oneMonthHint(-3))).toBeVisible();
+  expect(await trendMonthNames(page)).toEqual(monthNames(-14, -3));
+  await expect(card.locator('[data-tag="figure"]')).toHaveText("$0.00");
+  await expect(trendMonth(page, -4)).toHaveAttribute(
+    "aria-label",
+    /: spending \$[\d,]+\.\d{2}$/,
+  );
+  await picture(page, "accounts-trend-no-spending-desktop");
+});
+
+test("ACC-26: an account where every month is $0 has no trend", async ({ page }) => {
+  await page.goto("/accounts");
+  await picker(page).selectOption({ label: SAVINGS });
+  await expect(page.getByText(`No Spending ${lastThreeMonths()}.`)).toBeVisible();
+
+  await expect(trendCard(page)).toHaveCount(0);
+  await expect(page.getByText("Monthly Spending")).toHaveCount(0);
+
+  await shortcut(page, "All Months").click();
+  await expect(shortcut(page, "All Months")).toHaveAttribute("aria-current", "page");
+  await expect(trendCard(page)).toHaveCount(0);
+});
+
+test("ACC-27: Show Table lists the trend's months and figures", async ({ page }) => {
+  await page.goto("/accounts");
+  const card = trendCard(page);
+  const labels = await trendMonths(page).evaluateAll((buttons) =>
+    buttons.map((button) => button.getAttribute("aria-label") ?? ""),
+  );
+
+  await card.getByRole("button", { name: "Show Table" }).click();
+  const table = card.getByRole("table", { name: "Spending by month" });
+  await expect(table).toBeVisible();
+  await expect(table.getByRole("columnheader")).toHaveText(["Month", "Spending"]);
+  const rows = table.locator("tbody tr");
+  await expect(rows).toHaveCount(labels.length);
+  for (const [index, label] of labels.entries()) {
+    const [month, figure] = label.split(": spending ");
+    await expect(rows.nth(index)).toHaveText(`${month}${figure}`);
+  }
+
+  await card.getByRole("button", { name: "Show Chart" }).click();
+  await expect(table).toHaveCount(0);
+  await expect(trendMonths(page)).toHaveCount(labels.length);
+
+  await page.setViewportSize(PHONE);
+  await card.getByRole("button", { name: "Show Table" }).click();
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+});
+
 test("ACC-09: an account with no Spending shows a plain line instead of the donut", async ({
   page,
 }) => {
