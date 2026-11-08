@@ -114,15 +114,15 @@ Log out is AUTH-04 and AUTH-06. Routes the demo adds are under [Before public la
 
 - **Session**: Fake owner.
 - **Release**: Go-live.
-- **Changes**: Nothing stored. Ends the session.
-- **Start**: `/budget`.
+- **Changes**: Nothing stored. Ends every session the fake owner has, on every device.
+- **Start**: `/budget`, in a session logged in for this flow, not the saved one.
 
 1. Click Log Out at the foot of the sidebar. On a phone, open the menu at the top left first.
 2. Use the browser's Back button, then reload.
 
 **Result**: step 1 opens Log In. Step 2 shows Log In, not Budget.
 
-Log Out may end every session the fake owner has, including the saved one other flows use. Run this flow last, or log in again after it.
+**Run this flow last.** Log Out signs out everywhere, by design (owner's decision, 2026-11-08): it ends every session the fake owner has, including the saved one the other flows use. Any fake-owner flow after it fails until the owner logs in again.
 
 ### AUTH-07 Pages a half-finished log in can't reach
 
