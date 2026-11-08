@@ -5,6 +5,7 @@ const LOCAL_HOST = "127.0.0.1:3100";
 const SCREENS = [
   ["Overview", "/"],
   ["Budget", "/budget"],
+  ["Accounts", "/accounts"],
   ["Transactions", "/transactions"],
   ["Review Inbox", "/review"],
   ["Review Inbox, No Merchant", "/review?section=no-merchant"],
