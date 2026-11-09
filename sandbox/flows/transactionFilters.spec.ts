@@ -33,7 +33,12 @@ async function picture(page: Page, name: string): Promise<void> {
   mkdirSync(folder, { recursive: true });
   // Next's dev badge floats over the page, and it isn't part of the app.
   await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
-  await page.screenshot({ path: join(folder, `${name}.png`), animations: "disabled" });
+  // The whole page, since the pill and long lists sit below the fold.
+  await page.screenshot({
+    path: join(folder, `${name}.png`),
+    animations: "disabled",
+    fullPage: true,
+  });
 }
 
 function filter(page: Page, name: "Account" | "Type" | "Category") {
@@ -65,10 +70,13 @@ test("TXN-09: the account, type and category filters live in the address", async
   await expect(page).toHaveURL(
     new RegExp(`/transactions\\?month=${monthKey(-1)}&account=[0-9a-f-]{36}$`),
   );
+  // Each choice keeps the ones before it.
   await filter(page, "Type").selectOption({ label: "Spending" });
-  await expect(page).toHaveURL(/&type=spending$/);
+  await expect(page).toHaveURL(/&account=[0-9a-f-]{36}&type=spending$/);
   await filter(page, "Category").selectOption({ label: "Groceries" });
-  await expect(page).toHaveURL(/&type=spending&category=[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(
+    /&account=[0-9a-f-]{36}&type=spending&category=[0-9a-f-]{36}$/,
+  );
   const filtered = page.url();
 
   // Search, Needs Review and Show Hidden stay off the address.
@@ -120,6 +128,8 @@ test("TXN-09: an address with an account, type or category that doesn't fit", as
 test("ACC-30: Open in Transactions opens the account on the To month", async ({ page }) => {
   // Sandbox Card on Last 3 Months, which ends last month.
   await page.goto("/accounts");
+  await expect(page.getByRole("link", { name: "Open in Transactions" })).toBeVisible();
+  await picture(page, "accounts-transactions-link-desktop");
   await page.getByRole("link", { name: "Open in Transactions" }).click();
 
   await expect(page).toHaveURL(
