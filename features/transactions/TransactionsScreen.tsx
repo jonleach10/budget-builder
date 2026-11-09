@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Link as ChainLink, List } from "lucide-react";
 import { PageFrame } from "@/components/page-frame";
 import { OutlineButton } from "@/components/ui/action-buttons";
@@ -29,13 +30,15 @@ import type {
   TransactionLine,
   TransactionsScreenData,
 } from "./transactionsScreenData";
+import {
+  carriedTransactionFilters,
+  paramsOf,
+  readTransactionFilters,
+  transactionsHref,
+} from "./transactionsParams";
 
 const GHOST_PILL =
   "h-11 bg-frost-wash text-white shadow-hairline hover:bg-accent md:h-9";
-
-function monthHref(month: string): string {
-  return `/transactions?${new URLSearchParams({ month })}`;
-}
 
 export function TransactionFiltersBar({
   filters,
@@ -390,10 +393,16 @@ export function MonthRows({
   );
 }
 
-function HeaderMonthControl({ month }: { month: string }) {
+function HeaderMonthControl({
+  month,
+  hrefFor = (to) => transactionsHref(to),
+}: {
+  month: string;
+  hrefFor?: (month: string) => string;
+}) {
   return (
     <div className="w-full md:w-auto">
-      <MonthControl month={month} hrefFor={monthHref} />
+      <MonthControl month={month} hrefFor={hrefFor} />
     </div>
   );
 }
@@ -405,9 +414,32 @@ function ReadyTransactions({
   month: string;
   screen: TransactionsScreenData;
 }) {
-  // Not keyed by month, so the filters carry over from one month to the next.
-  const [filters, setFilters] = useState(NO_FILTERS);
+  // The account, type and category live in the URL, so a reload or a link keeps
+  // them, and the month links carry them over. The rest stay on the screen, which
+  // isn't keyed by month, so they carry over too.
+  //
+  // The screen holds them, because useSearchParams can lag a replaceState (it does
+  // in development), and takes them from the URL again only when the URL changes
+  // another way: a link, Back or a reload.
+  const fromUrl = readTransactionFilters(paramsOf(useSearchParams()), screen);
+  const urlKey = transactionsHref(month, fromUrl);
+  const [held, setHeld] = useState({
+    urlKey,
+    filters: { ...NO_FILTERS, ...fromUrl },
+  });
+  const filters: TransactionFilters =
+    held.urlKey === urlKey ? held.filters : { ...held.filters, ...fromUrl };
+  if (held.urlKey !== urlKey) setHeld({ urlKey, filters });
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  function setFilters(next: TransactionFilters) {
+    setHeld((current) => ({ ...current, filters: next }));
+    const href = transactionsHref(month, next);
+    // Replaced, not pushed, so Back leaves Transactions rather than undoing a filter.
+    if (href !== transactionsHref(month, filters)) {
+      window.history.replaceState(null, "", href);
+    }
+  }
   const { lines, subtitle, empty } = transactionsView(
     screen.lines,
     filters,
@@ -420,7 +452,12 @@ function ReadyTransactions({
     <PageFrame
       title="Transactions"
       subtitle={subtitle}
-      action={<HeaderMonthControl month={month} />}>
+      action={
+        <HeaderMonthControl
+          month={month}
+          hrefFor={(to) => transactionsHref(to, filters)}
+        />
+      }>
       {empty?.kind === "month" ? (
         <EmptyMonth title={empty.title} text={empty.text} />
       ) : (
@@ -459,12 +496,24 @@ export function TransactionsScreen({
   if (screen !== null) {
     return <ReadyTransactions month={month} screen={screen} />;
   }
+  return <UnloadedTransactions month={month} />;
+}
+
+function UnloadedTransactions({ month }: { month: string }) {
+  // With no accounts or categories to check against, the URL's filters carry over
+  // to the months either side as they are.
+  const carried = carriedTransactionFilters(paramsOf(useSearchParams()));
 
   return (
     <PageFrame
       title="Transactions"
       subtitle=""
-      action={<HeaderMonthControl month={month} />}>
+      action={
+        <HeaderMonthControl
+          month={month}
+          hrefFor={(to) => transactionsHref(to, carried)}
+        />
+      }>
       <Notice
         message={{
           tone: "error",

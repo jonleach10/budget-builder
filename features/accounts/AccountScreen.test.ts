@@ -7,8 +7,11 @@ import type {
   MerchantLine,
   ReadyAccount,
 } from "./accountScreenData";
+import { layoutLineChart, type ChartValue } from "@/features/budget/lineChartLayout";
+import { TrendTable } from "@/features/budget/TrendCard";
 import { AccountScreen } from "./AccountScreen";
 import { layoutDonut, type SliceColor } from "./donutLayout";
+import type { SpendingTrend } from "./spendingTrend";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
@@ -45,6 +48,7 @@ function line(
     amount,
     share,
     change,
+    href: `/transactions?category=${name}`,
     dropped: false,
     swatch,
     members: [],
@@ -87,6 +91,7 @@ const READY: ReadyAccount = {
   allNeedReview: null,
   personal: "$286.50",
   review: { text: "4 rows need review and aren't in these totals.", href: "/review" },
+  trend: null,
   merchants: {
     hint: "Each merchant is named by the bank text of its latest row.",
     lines: [
@@ -96,6 +101,7 @@ const READY: ReadyAccount = {
     ],
     empty: null,
   },
+  transactions: "/transactions?month=2026-10&account=acc-card",
 };
 
 function merchant(rank: string, name: string, visits: string, total: string): MerchantLine {
@@ -124,6 +130,94 @@ const ALL_MONTHS: ReadyAccount = {
     .filter(({ dropped }) => !dropped)
     .map((line) => ({ ...line, change: null })),
   total: { ...READY.total, change: null },
+};
+
+const SHORT =["Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"];
+
+function spendingLine(values: ChartValue[]) {
+  return [{ key: "spending", label: "Spending", color: "chart-2" as const, values }];
+}
+
+const THREE_MONTHS: SpendingTrend = {
+  layout: layoutLineChart({
+    columns: [
+      { name: "August 2026", short: "Aug", year: "2026" },
+      { name: "September 2026", short: "Sep" },
+      { name: "October 2026", short: "Oct" },
+    ],
+    series: spendingLine([119720, 241230, 263050]),
+    currency: "USD",
+  }),
+  hint: null,
+};
+
+const ONE_MONTH: SpendingTrend = {
+  layout: layoutLineChart({
+    columns: SHORT.map((short, index) => {
+      const year = index < 2 ? "2025" : "2026";
+      return {
+        name: `Month ${index}`,
+        short,
+        ...(index === 0 || short === "Jan" ? { year } : {}),
+      };
+    }),
+    series: spendingLine([...Array<number>(11).fill(200000), 263050]),
+    currency: "USD",
+    highlight: 11,
+  }),
+  hint: "One month has one point, so the chart shows the 12 months up to October 2026.",
+};
+
+const NEEDS_REVIEW: SpendingTrend = {
+  layout: layoutLineChart({
+    columns: [
+      { name: "July 2026", short: "Jul" },
+      { name: "August 2026", short: "Aug" },
+      { name: "September 2026", short: "Sep" },
+      { name: "October 2026", short: "Oct" },
+      { name: "November 2026", short: "Nov" },
+    ],
+    series: spendingLine([100000, 120000, { missing: "Needs Review" }, 90000, 80000]),
+    currency: "USD",
+  }),
+  hint: null,
+};
+
+/** September and November need review, and November is the highlighted month. */
+const HIGHLIGHTED_REVIEW: SpendingTrend = {
+  layout: layoutLineChart({
+    columns: [
+      { name: "September 2026", short: "Sep" },
+      { name: "October 2026", short: "Oct" },
+      { name: "November 2026", short: "Nov" },
+    ],
+    series: spendingLine([{ missing: "Needs Review" }, 90000, { missing: "Needs Review" }]),
+    currency: "USD",
+    highlight: 2,
+  }),
+  hint: "One month has one point, so the chart shows the 12 months up to November 2026.",
+};
+
+const OTHER: CategoryLine = {
+  ...line("Other", "$500.00", "50%", "-4%", "other"),
+  key: "other",
+  href: null,
+  members: [
+    {
+      name: "Home",
+      amount: "$312.00",
+      share: "31%",
+      change: "-22%",
+      href: "/transactions?category=Home",
+    },
+    {
+      name: "Insurance",
+      amount: "$188.00",
+      share: "19%",
+      change: "New",
+      href: "/transactions?category=Insurance",
+    },
+  ],
 };
 
 function render(screen: AccountScreenData | null): string {
@@ -156,7 +250,7 @@ describe("AccountScreen", () => {
     const html = render(READY);
 
     expect(html).toContain("Spending by Category");
-    expect(html).toMatch(/Gas<\/th>.*?\$500\.00.*?50%/);
+    expect(html).toMatch(/Gas<\/a><\/th>.*?\$500\.00.*?50%/);
     expect(html).toMatch(/Total<\/th>.*?\$1,000\.00.*?100%/);
   });
 
@@ -175,8 +269,8 @@ describe("AccountScreen", () => {
 
     expect(html).toContain("Change is against May to July 2026, the 3 months before.");
     expect(html).toMatch(/>Change<\/th>/);
-    expect(html).toMatch(/Gas<\/th>.*?\$500\.00.*?50%.*?\+4%/);
-    expect(html).toMatch(/Groceries<\/th>.*?New/);
+    expect(html).toMatch(/Gas<\/a><\/th>.*?\$500\.00.*?50%.*?\+4%/);
+    expect(html).toMatch(/Groceries<\/a><\/th>.*?New/);
     expect(html).toMatch(/Total<\/th>.*?\$1,000\.00.*?100%.*?-3%/);
     // The phone list puts share and change on one line.
     expect(html).toContain("50% · +4%");
@@ -186,11 +280,11 @@ describe("AccountScreen", () => {
     const html = render(READY);
 
     expect(html).toMatch(
-      /<tr data-dropped="true" class="[^"]*text-muted-foreground[^"]*"><th[^>]*>(?:(?!<\/th>).)*Travel<\/th>.*?\$0\.00.*?0%.*?-100%/,
+      /<tr data-dropped="true" class="[^"]*text-muted-foreground[^"]*"><th[^>]*>(?:(?!<\/th>).)*Travel<\/a><\/th>.*?\$0\.00.*?0%.*?-100%/,
     );
     expect(html.indexOf(">Travel<")).toBeGreaterThan(html.indexOf(">Groceries<"));
     // Its swatch is empty, because it has no slice.
-    expect(html).toMatch(/ring-inset"><\/span><\/span>Travel<\/th>/);
+    expect(html).toMatch(/ring-inset"><\/span><\/span><a [^>]*>Travel<\/a><\/th>/);
   });
 
   it("hides the Change column for All Months, and says why", () => {
@@ -233,20 +327,13 @@ describe("AccountScreen", () => {
       ...READY,
       categories: [
         line("Gas", "$500.00", "50%", "+4%", 1),
-        {
-          ...line("Other", "$500.00", "50%", "-4%", "other"),
-          key: "other",
-          members: [
-            { name: "Home", amount: "$312.00", share: "31%", change: "-22%" },
-            { name: "Insurance", amount: "$188.00", share: "19%", change: "New" },
-          ],
-        },
+        OTHER,
       ],
     });
 
     expect(html).toMatch(/Other<\/th>.*?\$500\.00.*?50%.*?-4%/);
     expect(html).toMatch(
-      /<tr data-member="true".*?Other: <\/span>Home<\/span><\/th>.*?\$312\.00.*?31%.*?-22%/,
+      /<tr data-member="true".*?Other: <\/span>Home<\/a><\/span><\/th>.*?\$312\.00.*?31%.*?-22%/,
     );
     expect(html.indexOf(">Home<")).toBeGreaterThan(html.indexOf(">Other<"));
     expect(html.indexOf(">Insurance<")).toBeLessThan(html.indexOf(">Total<"));
@@ -284,7 +371,49 @@ describe("AccountScreen", () => {
     });
 
     expect(html).toContain("No Spending for October 2026.");
-    expect(html).toMatch(/Travel<\/th>.*?-100%/);
+    expect(html).toMatch(/Travel<\/a><\/th>.*?-100%/);
+  });
+
+  it("opens Transactions from a link at the foot of the page", () => {
+    const html = render(READY);
+
+    expect(html).toMatch(
+      /<a [^>]*href="\/transactions\?month=2026-10&amp;account=acc-card"[^>]*>Open in Transactions<svg/,
+    );
+    expect(html.indexOf("Open in Transactions")).toBeGreaterThan(
+      html.indexOf(">Total<"),
+    );
+  });
+
+  it("has no Transactions link for an account with no rows", () => {
+    const html = render({
+      status: "empty",
+      picker: PICKER,
+      subtitle: "Amounts are in EUR.",
+      title: "No rows in Sample Girokonto",
+      text: "Import a statement for this account to see its spending.",
+    });
+
+    expect(html).not.toContain("Open in Transactions");
+  });
+
+  it("links each category row to its rows in Transactions, in the table and the phone list", () => {
+    const html = render(READY);
+
+    for (const name of ["Gas", "Groceries", "Travel"]) {
+      expect(html.match(new RegExp(`<a [^>]*href="/transactions\\?category=${name}"[^>]*>${name}</a>`, "g"))).toHaveLength(2);
+    }
+  });
+
+  it("links the categories under Other, but not Other itself", () => {
+    const html = render({ ...READY, categories: [OTHER] });
+
+    expect(html).not.toMatch(/>Other<\/a>/);
+    // Each reads as part of Other, link included.
+    expect(
+      html.match(/<a [^>]*href="\/transactions\?category=Home"[^>]*><span class="sr-only">Other: <\/span>Home<\/a>/g),
+    ).toHaveLength(2);
+    expect(html).toContain('href="/transactions?category=Insurance"');
   });
 
   it("shows the Personal total and the needs-review line, linking to the Review inbox", () => {
@@ -380,9 +509,107 @@ describe("AccountScreen", () => {
     expect(html).toMatch(/Personal<\/span><span[^>]*>\$0\.00</);
   });
 
+  it("has no Monthly Spending card when there's no trend", () => {
+    expect(render(READY)).not.toContain("Monthly Spending");
+  });
+
+  it("shows Monthly Spending under Spending by Category, as one line with no legend", () => {
+    const html = render({ ...READY, trend: THREE_MONTHS });
+
+    expect(html).toMatch(/<section aria-label="Monthly spending"/);
+    expect(html).toContain(">Monthly Spending</h2>");
+    expect(html.indexOf("Monthly Spending")).toBeGreaterThan(
+      html.indexOf("Spending by Category"),
+    );
+    expect(html).toContain("Show Table");
+    expect(html).toContain("stroke-chart-2");
+    expect(html).not.toContain("Income and Spending");
+    // The end label names the line, and nothing else does.
+    expect(html.match(/>Spending<\/span>/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="September 2026: spending $2,412.30"');
+    expect(html).not.toContain("data-band");
+  });
+
+  it("puts Monthly Spending between Spending by Category and Top Merchants", () => {
+    const html = render({ ...READY, trend: THREE_MONTHS });
+    const trend = html.indexOf(">Monthly Spending</h2>");
+
+    expect(trend).toBeGreaterThan(html.indexOf("Spending by Category"));
+    expect(trend).toBeLessThan(html.indexOf(">Top Merchants</h2>"));
+  });
+
+  it("puts Open in Transactions last, after Monthly Spending and Top Merchants", () => {
+    const html = render({ ...READY, trend: THREE_MONTHS });
+    const open = html.indexOf(">Open in Transactions<");
+
+    expect(open).toBeGreaterThan(html.indexOf(">Monthly Spending</h2>"));
+    expect(open).toBeGreaterThan(html.indexOf(">Top Merchants</h2>"));
+    expect(open).toBeGreaterThan(html.lastIndexOf("SAMPLE CAFE"));
+  });
+
+  it("highlights the month of a one-month period, and says why there are 12", () => {
+    const html = render({ ...READY, trend: ONE_MONTH });
+
+    expect(html).toContain(
+      "One month has one point, so the chart shows the 12 months up to October 2026.",
+    );
+    expect(html).toContain('data-band="true"');
+    expect(html).toContain('data-dot="highlighted"');
+    expect(html).toMatch(/data-tag="figure"[^>]*>\$2,630\.50</);
+    expect(html).toContain(">Oct $2,630.50<");
+    expect(html).toMatch(/font-semibold text-ice-highlight">Oct</);
+  });
+
+  it("puts the year under the first month and under January", () => {
+    const html = render({ ...READY, trend: ONE_MONTH });
+
+    expect(html).toMatch(/>Nov<span[^>]*>2025<\/span>/);
+    expect(html).toMatch(/>Jan<span[^>]*>2026<\/span>/);
+    expect(html).not.toMatch(/>Feb<span/);
+  });
+
+  it("draws a month whose rows all need review as a hollow point, untagged unless highlighted", () => {
+    const html = render({ ...READY, trend: NEEDS_REVIEW });
+
+    expect(html).toContain('data-dot="missing"');
+    expect(html).not.toContain("data-tag");
+    expect(html).not.toContain(">Needs Review<");
+    expect(html).toContain('aria-label="September 2026: spending needs review"');
+    // Two lines, one each side of it.
+    expect(html.match(/<polyline/g)).toHaveLength(2);
+  });
+
+  it("tags the highlighted month Needs Review when its rows all need review", () => {
+    const html = render({ ...READY, trend: HIGHLIGHTED_REVIEW });
+
+    expect(html.match(/data-dot="missing"/g)).toHaveLength(2);
+    expect(html.match(/data-tag=/g)).toHaveLength(1);
+    expect(html).toMatch(/data-tag="missing"[^>]*>Needs Review</);
+    expect(html).toContain(">Nov · Needs Review<");
+    expect(html).not.toContain(">Sep · Needs Review<");
+  });
+
   it("says when the page can't be loaded", () => {
     expect(render(null)).toContain(
       "This account can&#x27;t be loaded. Reload the page to try again.",
     );
+  });
+});
+
+describe("Monthly Spending as a table", () => {
+  const html = renderToStaticMarkup(
+    createElement(TrendTable, {
+      layout: NEEDS_REVIEW.layout,
+      caption: "Spending by month",
+    }),
+  );
+
+  it("is named for what it holds", () => {
+    expect(html).toContain('<caption class="sr-only">Spending by month</caption>');
+  });
+
+  it("says Needs Review for a month whose rows all need review, not $0.00", () => {
+    expect(html).toMatch(/September 2026<\/th><td[^>]*>Needs Review<\/td>/);
+    expect(html).not.toContain("$0.00");
   });
 });

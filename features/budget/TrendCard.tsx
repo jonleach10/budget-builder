@@ -5,11 +5,18 @@ import { OutlineButton } from "@/components/ui/action-buttons";
 import { LineChart } from "./LineChart";
 import type { ChartLayout } from "./lineChartLayout";
 
-export function TrendTable({ layout }: { layout: ChartLayout }) {
+/** A month with no figure shows its label, such as Needs Review, not $0.00. */
+export function TrendTable({
+  layout,
+  caption = "Income and spending by month",
+}: {
+  layout: ChartLayout;
+  caption?: string;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-body-sm">
-        <caption className="sr-only">Income and spending by month</caption>
+        <caption className="sr-only">{caption}</caption>
         <thead className="bg-background text-caption text-muted-foreground">
           <tr className="border-b border-border">
             <th scope="col" className="py-2.5 pr-2 pl-4 text-left font-medium md:pl-6">

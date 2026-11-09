@@ -764,6 +764,75 @@ describe("buildAccountScreen: change against the period before", () => {
   });
 });
 
+describe("buildAccountScreen: links to Transactions", () => {
+  it("opens Transactions on the account and the period's To month", () => {
+    const screen = ready({ rows: [row()], period: range("2026-08", "2026-10") });
+
+    expect(screen.transactions).toBe(
+      "/transactions?month=2026-10&account=acc-card",
+    );
+  });
+
+  it("opens the last month with rows for All Months", () => {
+    const screen = ready({ rows: SPREAD(), period: { kind: "all" } });
+
+    expect(screen.transactions).toBe(
+      "/transactions?month=2026-11&account=acc-card",
+    );
+  });
+
+  it("links each category row to its Spending on the account, in the To month", () => {
+    const screen = ready({
+      rows: [row(), row({ category_id: "cat-dining", amount_minor: -5000 })],
+      period: range("2026-08", "2026-10"),
+    });
+
+    expect(screen.categories.map(({ name, href }) => ({ name, href }))).toEqual([
+      {
+        name: "Groceries",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-groceries",
+      },
+      {
+        name: "Dining",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-dining",
+      },
+    ]);
+  });
+
+  it("links the categories under Other, but not Other itself", () => {
+    const screen = nine();
+    const other = screen.categories.find(({ key }) => key === "other");
+
+    expect(other?.href).toBeNull();
+    expect(other?.members.map(({ name, href }) => ({ name, href }))).toEqual([
+      {
+        name: "Home",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-home",
+      },
+      {
+        name: "Insurance",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-insurance",
+      },
+      {
+        name: "Clothing",
+        href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-clothing",
+      },
+    ]);
+  });
+
+  it("links a category that dropped to zero, like any category row", () => {
+    const screen = ready({
+      rows: [row(), spent("cat-dining", "2026-06", 4000)],
+    });
+    const dropped = screen.categories.find(({ dropped }) => dropped);
+
+    expect(dropped).toMatchObject({
+      name: "Dining",
+      href: "/transactions?month=2026-10&account=acc-card&type=spending&category=cat-dining",
+    });
+  });
+});
+
 /** Nine categories, as on a busy card, by position. */
 const NINE = [
   "Groceries",
@@ -844,10 +913,11 @@ describe("buildAccountScreen: the donut", () => {
 
     // $561.20 against $587.20.
     expect(other?.change).toBe("-4%");
+    // Each one's link is checked under "links to Transactions".
     expect(other?.members).toEqual([
-      { name: "Home", amount: "$312.00", share: "5%", change: "-22%" },
-      { name: "Insurance", amount: "$187.20", share: "3%", change: "0%" },
-      { name: "Clothing", amount: "$62.00", share: "1%", change: "New" },
+      expect.objectContaining({ name: "Home", amount: "$312.00", share: "5%", change: "-22%" }),
+      expect.objectContaining({ name: "Insurance", amount: "$187.20", share: "3%", change: "0%" }),
+      expect.objectContaining({ name: "Clothing", amount: "$62.00", share: "1%", change: "New" }),
     ]);
     expect(screen.categories[0].members).toEqual([]);
   });
@@ -1355,5 +1425,394 @@ describe("buildAccountScreen: top merchants", () => {
     });
 
     expect(screen.merchants.lines[0].total).toBe("€28.00");
+  });
+});
+
+/** The trend, or a failed test if it's hidden. */
+function trendOf(screen: ReadyAccount) {
+  if (screen.trend === null) throw new Error("Expected a trend.");
+  return screen.trend;
+}
+
+/** Each month's name and figure, as the table under Show Table lists them. */
+function points(screen: ReadyAccount): [string, string][] {
+  return trendOf(screen).layout.columns.map(({ name, readouts }) => [
+    name,
+    readouts[0].value,
+  ]);
+}
+
+function highlighted(screen: ReadyAccount): string[] {
+  return trendOf(screen)
+    .layout.columns.filter((column) => column.highlighted)
+    .map(({ name }) => name);
+}
+
+/** The 12 months from November 2025 to October 2026, with $0.00 unless given. */
+function twelveUpToOctober(figures: Record<string, string> = {}): [string, string][] {
+  return [
+    "November 2025",
+    "December 2025",
+    "January 2026",
+    "February 2026",
+    "March 2026",
+    "April 2026",
+    "May 2026",
+    "June 2026",
+    "July 2026",
+    "August 2026",
+    "September 2026",
+    "October 2026",
+  ].map((name) => [name, figures[name] ?? "$0.00"]);
+}
+
+describe("buildAccountScreen: the trend", () => {
+  it("has one point per month of the period, with a month of no Spending at $0", () => {
+    const screen = ready({
+      rows: [
+        spent("cat-groceries", "2026-08", 1000),
+        spent("cat-dining", "2026-08", 500),
+        spent("cat-gas", "2026-10", 4000),
+        // Outside Last 3 Months, so not a point.
+        spent("cat-gas", "2026-07", 9900),
+      ],
+    });
+
+    expect(points(screen)).toEqual([
+      ["August 2026", "$15.00"],
+      ["September 2026", "$0.00"],
+      ["October 2026", "$40.00"],
+    ]);
+    expect(highlighted(screen)).toEqual([]);
+    expect(trendOf(screen).hint).toBeNull();
+  });
+
+  it("counts a month's Spending as the categories do, refunds and all", () => {
+    const screen = ready({
+      rows: [
+        row({ posted_on: "2026-09-02", amount_minor: -8000 }),
+        row({ posted_on: "2026-09-04", amount_minor: 1500 }),
+        row({ posted_on: "2026-09-05", amount_minor: -99900, hidden: true }),
+        row({ posted_on: "2026-09-06", type: "personal", category_id: null }),
+        row({ posted_on: "2026-09-07", type: "transfer", category_id: null }),
+        row({ posted_on: "2026-09-08", category_id: null, amount_minor: -7000 }),
+      ],
+    });
+
+    expect(points(screen)[1]).toEqual(["September 2026", "$65.00"]);
+  });
+
+  it("shows the 12 months up to a one-month period, with that month highlighted", () => {
+    const screen = ready({
+      period: range("2026-10", "2026-10"),
+      rows: [
+        spent("cat-groceries", "2026-10", 263050),
+        spent("cat-groceries", "2026-08", 119720),
+        spent("cat-groceries", "2025-11", 10000),
+        // A month before the 12, so not a point.
+        spent("cat-groceries", "2025-10", 50000),
+      ],
+    });
+
+    expect(points(screen)).toEqual(
+      twelveUpToOctober({
+        "November 2025": "$100.00",
+        "August 2026": "$1,197.20",
+        "October 2026": "$2,630.50",
+      }),
+    );
+    expect(highlighted(screen)).toEqual(["October 2026"]);
+    expect(trendOf(screen).hint).toBe(
+      "One month has one point, so the chart shows the 12 months up to October 2026.",
+    );
+  });
+
+  it("highlights the month in progress for This Month", () => {
+    const screen = ready({
+      rows: SPREAD(),
+      period: shortcutPeriod("this-month", TODAY),
+    });
+
+    expect(points(screen)).toHaveLength(12);
+    expect(points(screen)[0][0]).toBe("December 2025");
+    expect(points(screen).at(-1)).toEqual(["November 2026", "$40.00"]);
+    expect(highlighted(screen)).toEqual(["November 2026"]);
+    expect(trendOf(screen).hint).toBe(
+      "One month has one point, so the chart shows the 12 months up to November 2026.",
+    );
+  });
+
+  it("shows the 12 months of Last 12 Months, with none highlighted", () => {
+    const screen = ready({
+      rows: SPREAD(),
+      period: shortcutPeriod("last-12-months", TODAY),
+    });
+
+    expect(points(screen)).toEqual(twelveUpToOctober({ "September 2026": "$20.00" }));
+    expect(highlighted(screen)).toEqual([]);
+    expect(trendOf(screen).hint).toBeNull();
+  });
+
+  it("runs All Months from the first month with rows to the last", () => {
+    const screen = ready({ rows: SPREAD(), period: { kind: "all" } });
+    const months = points(screen);
+
+    expect(months).toHaveLength(21);
+    expect(months[0]).toEqual(["March 2025", "$10.00"]);
+    expect(months.at(-1)).toEqual(["November 2026", "$40.00"]);
+    expect(highlighted(screen)).toEqual([]);
+  });
+
+  it("starts All Months at a first month whose only row is hidden", () => {
+    const screen = ready({
+      rows: [row({ posted_on: "2026-06-10", hidden: true }), row({ posted_on: "2026-09-10" })],
+      period: { kind: "all" },
+    });
+
+    expect(points(screen).map(([name]) => name)).toEqual([
+      "June 2026",
+      "July 2026",
+      "August 2026",
+      "September 2026",
+    ]);
+  });
+
+  it("treats All Months with rows in one month as one month", () => {
+    const screen = ready({
+      rows: [spent("cat-groceries", "2026-10", 5000)],
+      period: { kind: "all" },
+    });
+
+    expect(points(screen)).toEqual(twelveUpToOctober({ "October 2026": "$50.00" }));
+    expect(highlighted(screen)).toEqual(["October 2026"]);
+  });
+
+  it("stays when the period has no Spending but another month in the trend does", () => {
+    const screen = ready({
+      period: range("2026-10", "2026-10"),
+      rows: [
+        spent("cat-groceries", "2026-09", 5000),
+        row({ posted_on: "2026-10-05", type: "transfer", category_id: null }),
+      ],
+    });
+
+    expect(screen.noSpending).not.toBeNull();
+    expect(points(screen)).toEqual(twelveUpToOctober({ "September 2026": "$50.00" }));
+    expect(highlighted(screen)).toEqual(["October 2026"]);
+  });
+
+  it("is hidden when every month in the trend is $0", () => {
+    const screen = ready({
+      rows: [
+        row({ posted_on: "2026-09-05", type: "transfer", category_id: null }),
+        row({ posted_on: "2026-10-05", type: "income", category_id: null }),
+        // Spending, but before the trend's months.
+        spent("cat-groceries", "2026-06", 5000),
+      ],
+    });
+
+    expect(screen.trend).toBeNull();
+  });
+
+  it("is hidden when a month's Spending and refunds come to $0", () => {
+    const screen = ready({
+      rows: [
+        row({ posted_on: "2026-09-02", amount_minor: -5000 }),
+        row({ posted_on: "2026-09-20", amount_minor: 5000 }),
+      ],
+    });
+
+    expect(screen.trend).toBeNull();
+  });
+
+  it("shows a month below $0 when refunds outweigh its Spending", () => {
+    const screen = ready({
+      rows: [
+        row({ posted_on: "2026-08-02", amount_minor: -5000 }),
+        row({ posted_on: "2026-09-20", amount_minor: 2000 }),
+      ],
+    });
+
+    expect(points(screen)).toEqual([
+      ["August 2026", "$50.00"],
+      ["September 2026", "-$20.00"],
+      ["October 2026", "$0.00"],
+    ]);
+  });
+
+  it("names the trend's figures in the account's own currency", () => {
+    const screen = ready({
+      accounts: [GIROKONTO],
+      accountId: GIROKONTO.id,
+      rows: [
+        row({
+          account_id: GIROKONTO.id,
+          posted_on: "2026-09-10",
+          amount_minor: -4250,
+          currency: "EUR",
+          base_amount_minor: -4600,
+        }),
+      ],
+    });
+
+    expect(points(screen)[1]).toEqual(["September 2026", "€42.50"]);
+  });
+});
+
+describe("buildAccountScreen: a trend month whose rows all need review", () => {
+  it("isn't $0: it's labelled Needs Review and has no figure", () => {
+    const screen = ready({
+      rows: [
+        spent("cat-groceries", "2026-08", 1000),
+        row({ posted_on: "2026-09-02", type: null, category_id: null }),
+        row({ posted_on: "2026-09-04", category_id: null }),
+        spent("cat-groceries", "2026-10", 3000),
+      ],
+    });
+
+    expect(points(screen)).toEqual([
+      ["August 2026", "$10.00"],
+      ["September 2026", "Needs Review"],
+      ["October 2026", "$30.00"],
+    ]);
+    const { dots, segments } = trendOf(screen).layout.series[0];
+    expect(dots.map(({ missing }) => missing)).toEqual([false, true, false]);
+    // The line stops before it and starts again after it.
+    expect(segments).toHaveLength(2);
+    // Only a highlighted month is tagged, and several months highlight none.
+    expect(trendOf(screen).layout.tags).toEqual([]);
+  });
+
+  it("leaves hidden rows out of whether every row needs review", () => {
+    const screen = ready({
+      rows: [
+        spent("cat-groceries", "2026-08", 1000),
+        row({ posted_on: "2026-09-02", category_id: null }),
+        row({ posted_on: "2026-09-04", hidden: true }),
+      ],
+    });
+
+    expect(points(screen)[1]).toEqual(["September 2026", "Needs Review"]);
+  });
+
+  it("is $0 when any row in the month is decided, even one that isn't Spending", () => {
+    const screen = ready({
+      rows: [
+        spent("cat-groceries", "2026-08", 1000),
+        row({ posted_on: "2026-09-02", category_id: null }),
+        row({ posted_on: "2026-09-03", type: "income", category_id: null }),
+      ],
+    });
+
+    expect(points(screen)[1]).toEqual(["September 2026", "$0.00"]);
+  });
+
+  it("keeps the highlight on a one-month period whose rows all need review", () => {
+    const screen = ready({
+      period: shortcutPeriod("this-month", TODAY),
+      rows: [
+        // September needs review too, but isn't highlighted, so it has no tag.
+        row({ posted_on: "2026-09-02", type: null, category_id: null }),
+        spent("cat-groceries", "2026-10", 5000),
+        row({ posted_on: "2026-11-02", type: null, category_id: null }),
+      ],
+    });
+
+    expect(points(screen).at(-1)).toEqual(["November 2026", "Needs Review"]);
+    expect(highlighted(screen)).toEqual(["November 2026"]);
+    expect(trendOf(screen).layout.tags).toEqual([
+      expect.objectContaining({ text: "Needs Review", phoneText: "Nov · Needs Review" }),
+    ]);
+    // The line's label sits at the last month with a figure.
+    expect(trendOf(screen).layout.endLabels).toEqual([
+      expect.objectContaining({ label: "Spending" }),
+    ]);
+  });
+
+  it("keeps the trend when every other month is $0", () => {
+    const screen = ready({
+      rows: [row({ posted_on: "2026-09-02", type: null, category_id: null })],
+    });
+
+    expect(points(screen)).toEqual([
+      ["August 2026", "$0.00"],
+      ["September 2026", "Needs Review"],
+      ["October 2026", "$0.00"],
+    ]);
+  });
+});
+
+/** The axis under the trend: each month's label, with its year under it if any. */
+function axis(screen: ReadyAccount): string[] {
+  return trendOf(screen)
+    .layout.columns.filter(({ labelled }) => labelled)
+    .map(({ short, year }) => (year === null ? short : `${short} ${year}`));
+}
+
+/** One Groceries row in each month from the first to the last, both included. */
+function everyMonth(from: string, to: string): AccountTransactionRow[] {
+  const rows: AccountTransactionRow[] = [];
+  for (let month = from; month <= to; month = nextMonth(month)) {
+    rows.push(spent("cat-groceries", month, 1000));
+  }
+  return rows;
+}
+
+function nextMonth(month: string): string {
+  const [year, number] = month.split("-").map(Number);
+  return number === 12 ? `${year + 1}-01` : `${year}-${String(number + 1).padStart(2, "0")}`;
+}
+
+describe("buildAccountScreen: the trend's month labels", () => {
+  it("labels every month, with the year under the first and under January", () => {
+    const screen = ready({ rows: SPREAD(), period: shortcutPeriod("last-12-months", TODAY) });
+
+    expect(axis(screen)).toEqual([
+      "Nov 2025",
+      "Dec",
+      "Jan 2026",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+    ]);
+  });
+
+  it("still labels every month at 30 months", () => {
+    const screen = ready({
+      rows: everyMonth("2024-06", "2026-11"),
+      period: { kind: "all" },
+    });
+
+    expect(points(screen)).toHaveLength(30);
+    expect(axis(screen)).toHaveLength(30);
+  });
+
+  it("labels every third month past 30, with the year under each January", () => {
+    const screen = ready({
+      rows: everyMonth("2024-05", "2026-11"),
+      period: { kind: "all" },
+    });
+
+    expect(points(screen)).toHaveLength(31);
+    expect(axis(screen)).toEqual([
+      "Jul 2024",
+      "Oct",
+      "Jan 2025",
+      "Apr",
+      "Jul",
+      "Oct",
+      "Jan 2026",
+      "Apr",
+      "Jul",
+      "Oct",
+    ]);
+    // Every month is still a point, with its name for the tooltip and the table.
+    expect(trendOf(screen).layout.columns[0].name).toBe("May 2024");
   });
 });

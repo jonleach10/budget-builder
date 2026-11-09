@@ -2,18 +2,59 @@ import { currencyExponent, formatMoney } from "@/lib/money";
 
 export type ChartColor = "chart-1" | "chart-2" | "chart-3" | "chart-4" | "chart-5";
 
+/**
+ * A month with no figure to plot, shown by its label instead, such as a month
+ * whose rows all need review: plotting it as $0 would look like spending stopped.
+ */
+export type MissingValue = { missing: string };
+
+/** Minor units, or a month with no figure. */
+export type ChartValue = number | MissingValue;
+
 export type ChartSeries = {
   key: string;
   label: string;
   color: ChartColor;
-  values: readonly number[];
+  values: readonly ChartValue[];
+};
+
+export type ChartColumn = {
+  name: string;
+  short: string;
+  /** Shown under the short name, such as under each January. */
+  year?: string;
+  /** False leaves the axis blank here, for a range too long to label every month. */
+  labelled?: boolean;
 };
 
 /** Values are minor units of one currency, on one axis. */
 export type ChartInput = {
-  columns: readonly { name: string; short: string }[];
+  columns: readonly ChartColumn[];
   series: readonly ChartSeries[];
   currency: string;
+  /** A column to pick out with a band, a larger dot, a bold label and its figure. */
+  highlight?: number;
+};
+
+export type ChartDot = {
+  left: number;
+  top: number;
+  /** Drawn hollow on the $0 line, with no line to it. */
+  missing: boolean;
+  highlighted: boolean;
+};
+
+/** The highlighted month's figure, or its label when it has none, above its dot. */
+export type ChartTag = {
+  key: string;
+  left: number;
+  top: number;
+  text: string;
+  /** A phone has no month under each column, so its tag names the month too. */
+  phoneText: string;
+  missing: boolean;
+  /** Past the middle, so a phone's tag sits to the dot's left and stays in the card. */
+  flipped: boolean;
 };
 
 export type ChartLayout = {
@@ -22,12 +63,16 @@ export type ChartLayout = {
     key: string;
     label: string;
     color: ChartColor;
-    points: string;
-    dots: { left: number; top: number }[];
+    /** One polyline for each run of months with figures, so a missing one breaks it. */
+    segments: string[];
+    dots: ChartDot[];
   }[];
   columns: {
     name: string;
     short: string;
+    year: string | null;
+    labelled: boolean;
+    highlighted: boolean;
     left: number;
     description: string;
     readouts: {
@@ -39,6 +84,9 @@ export type ChartLayout = {
   }[];
   endLabels: { key: string; label: string; top: number }[];
   rangeLabel: string;
+  /** The highlighted column's slot, as percentages of the plot's width. */
+  band: { left: number; width: number } | null;
+  tags: ChartTag[];
 };
 
 const INTERVALS = 3;
@@ -70,14 +118,35 @@ function formatTick(tick: number, currency: string, compact: boolean): string {
   return `${formatWhole(tick / THOUSAND, currency)}k`;
 }
 
+function isFigure(value: ChartValue): value is number {
+  return typeof value === "number";
+}
+
+/** Runs of neighbouring values with figures, as index lists. */
+function runs(values: readonly ChartValue[]): number[][] {
+  const found: number[][] = [];
+  let current: number[] = [];
+  values.forEach((value, index) => {
+    if (isFigure(value)) {
+      current.push(index);
+      return;
+    }
+    if (current.length > 0) found.push(current);
+    current = [];
+  });
+  if (current.length > 0) found.push(current);
+  return found;
+}
+
 /** Works out the geometry as percentages, so the plot can take any width. */
 export function layoutLineChart({
   columns,
   series,
   currency,
+  highlight,
 }: ChartInput): ChartLayout {
   const unit = 10 ** currencyExponent(currency);
-  const values = series.flatMap((line) => line.values);
+  const values = series.flatMap((line) => line.values.filter(isFigure));
   const highest = Math.max(0, ...values);
   const lowest = Math.min(0, ...values);
 
@@ -89,6 +158,8 @@ export function layoutLineChart({
     rounded((1 - (value - bottom) / (top - bottom)) * 100);
   const leftOf = (index: number) =>
     rounded(((index + 0.5) / columns.length) * 100);
+  // A month with no figure sits on the $0 line.
+  const plotted = (value: ChartValue) => topOf(isFigure(value) ? value : 0);
 
   const compact = top >= COMPACT_FROM * unit;
   const ticks: ChartLayout["ticks"] = [];
@@ -100,46 +171,82 @@ export function layoutLineChart({
   }
 
   const money = (value: number) => formatMoney({ minor: value, currency });
+  const shown = (value: ChartValue) =>
+    isFigure(value) ? money(value) : value.missing;
 
-  const ends = series.map((line) => ({
-    key: line.key,
-    label: line.label,
-    top: topOf(line.values[line.values.length - 1]),
-  }));
+  // Each line's label sits beside its last month with a figure.
+  const ends = series.flatMap((line) => {
+    const last = line.values.findLast(isFigure);
+    return last === undefined
+      ? []
+      : [{ key: line.key, label: line.label, top: topOf(last) }];
+  });
   const collide = ends.some((end, index) =>
     ends
       .slice(index + 1)
       .some((other) => Math.abs(end.top - other.top) < MIN_LABEL_GAP),
   );
 
+  // Only the highlighted month is tagged, so tags on neighbouring months can't
+  // crowd each other. Any other month with no figure shows it by its hollow dot,
+  // its button's name and the table.
+  const tags: ChartTag[] =
+    highlight === undefined
+      ? []
+      : series.map(({ key, values: line }) => {
+          const value = line[highlight];
+          const left = leftOf(highlight);
+          const text = shown(value);
+          const { short } = columns[highlight];
+          return {
+            key: `${key}-${highlight}`,
+            left,
+            top: plotted(value),
+            text,
+            phoneText: isFigure(value) ? `${short} ${text}` : `${short} · ${text}`,
+            missing: !isFigure(value),
+            flipped: left > 50,
+          };
+        });
+
   return {
     ticks,
     series: series.map(({ key, label, color, values: line }) => {
       const dots = line.map((value, index) => ({
         left: leftOf(index),
-        top: topOf(value),
+        top: plotted(value),
+        missing: !isFigure(value),
+        highlighted: index === highlight,
       }));
       return {
         key,
         label,
         color,
         dots,
-        points: dots.map((dot) => `${dot.left},${dot.top}`).join(" "),
+        segments: runs(line).map((run) =>
+          run.map((index) => `${dots[index].left},${dots[index].top}`).join(" "),
+        ),
       };
     }),
-    columns: columns.map(({ name, short }, index) => {
+    columns: columns.map(({ name, short, year, labelled }, index) => {
       const readouts = series.map(({ key, label, color, values: line }) => ({
         key,
         label,
         color,
-        value: money(line[index]),
+        value: shown(line[index]),
       }));
-      const parts = readouts.map(
-        ({ label, value }) => `${label.toLowerCase()} ${value}`,
-      );
+      const parts = series.map(({ label, values: line }) => {
+        const value = line[index];
+        return isFigure(value)
+          ? `${label.toLowerCase()} ${money(value)}`
+          : `${label.toLowerCase()} ${value.missing.toLowerCase()}`;
+      });
       return {
         name,
         short,
+        year: year ?? null,
+        labelled: labelled ?? true,
+        highlighted: index === highlight,
         left: leftOf(index),
         description: `${name}: ${parts.join(", ")}`,
         readouts,
@@ -147,5 +254,13 @@ export function layoutLineChart({
     }),
     endLabels: collide ? [] : ends,
     rangeLabel: `${ticks[ticks.length - 1].label} to ${ticks[0].label}`,
+    band:
+      highlight === undefined
+        ? null
+        : {
+            left: rounded((highlight / columns.length) * 100),
+            width: rounded(100 / columns.length),
+          },
+    tags,
   };
 }
