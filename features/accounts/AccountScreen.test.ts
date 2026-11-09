@@ -471,6 +471,14 @@ describe("AccountScreen", () => {
     expect(html).not.toContain("data-band");
   });
 
+  it("puts Monthly Spending between Spending by Category and Top Merchants", () => {
+    const html = render({ ...READY, trend: THREE_MONTHS });
+    const trend = html.indexOf(">Monthly Spending</h2>");
+
+    expect(trend).toBeGreaterThan(html.indexOf("Spending by Category"));
+    expect(trend).toBeLessThan(html.indexOf(">Top Merchants</h2>"));
+  });
+
   it("highlights the month of a one-month period, and says why there are 12", () => {
     const html = render({ ...READY, trend: ONE_MONTH });
 
