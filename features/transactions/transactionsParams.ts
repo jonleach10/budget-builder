@@ -19,6 +19,21 @@ function single(value: string | string[] | undefined): string {
 }
 
 /**
+ * The URL's filters without checking the account or category is one, for a month
+ * that can't load, which has none to check them against. A bad or repeated value
+ * means All, and a category only counts under Spending.
+ */
+export function carriedTransactionFilters(raw: RawParams): UrlFilters {
+  const type = single(raw.type);
+
+  return {
+    accountId: single(raw.account),
+    type: isTransactionType(type) ? type : "",
+    categoryId: type === "spending" ? single(raw.category) : "",
+  };
+}
+
+/**
  * A bad, unknown or repeated value means All, as in All Accounts. A category only
  * counts under Spending, as the screen's Category filter does.
  */
@@ -26,17 +41,14 @@ export function readTransactionFilters(
   raw: RawParams,
   { accounts, categories }: Known,
 ): UrlFilters {
-  const account = single(raw.account);
-  const type = single(raw.type);
-  const category = single(raw.category);
+  const { accountId, type, categoryId } = carriedTransactionFilters(raw);
   const known = (rows: Known["accounts"], id: string) =>
     rows.some((row) => row.id === id);
 
   return {
-    accountId: known(accounts, account) ? account : "",
-    type: isTransactionType(type) ? type : "",
-    categoryId:
-      type === "spending" && known(categories, category) ? category : "",
+    accountId: known(accounts, accountId) ? accountId : "",
+    type,
+    categoryId: known(categories, categoryId) ? categoryId : "",
   };
 }
 

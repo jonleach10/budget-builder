@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NO_FILTERS, type TransactionFilters } from "./filterTransactions";
 import {
+  carriedTransactionFilters,
   paramsOf,
   readTransactionFilters,
   transactionsHref,
@@ -84,6 +85,37 @@ describe("readTransactionFilters", () => {
         KNOWN,
       ),
     ).toEqual(NONE);
+  });
+});
+
+describe("carriedTransactionFilters", () => {
+  it("keeps an account and category it can't check", () => {
+    expect(
+      carriedTransactionFilters({
+        account: "acc-gone",
+        type: "spending",
+        category: "cat-gone",
+      }),
+    ).toEqual({ accountId: "acc-gone", type: "spending", categoryId: "cat-gone" });
+  });
+
+  it("drops a type that isn't one, and a category with no Spending", () => {
+    expect(
+      carriedTransactionFilters({ type: "gifts", category: "cat-dining" }),
+    ).toEqual(NONE);
+    expect(
+      carriedTransactionFilters({ type: "income", category: "cat-dining" }),
+    ).toEqual({ accountId: "", type: "income", categoryId: "" });
+  });
+
+  it("drops a value that's repeated in the URL", () => {
+    expect(
+      carriedTransactionFilters({
+        account: ["acc-card", "acc-giro"],
+        type: "spending",
+        category: ["cat-dining", "cat-groceries"],
+      }),
+    ).toEqual({ accountId: "", type: "spending", categoryId: "" });
   });
 });
 

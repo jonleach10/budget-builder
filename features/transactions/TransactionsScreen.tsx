@@ -31,6 +31,7 @@ import type {
   TransactionsScreenData,
 } from "./transactionsScreenData";
 import {
+  carriedTransactionFilters,
   paramsOf,
   readTransactionFilters,
   transactionsHref,
@@ -495,12 +496,24 @@ export function TransactionsScreen({
   if (screen !== null) {
     return <ReadyTransactions month={month} screen={screen} />;
   }
+  return <UnloadedTransactions month={month} />;
+}
+
+function UnloadedTransactions({ month }: { month: string }) {
+  // With no accounts or categories to check against, the URL's filters carry over
+  // to the months either side as they are.
+  const carried = carriedTransactionFilters(paramsOf(useSearchParams()));
 
   return (
     <PageFrame
       title="Transactions"
       subtitle=""
-      action={<HeaderMonthControl month={month} />}>
+      action={
+        <HeaderMonthControl
+          month={month}
+          hrefFor={(to) => transactionsHref(to, carried)}
+        />
+      }>
       <Notice
         message={{
           tone: "error",

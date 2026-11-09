@@ -354,6 +354,27 @@ describe("TransactionsScreen", () => {
     );
     expect(html).toContain("October 2026");
   });
+
+  it("keeps the URL's filters on the month links when the month can't load", () => {
+    url.search = new URLSearchParams("account=acc-giro&type=spending&category=cat-dining");
+    const html = render(null);
+
+    expect(html).toContain(
+      'href="/transactions?month=2026-09&amp;account=acc-giro&amp;type=spending&amp;category=cat-dining"',
+    );
+    expect(html).toContain(
+      'href="/transactions?month=2026-11&amp;account=acc-giro&amp;type=spending&amp;category=cat-dining"',
+    );
+  });
+
+  it("leaves a category off the month links unless the type is Spending, when the month can't load", () => {
+    url.search = new URLSearchParams("account=acc-giro&type=income&category=cat-dining");
+    const html = render(null);
+
+    expect(html).toContain(
+      'href="/transactions?month=2026-09&amp;account=acc-giro&amp;type=income"',
+    );
+  });
 });
 
 describe("MonthRows", () => {
