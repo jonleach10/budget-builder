@@ -7,8 +7,13 @@ import {
   type LedgerRow,
   type TransactionRow,
 } from "@/features/budget/rows";
-import { currencyNote } from "@/features/budget/screenText";
+import {
+  currencyNote,
+  reviewHref,
+  reviewText,
+} from "@/features/budget/screenText";
 import { needsReview } from "@/features/categorize/needsReview";
+import { merchantKey } from "@/features/categorize/pastCategories";
 import { countsAgainstBudget } from "@/features/categorize/transactionType";
 import { formatMoney, sumMinor } from "@/lib/money";
 import { accountHref } from "./accountParams";
@@ -36,12 +41,18 @@ export type AccountRecord = {
   currency: string;
 };
 
+/** A row with the stored fields its merchant key is worked out from. */
+export type AccountTransactionRow = TransactionRow & {
+  ppd_id: string | null;
+  ordering_party_id: string | null;
+};
+
 export type AccountSource = {
   accounts: readonly AccountRecord[];
   /** The account asked for, if any: from the address, else the last one viewed. */
   accountId: string | null;
   /** The chosen account's rows, hidden ones too. */
-  rows: readonly TransactionRow[];
+  rows: readonly AccountTransactionRow[];
   categories: readonly CategoryRow[];
   period: PeriodChoice;
   /** Today, as YYYY-MM-DD, passed in so nothing here reads the clock. */
@@ -111,14 +122,63 @@ export type ReadyAccount = {
   /** The card's hint: what Change is against, or why there's none. */
   hint: string;
   showChange: boolean;
-  /** Null when there's no Spending, and noSpending says so instead. */
+  /** Null when there's no Spending, and noSpending or allNeedReview says why. */
   chart: SpendingChart | null;
   noSpending: NoSpendingLine | null;
+  /**
+   * In place of the donut and the list when the period has rows and every one
+   * needs review, so there's nothing decided to show yet.
+   */
+  allNeedReview: AllNeedReviewPanel | null;
   /** The slices' rows, Other last among them, then the muted rows. */
   categories: CategoryLine[];
   /** Every listed row, muted ones too, so it can differ from the middle figure. */
   total: TotalLine;
+  /** The period's Personal rows, less refunds. Never in a category or the donut. */
+  personal: string;
+  /** How many of the period's rows need review, linking to the Review inbox if any. */
+  review: ReviewLine;
+  merchants: MerchantList;
 };
+
+export type MerchantLine = {
+  /** Unique in the list: the merchant key, or one for No Merchant. */
+  key: string;
+  rank: string;
+  /** The bank text of its latest row in the period, or "No Merchant". */
+  name: string;
+  /** Rows with no merchant key, muted like a missing value. */
+  noMerchant: boolean;
+  /** Such as "14", for the Visits column. */
+  visits: string;
+  /** Such as "14 visits", for a phone. */
+  visitsText: string;
+  total: string;
+};
+
+export type MerchantList = {
+  /** How merchants are named, shown with the list. */
+  hint: string | null;
+  lines: MerchantLine[];
+  /** Why there's no list, in its place. */
+  empty: string | null;
+};
+
+export type ReviewLine = { text: string; href: string | null };
+
+export type AllNeedReviewPanel = { title: string; text: string; href: string };
+
+function allNeedReviewPanel(count: number): AllNeedReviewPanel {
+  const rows =
+    count === 1
+      ? "1 row needs review, so there's no Spending to show yet. It counts here once it's decided."
+      : `${count.toLocaleString("en-US")} rows need review, so there's no Spending to show yet. They count here once they're decided.`;
+  return {
+    title: "Every row in this period needs review",
+    text: rows,
+    href: "/review",
+  };
+}
 
 type EmptyAccount = {
   status: "empty";
@@ -198,7 +258,7 @@ function change(now: number, before: number): string {
  */
 function countsAsSpending(row: LedgerRow): row is LedgerRow & { category: string } {
   if (row.type === null || !countsAgainstBudget(row.type)) return false;
-  return !needsReview({ ...row, hidden: false });
+  return !waitsForReview(row);
 }
 
 /** In the account's own currency, so a row in any other is a mistake, not a figure. */
@@ -210,16 +270,120 @@ function spendingByCategory(
   const outflows = new Map<string, number[]>();
   for (const row of ledger) {
     if (!inRange(row.postedOn, range) || !countsAsSpending(row)) continue;
-    if (row.amount.currency !== currency) {
-      throw new BudgetError("entry-currency-mismatch");
-    }
     const values = outflows.get(row.category) ?? [];
-    values.push(-row.amount.minor);
+    values.push(outflow(row, currency));
     outflows.set(row.category, values);
   }
   return new Map(
     [...outflows].map(([category, values]) => [category, sumMinor(values)]),
   );
+}
+
+/** Money out of the account as a positive amount, checked against its currency. */
+function outflow(row: LedgerRow, currency: string): number {
+  if (row.amount.currency !== currency) {
+    throw new BudgetError("entry-currency-mismatch");
+  }
+  return -row.amount.minor;
+}
+
+/**
+ * Personal rows in the period, less their refunds. The ledger has no hidden rows,
+ * and a Personal row never needs review, because it has a type and no category.
+ */
+function personalTotal(inPeriod: readonly LedgerRow[], currency: string): number {
+  return sumMinor(
+    inPeriod
+      .filter((row) => row.type === "personal")
+      .map((row) => outflow(row, currency)),
+  );
+}
+
+/** The most merchants listed. */
+const TOP_MERCHANTS = 10;
+
+const NO_MERCHANT = "No Merchant";
+
+type MerchantGroup = {
+  key: string;
+  outflows: number[];
+  /** The latest row so far, which names the merchant. */
+  latest: LedgerRow;
+};
+
+function isLater(row: LedgerRow, than: LedgerRow): boolean {
+  // The same posted date can hold several rows, so the ID keeps the choice stable.
+  return row.postedOn > than.postedOn || (row.postedOn === than.postedOn && row.id > than.id);
+}
+
+/**
+ * The period's decided Spending grouped by merchant key, which is worked out from
+ * the stored fields and never stored. Each row is a visit, refunds too, and rows
+ * with no key are grouped as No Merchant, which ranks like any merchant. Only a
+ * merchant with Spending above zero is listed, as only those get a slice.
+ */
+function topMerchants(
+  spending: readonly LedgerRow[],
+  keysById: ReadonlyMap<string, string | undefined>,
+  money: (minor: number) => string,
+  currency: string,
+): MerchantList {
+  const groups = new Map<string, MerchantGroup>();
+  for (const row of spending) {
+    const merchant = keysById.get(row.id);
+    const key = merchant === undefined ? "no-merchant" : `merchant:${merchant}`;
+    const group = groups.get(key) ?? { key, outflows: [], latest: row };
+    group.outflows.push(outflow(row, currency));
+    if (isLater(row, group.latest)) group.latest = row;
+    groups.set(key, group);
+  }
+
+  const ranked = [...groups.values()]
+    .map(({ key, outflows, latest }) => ({
+      key,
+      noMerchant: key === "no-merchant",
+      name: key === "no-merchant" ? NO_MERCHANT : latest.description,
+      visits: outflows.length,
+      total: sumMinor(outflows),
+    }))
+    .filter(({ total }) => total > 0)
+    .sort(
+      (a, b) =>
+        b.total - a.total ||
+        b.visits - a.visits ||
+        a.name.localeCompare(b.name) ||
+        a.key.localeCompare(b.key),
+    )
+    .slice(0, TOP_MERCHANTS);
+
+  if (ranked.length === 0) {
+    return {
+      hint: null,
+      lines: [],
+      empty: "No merchants to show, because there's no Spending in this period.",
+    };
+  }
+  return {
+    hint: "Each merchant is named by the bank text of its latest row.",
+    lines: ranked.map(({ key, noMerchant, name, visits, total }, index) => {
+      const count = visits.toLocaleString("en-US");
+      return {
+        key,
+        rank: String(index + 1),
+        name,
+        noMerchant,
+        visits: count,
+        visitsText: visits === 1 ? "1 visit" : `${count} visits`,
+        total: money(total),
+      };
+    }),
+    empty: null,
+  };
+}
+
+/** The budget's definition, on the ledger, which has no hidden rows. */
+function waitsForReview(row: LedgerRow): boolean {
+  return needsReview({ ...row, hidden: false });
 }
 
 /** The first and last months the account has rows in, hidden rows too. */
@@ -342,6 +506,10 @@ export function buildAccountScreen({
   const showChange = lit !== "all-months";
 
   const ledger = toLedger(accountRows, accounts, categories);
+  const inPeriod = ledger.filter((row) => inRange(row.postedOn, range));
+  const waiting = inPeriod.filter(waitsForReview).length;
+  // Hidden rows are out of every total, so they don't count as decided here.
+  const allWaiting = inPeriod.length > 0 && waiting === inPeriod.length;
   const now = spendingByCategory(ledger, range, currency);
   const before = showChange
     ? spendingByCategory(ledger, comparisonRange(range), currency)
@@ -434,13 +602,15 @@ export function buildAccountScreen({
             label: `Spending by category, ${middle} in all. The list shows every figure.`,
           },
     noSpending:
-      slices.length === 0
+      slices.length === 0 && !allWaiting
         ? {
             title: `No Spending ${periodText(range, today)}.`,
             text: "Only Spending rows count here, so transfers and income aren't shown.",
           }
         : null,
-    categories: [
+    allNeedReview: allWaiting ? allNeedReviewPanel(waiting) : null,
+    // With every row waiting, nothing's decided, so no category has stopped.
+    categories: allWaiting ? [] : [
       ...slices.map(({ key, line, color, members }) => ({
         ...line,
         key,
@@ -468,5 +638,25 @@ export function buildAccountScreen({
       share: total <= 0 ? "0%" : "100%",
       change: showChange ? change(total, totalBefore) : null,
     },
+    personal: money(personalTotal(inPeriod, currency)),
+    review: {
+      text: reviewText(waiting, "these totals"),
+      href: reviewHref(waiting),
+    },
+    merchants: topMerchants(
+      inPeriod.filter(countsAsSpending),
+      new Map(
+        accountRows.map((row) => [
+          row.id,
+          merchantKey({
+            ppdId: row.ppd_id ?? undefined,
+            orderingPartyId: row.ordering_party_id ?? undefined,
+            description: row.description,
+          }),
+        ]),
+      ),
+      money,
+      currency,
+    ),
   };
 }

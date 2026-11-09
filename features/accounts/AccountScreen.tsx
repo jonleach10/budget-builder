@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import Link from "next/link";
-import { CircleMinus, Upload } from "lucide-react";
+import { Check, CircleMinus, Inbox, Info, Upload, User } from "lucide-react";
 import { PageFrame } from "@/components/page-frame";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
@@ -11,10 +11,13 @@ import { PeriodControl } from "./PeriodControl";
 import { SpendingDonut, Swatch } from "./SpendingDonut";
 import type {
   AccountScreenData,
+  AllNeedReviewPanel,
   CategoryLine,
   MemberLine,
+  MerchantList,
   NoSpendingLine,
   ReadyAccount,
+  ReviewLine,
 } from "./accountScreenData";
 
 const GHOST_PILL =
@@ -235,44 +238,246 @@ function NoSpending({ line }: { line: NoSpendingLine }) {
 }
 
 /**
- * The donut sits beside the list on a desktop and above it on a phone, and the
- * Personal and needs-review lines go under it once those are built. With no
- * Spending, a plain line takes the donut's place, and the list stays only when a
- * category dropped to zero, since it's then the only thing to show.
+ * In place of the donut and the list: the period has rows, and every one needs
+ * review. The signal-blue edge means information, not an error.
+ */
+function AllNeedReview({ panel }: { panel: AllNeedReviewPanel }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-xl bg-frost-wash px-4 py-7 text-center shadow-hairline ring-1 ring-signal-blue/35 ring-inset md:px-6 md:py-10">
+      <span className="inline-flex size-14 items-center justify-center rounded-full bg-frost-wash text-signal-blue shadow-hairline">
+        <Inbox className="size-6" strokeWidth={1.5} aria-hidden="true" />
+      </span>
+      <h3 className="text-body font-medium text-ice-highlight">{panel.title}</h3>
+      <p className="max-w-[440px] text-body-sm text-moon-mist">{panel.text}</p>
+      <Button asChild variant="ghost" className={cn(GHOST_PILL, "w-full md:w-auto")}>
+        <Link href={panel.href}>Go to Review Inbox</Link>
+      </Button>
+    </div>
+  );
+}
+
+function PersonalItem({ amount }: { amount: string }) {
+  return (
+    <div className="flex flex-1 items-start gap-2.5 px-3.5 py-3">
+      <User
+        className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+        strokeWidth={1.5}
+        aria-hidden="true"
+      />
+      <div className="min-w-0 flex-1">
+        <p className="flex items-baseline justify-between gap-3 font-medium text-moon-mist">
+          <span>Personal</span>
+          <span className="tabular-nums">{amount}</span>
+        </p>
+        <p className="mt-0.5 text-caption text-muted-foreground">
+          Personal rows aren&apos;t in Spending.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Links to the Review inbox while there's something in it, as on the Overview. */
+function ReviewItem({ line }: { line: ReviewLine }) {
+  return (
+    <div className="flex flex-1 items-start gap-2.5 px-3.5 py-3">
+      {line.href === null ? (
+        <>
+          <Check
+            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
+          <span className="text-moon-mist">{line.text}</span>
+        </>
+      ) : (
+        <>
+          <Info
+            className="mt-0.5 size-4 shrink-0 text-signal-blue"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
+          <Link
+            href={line.href}
+            className="rounded-sm text-foreground underline underline-offset-2 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-ring">
+            {line.text}
+          </Link>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Personal and the needs-review line, kept apart from Spending. A desktop shows
+ * them inside the card, under the donut or, with no list, side by side under the
+ * line that replaces it. A phone shows them after the card. With every row in
+ * review, the panel is the needs-review line, so only Personal is left here.
+ */
+function SideLines({
+  screen,
+  place,
+  across = false,
+}: {
+  screen: ReadyAccount;
+  place: "desktop" | "phone";
+  across?: boolean;
+}) {
+  return (
+    <div
+      data-side-lines={place}
+      className={cn(
+        "flex-col divide-y divide-border rounded-xl bg-frost-wash text-body-sm shadow-hairline",
+        place === "desktop" ? "hidden md:flex" : "flex md:hidden",
+        across && "md:flex-row md:divide-x md:divide-y-0",
+      )}>
+      <PersonalItem amount={screen.personal} />
+      {screen.allNeedReview === null && <ReviewItem line={screen.review} />}
+    </div>
+  );
+}
+
+/**
+ * The donut sits beside the list on a desktop and above it on a phone, with the
+ * Personal and needs-review lines under it. With no Spending, a plain line takes
+ * the donut's place, and the list stays only when a category dropped to zero,
+ * since it's then the only thing to show. With every row in review, a panel takes
+ * the place of both.
  */
 function CategoryCard({ screen }: { screen: ReadyAccount }) {
-  const { chart, noSpending } = screen;
+  const { chart, noSpending, allNeedReview } = screen;
   const listed = screen.categories.length > 0;
 
   return (
-    <section
-      aria-labelledby="spending-by-category"
-      className="rounded-2xl bg-card px-4 pt-4 pb-2 shadow-glass md:px-6 md:pt-5 md:pb-4">
-      <h2
-        id="spending-by-category"
-        className="text-body font-medium text-ice-highlight">
-        Spending by Category
-      </h2>
-      {listed && (
-        <p className="mt-0.5 text-caption text-muted-foreground">{screen.hint}</p>
-      )}
-      <div
-        className={cn(
-          "mt-4 mb-2 md:mb-2",
-          listed &&
-            "grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[296px_minmax(0,1fr)] md:items-start md:gap-8",
-        )}>
-        <div>
-          {chart && <SpendingDonut chart={chart} />}
-          {noSpending && <NoSpending line={noSpending} />}
-        </div>
+    <>
+      <section
+        aria-labelledby="spending-by-category"
+        className="rounded-2xl bg-card px-4 pt-4 pb-2 shadow-glass md:px-6 md:pt-5 md:pb-4">
+        <h2
+          id="spending-by-category"
+          className="text-body font-medium text-ice-highlight">
+          Spending by Category
+        </h2>
         {listed && (
-          <div>
-            <CategoryTable screen={screen} />
-            <CategoryList screen={screen} />
+          <p className="mt-0.5 text-caption text-muted-foreground">{screen.hint}</p>
+        )}
+        <div
+          className={cn(
+            "mt-4 mb-2 md:mb-2",
+            listed &&
+              "grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[296px_minmax(0,1fr)] md:items-start md:gap-8",
+          )}>
+          <div className="flex flex-col gap-4 md:gap-6">
+            {chart && <SpendingDonut chart={chart} />}
+            {noSpending && <NoSpending line={noSpending} />}
+            {allNeedReview && <AllNeedReview panel={allNeedReview} />}
+            <SideLines
+              screen={screen}
+              place="desktop"
+              across={!listed && allNeedReview === null}
+            />
           </div>
+          {listed && (
+            <div>
+              <CategoryTable screen={screen} />
+              <CategoryList screen={screen} />
+            </div>
+          )}
+        </div>
+      </section>
+      <SideLines screen={screen} place="phone" />
+    </>
+  );
+}
+
+/**
+ * Desktop: a table with rank, Merchant, Visits and Total. Phone: each merchant on
+ * two lines, with its visits under its name. No Merchant is muted, like a missing
+ * value, and ranks like any merchant. A long name is cut, with the whole of it in
+ * a tooltip.
+ */
+function MerchantsCard({ list }: { list: MerchantList }) {
+  return (
+    <section
+      aria-labelledby="top-merchants"
+      className="overflow-hidden rounded-2xl bg-card pb-1 shadow-glass">
+      <div className="px-4 pt-4 pb-3 md:px-6 md:pt-5 md:pb-3.5">
+        <h2 id="top-merchants" className="text-body font-medium text-ice-highlight">
+          Top Merchants
+        </h2>
+        {list.hint && (
+          <p className="mt-0.5 text-caption text-muted-foreground">{list.hint}</p>
         )}
       </div>
+      {list.empty !== null ? (
+        <p className="px-4 pb-4 text-body-sm text-moon-mist md:px-6 md:pb-5">
+          {list.empty}
+        </p>
+      ) : (
+        <>
+          <table className="hidden w-full table-fixed text-body-sm tabular-nums md:table">
+            <caption className="sr-only">Top merchants</caption>
+            <thead className="bg-background text-caption text-muted-foreground">
+              <tr className="border-y border-border">
+                <th scope="col" className="w-[68px] py-2.5 pl-6 text-left font-medium">
+                  <span className="sr-only">Rank</span>
+                </th>
+                <th scope="col" className="py-2.5 text-left font-medium">
+                  Merchant
+                </th>
+                <th scope="col" className="w-28 py-2.5 text-right font-medium">
+                  Visits
+                </th>
+                <th scope="col" className="w-[176px] py-2.5 pr-6 text-right font-medium">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.lines.map((line) => (
+                <tr
+                  key={line.key}
+                  data-no-merchant={line.noMerchant || undefined}
+                  className="h-11 border-b border-border last:border-b-0">
+                  <td className="pl-6 text-caption text-muted-foreground">{line.rank}</td>
+                  <th
+                    scope="row"
+                    title={line.name}
+                    className={cn(
+                      "truncate text-left font-normal",
+                      line.noMerchant ? "text-muted-foreground" : "text-foreground",
+                    )}>
+                    {line.name}
+                  </th>
+                  <td className="text-right text-moon-mist">{line.visits}</td>
+                  <td className="pr-6 text-right text-foreground">{line.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <ol aria-label="Top merchants" className="text-body-sm tabular-nums md:hidden">
+            {list.lines.map((line) => (
+              <li
+                key={line.key}
+                data-no-merchant={line.noMerchant || undefined}
+                className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-t border-border px-4 py-2.5">
+                <span
+                  title={line.name}
+                  className={cn(
+                    "truncate",
+                    line.noMerchant ? "text-muted-foreground" : "text-foreground",
+                  )}>
+                  {line.name}
+                </span>
+                <span className="text-right text-foreground">{line.total}</span>
+                <span className="col-span-2 text-caption text-muted-foreground">
+                  {line.visitsText}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
     </section>
   );
 }
@@ -316,6 +521,7 @@ function AccountBody({ screen }: { screen: AccountScreenData | null }) {
         <>
           <PeriodControl period={screen.period} />
           <CategoryCard screen={screen} />
+          <MerchantsCard list={screen.merchants} />
         </>
       );
   }

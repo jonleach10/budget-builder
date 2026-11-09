@@ -5,13 +5,13 @@ import {
   readCategories,
   TRANSACTION_COLUMNS,
 } from "@/features/budget/loadScreens";
-import type { TransactionRow } from "@/features/budget/rows";
 import { readAllRows, type RowQuery } from "@/lib/readAllRows";
 import {
   buildAccountScreen,
   chooseAccount,
   type AccountRecord,
   type AccountScreenData,
+  type AccountTransactionRow,
 } from "./accountScreenData";
 import type { PeriodChoice } from "./period";
 
@@ -27,17 +27,20 @@ function readAccountRecords(client: SupabaseClient): Promise<AccountRecord[]> {
   );
 }
 
+/** The columns an `AccountTransactionRow` holds: the merchant key's fields too. */
+const ACCOUNT_ROW_COLUMNS = `${TRANSACTION_COLUMNS}, ppd_id, ordering_party_id`;
+
 /** Every row the account has, so the page can tell an account with none. */
 function readAccountRows(
   client: SupabaseClient,
   accountId: string,
-): Promise<TransactionRow[]> {
+): Promise<AccountTransactionRow[]> {
   return readAllRows(
     () =>
       client
         .from("transactions")
-        .select(TRANSACTION_COLUMNS)
-        .eq("account_id", accountId) as unknown as RowQuery<TransactionRow>,
+        .select(ACCOUNT_ROW_COLUMNS)
+        .eq("account_id", accountId) as unknown as RowQuery<AccountTransactionRow>,
     ["id"],
   );
 }

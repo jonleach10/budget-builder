@@ -463,6 +463,36 @@ function sortedCardRows(month: Month, first: boolean): CardRow[] {
   return [coffee, ...sorted];
 }
 
+/** A card merchant the seed's rule makes Personal, so the Account page has a Personal total. */
+export const PERSONAL_CARD_MERCHANT = "SAMPLE GIFT SHOP";
+
+/**
+ * Card text that's only a masked card number, which import redacts to the
+ * placeholder alone, so the row has no merchant key. The seed decides it, as the
+ * owner would, so the Account page lists No Merchant among the card's merchants.
+ */
+const MASKED_CARD_TEXT = "XXXX XXXX XXXX 0000";
+
+/** Early in the month, so the month in progress has them from its 5th. */
+function personalAndNoMerchantRows(month: Month): CardRow[] {
+  return [
+    cardRowOn(month, 3, {
+      description: PERSONAL_CARD_MERCHANT,
+      category: "Shopping",
+      type: "Sale",
+      minor: -4_250,
+      memo: "",
+    }),
+    cardRowOn(month, 4, {
+      description: MASKED_CARD_TEXT,
+      category: "Shopping",
+      type: "Sale",
+      minor: -6_180,
+      memo: "",
+    }),
+  ];
+}
+
 function cardRows(month: Month, profile: SizeProfile, first = false): CardRow[] {
   const random = randomFor(month);
 
@@ -476,7 +506,12 @@ function cardRows(month: Month, profile: SizeProfile, first = false): CardRow[] 
       memo: "",
     });
   });
-  return [...purchases, ...cardEvents(month), ...sortedCardRows(month, first)];
+  return [
+    ...purchases,
+    ...cardEvents(month),
+    ...sortedCardRows(month, first),
+    ...personalAndNoMerchantRows(month),
+  ];
 }
 
 function germanRowOn(

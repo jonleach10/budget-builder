@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { TransactionRow } from "@/features/budget/rows";
 import {
   buildAccountScreen,
   type AccountRecord,
   type AccountSource,
+  type AccountTransactionRow,
   type ReadyAccount,
 } from "./accountScreenData";
 import { shortcutPeriod, type PeriodChoice } from "./period";
@@ -47,7 +47,7 @@ const CATEGORIES = [
 let nextId = 0;
 
 /** A Spending row in Groceries on the card in September 2026, unless told otherwise. */
-function row(extra: Partial<TransactionRow> = {}): TransactionRow {
+function row(extra: Partial<AccountTransactionRow> = {}): AccountTransactionRow {
   nextId += 1;
   return {
     id: `t${nextId}`,
@@ -62,6 +62,8 @@ function row(extra: Partial<TransactionRow> = {}): TransactionRow {
     type: "spending",
     category_id: "cat-groceries",
     hidden: false,
+    ppd_id: null,
+    ordering_party_id: null,
     ...extra,
   };
 }
@@ -552,7 +554,7 @@ describe("buildAccountScreen: the period", () => {
 });
 
 /** Spending in a category in a month, for the change tests. */
-function spent(category: string, month: string, minor: number): TransactionRow {
+function spent(category: string, month: string, minor: number): AccountTransactionRow {
   return row({
     category_id: category,
     posted_on: `${month}-15`,
@@ -788,7 +790,7 @@ const NINE_SPENT: [string, number][] = [
   ["cat-clothing", 6200],
 ];
 
-function nine(extra: TransactionRow[] = []): ReadyAccount {
+function nine(extra: AccountTransactionRow[] = []): ReadyAccount {
   return ready({
     categories: NINE,
     rows: [
@@ -988,5 +990,370 @@ describe("buildAccountScreen: the donut", () => {
 
   it("has no no-Spending line when there's a donut", () => {
     expect(nine().noSpending).toBeNull();
+  });
+});
+
+/** A Personal row, which holds no category. */
+function personal(extra: Partial<AccountTransactionRow> = {}): AccountTransactionRow {
+  return row({ type: "personal", category_id: null, ...extra });
+}
+
+describe("buildAccountScreen: Personal", () => {
+  it("totals the period's Personal rows, less their refunds, apart from Spending", () => {
+    const screen = ready({
+      rows: [
+        row({ amount_minor: -10000 }),
+        personal({ amount_minor: -25000 }),
+        personal({ posted_on: "2026-10-30", amount_minor: -4650 }),
+        personal({ amount_minor: 1000 }),
+      ],
+    });
+
+    expect(screen.personal).toBe("$286.50");
+    expect(screen.categories.map(({ name }) => name)).toEqual(["Groceries"]);
+    expect(screen.total.amount).toBe("$100.00");
+    expect(screen.chart?.layout.arcs).toHaveLength(1);
+  });
+
+  it("leaves hidden Personal rows and those outside the period out", () => {
+    const screen = ready({
+      rows: [
+        personal({ amount_minor: -2000 }),
+        personal({ amount_minor: -90000, hidden: true }),
+        personal({ posted_on: "2026-07-31", amount_minor: -80000 }),
+        personal({ posted_on: "2026-11-01", amount_minor: -70000 }),
+      ],
+    });
+
+    expect(screen.personal).toBe("$20.00");
+  });
+
+  it("shows $0.00 when the period has no Personal rows", () => {
+    expect(ready({ rows: [row()] }).personal).toBe("$0.00");
+  });
+
+  it("totals a German account's Personal rows in EUR", () => {
+    const screen = ready({
+      accounts: [GIROKONTO],
+      accountId: GIROKONTO.id,
+      rows: [personal({ account_id: GIROKONTO.id, currency: "EUR", amount_minor: -1250 })],
+    });
+
+    expect(screen.personal).toBe("€12.50");
+  });
+});
+
+/** A row that needs review: Spending with no category, unless told otherwise. */
+function waiting(extra: Partial<AccountTransactionRow> = {}): AccountTransactionRow {
+  return row({ category_id: null, ...extra });
+}
+
+describe("buildAccountScreen: needs review", () => {
+  it("counts the period's rows that need review and links to the Review inbox", () => {
+    const screen = ready({
+      rows: [
+        row(),
+        waiting(),
+        waiting({ type: null, amount_minor: 120000 }),
+        // A category ID that's no longer a category leaves the row with none.
+        waiting({ category_id: "cat-gone" }),
+        waiting({ type: "transfer", category_id: null }),
+        waiting({ hidden: true }),
+        waiting({ posted_on: "2026-07-31" }),
+        waiting({ posted_on: "2026-11-01" }),
+      ],
+    });
+
+    expect(screen.review).toEqual({
+      text: "3 rows need review and aren't in these totals.",
+      href: "/review",
+    });
+  });
+
+  it("says one row in the singular", () => {
+    expect(ready({ rows: [row(), waiting()] }).review.text).toBe(
+      "1 row needs review and isn't in these totals.",
+    );
+  });
+
+  it("says when no rows need review, with no link", () => {
+    expect(ready({ rows: [row()] }).review).toEqual({
+      text: "No rows need review.",
+      href: null,
+    });
+  });
+
+  it("has no all-needs-review state while some rows are decided", () => {
+    const screen = ready({ rows: [waiting(), personal()] });
+
+    expect(screen.allNeedReview).toBeNull();
+    expect(screen.noSpending).not.toBeNull();
+  });
+});
+
+describe("buildAccountScreen: every row needs review", () => {
+  it("explains the empty donut in its place, linking to the Review inbox", () => {
+    const screen = ready({
+      rows: [
+        waiting(),
+        waiting({ type: null, amount_minor: 410000 }),
+        waiting({ posted_on: "2026-10-02" }),
+      ],
+    });
+
+    expect(screen.allNeedReview).toEqual({
+      title: "Every row in this period needs review",
+      text: "3 rows need review, so there's no Spending to show yet. They count here once they're decided.",
+      href: "/review",
+    });
+    expect(screen.chart).toBeNull();
+    expect(screen.noSpending).toBeNull();
+    expect(screen.review.text).toBe("3 rows need review and aren't in these totals.");
+    expect(screen.personal).toBe("$0.00");
+  });
+
+  it("says one row in the singular", () => {
+    expect(ready({ rows: [waiting()] }).allNeedReview?.text).toBe(
+      "1 row needs review, so there's no Spending to show yet. It counts here once it's decided.",
+    );
+  });
+
+  it("lists no category, so Spending from the period before doesn't read as stopped", () => {
+    const screen = ready({
+      rows: [waiting(), spent("cat-dining", "2026-06", 5000)],
+    });
+
+    expect(screen.allNeedReview).not.toBeNull();
+    expect(screen.categories).toEqual([]);
+  });
+
+  it("ignores hidden rows, which are out of every total", () => {
+    const screen = ready({ rows: [waiting(), row({ hidden: true })] });
+
+    expect(screen.allNeedReview).not.toBeNull();
+  });
+
+  it("counts only the period's rows", () => {
+    const screen = ready({
+      rows: [waiting(), row({ posted_on: "2026-11-02" }), row({ posted_on: "2026-07-02" })],
+    });
+
+    expect(screen.allNeedReview).not.toBeNull();
+  });
+
+  it("doesn't apply to a period with no rows at all", () => {
+    const screen = ready({ rows: [waiting({ posted_on: "2026-11-02" })] });
+
+    expect(screen.allNeedReview).toBeNull();
+    expect(screen.noSpending).not.toBeNull();
+  });
+});
+
+/** A Spending row at a merchant, by its bank text. */
+function at(
+  description: string,
+  minor: number,
+  extra: Partial<AccountTransactionRow> = {},
+): AccountTransactionRow {
+  return row({ description, amount_minor: -minor, ...extra });
+}
+
+function merchants(screen: ReadyAccount) {
+  return screen.merchants.lines.map(({ rank, name, visits, total }) => ({
+    rank,
+    name,
+    visits,
+    total,
+  }));
+}
+
+describe("buildAccountScreen: top merchants", () => {
+  it("totals each merchant's Spending with its visits, largest first", () => {
+    const screen = ready({
+      rows: [
+        at("SAMPLE CAFE", 450),
+        at("SAMPLE GROCER", 6400),
+        at("SAMPLE CAFE", 520),
+        at("SAMPLE GROCER", 3100),
+        at("SAMPLE CAFE", 610),
+        at("SAMPLE FUEL", 4100),
+      ],
+    });
+
+    expect(merchants(screen)).toEqual([
+      { rank: "1", name: "SAMPLE GROCER", visits: "2", total: "$95.00" },
+      { rank: "2", name: "SAMPLE FUEL", visits: "1", total: "$41.00" },
+      { rank: "3", name: "SAMPLE CAFE", visits: "3", total: "$15.80" },
+    ]);
+    expect(screen.merchants.hint).toBe(
+      "Each merchant is named by the bank text of its latest row.",
+    );
+    expect(screen.merchants.empty).toBeNull();
+  });
+
+  it("says each merchant's visits in words for a phone", () => {
+    const screen = ready({ rows: [at("SAMPLE CAFE", 450), at("SAMPLE CAFE", 450), at("SAMPLE FUEL", 4100)] });
+
+    expect(screen.merchants.lines.map(({ visitsText }) => visitsText)).toEqual([
+      "1 visit",
+      "2 visits",
+    ]);
+  });
+
+  it("groups rows by merchant key, named by the bank text of the period's latest", () => {
+    const screen = ready({
+      rows: [
+        // One PPD ID, so one merchant, whatever the text says.
+        at("SAMPLE GYM 0042 SEP", 3000, { ppd_id: "PPD0001", posted_on: "2026-09-02" }),
+        at("SAMPLE GYM 0057 OCT", 3000, { ppd_id: "PPD0001", posted_on: "2026-10-02" }),
+        at("SAMPLE GYM 0031 AUG", 3000, { ppd_id: "PPD0001", posted_on: "2026-08-02" }),
+        // Bank text keys ignore case, and the latest row's own text names it.
+        at("Sample Bakery", 900, { posted_on: "2026-10-20" }),
+        at("SAMPLE BAKERY", 900, { posted_on: "2026-09-20" }),
+        // A later row outside the period doesn't name it.
+        at("SAMPLE GYM 0078 NOV", 3000, { ppd_id: "PPD0001", posted_on: "2026-11-02" }),
+      ],
+    });
+
+    expect(merchants(screen)).toEqual([
+      { rank: "1", name: "SAMPLE GYM 0057 OCT", visits: "3", total: "$90.00" },
+      { rank: "2", name: "Sample Bakery", visits: "2", total: "$18.00" },
+    ]);
+  });
+
+  it("keeps an Ordering Party ID apart from the same text as bank text", () => {
+    const screen = ready({
+      rows: [
+        at("MUSTER VERSICHERUNG", 4250, { ordering_party_id: "DE00ZZZ00001234567" }),
+        at("MUSTER VERSICHERUNG", 1000),
+      ],
+    });
+
+    expect(merchants(screen).map(({ name, visits }) => ({ name, visits }))).toEqual([
+      { name: "MUSTER VERSICHERUNG", visits: "1" },
+      { name: "MUSTER VERSICHERUNG", visits: "1" },
+    ]);
+  });
+
+  it("groups rows with no merchant key under No Merchant, ranked like any merchant", () => {
+    const screen = ready({
+      rows: [
+        at("", 5000),
+        at("[REDACTED]", 4000),
+        at("[REDACTED] / [REDACTED]", 3000),
+        at("SAMPLE CAFE", 450),
+      ],
+    });
+
+    expect(merchants(screen)).toEqual([
+      { rank: "1", name: "No Merchant", visits: "3", total: "$120.00" },
+      { rank: "2", name: "SAMPLE CAFE", visits: "1", total: "$4.50" },
+    ]);
+    expect(screen.merchants.lines.map(({ noMerchant }) => noMerchant)).toEqual([true, false]);
+  });
+
+  it("groups redacted bank text by the text left around the placeholder", () => {
+    const screen = ready({
+      rows: [
+        at("SAMPLE PAY [REDACTED]", 2000, { posted_on: "2026-09-01" }),
+        at("SAMPLE PAY [REDACTED] [REDACTED]", 2000, { posted_on: "2026-09-03" }),
+        // Without a placeholder it's another key, so another merchant.
+        at("SAMPLE PAY", 1000),
+      ],
+    });
+
+    expect(merchants(screen)).toEqual([
+      { rank: "1", name: "SAMPLE PAY [REDACTED] [REDACTED]", visits: "2", total: "$40.00" },
+      { rank: "2", name: "SAMPLE PAY", visits: "1", total: "$10.00" },
+    ]);
+  });
+
+  it("breaks a tie on total by visits, then by name", () => {
+    const screen = ready({
+      rows: [
+        at("SAMPLE ZOO", 1000),
+        at("SAMPLE APIARY", 1000),
+        at("SAMPLE MARKET", 500),
+        at("SAMPLE MARKET", 500),
+      ],
+    });
+
+    expect(merchants(screen).map(({ name }) => name)).toEqual([
+      "SAMPLE MARKET",
+      "SAMPLE APIARY",
+      "SAMPLE ZOO",
+    ]);
+  });
+
+  it("lists only the top 10", () => {
+    const screen = ready({
+      rows: Array.from({ length: 12 }, (_, index) =>
+        at(`SAMPLE SHOP ${String(index + 1).padStart(2, "0")}`, 1000 * (index + 1)),
+      ),
+    });
+
+    expect(merchants(screen)).toHaveLength(10);
+    expect(merchants(screen)[0]).toEqual({
+      rank: "1",
+      name: "SAMPLE SHOP 12",
+      visits: "1",
+      total: "$120.00",
+    });
+    expect(merchants(screen)[9].name).toBe("SAMPLE SHOP 03");
+  });
+
+  it("counts only decided Spending in the period, like the donut", () => {
+    const screen = ready({
+      rows: [
+        at("SAMPLE GROCER", 1000),
+        at("SAMPLE GROCER", 5000, { hidden: true }),
+        at("SAMPLE GROCER", 5000, { category_id: null }),
+        at("SAMPLE GROCER", 5000, { type: "personal", category_id: null }),
+        at("SAMPLE GROCER", 5000, { type: "transfer", category_id: null }),
+        at("SAMPLE GROCER", 5000, { posted_on: "2026-11-02" }),
+      ],
+    });
+
+    expect(merchants(screen)).toEqual([
+      { rank: "1", name: "SAMPLE GROCER", visits: "1", total: "$10.00" },
+    ]);
+  });
+
+  it("lowers a merchant's total by its refunds, each a visit", () => {
+    const screen = ready({
+      rows: [at("SAMPLE BOOKS", 2600), at("SAMPLE BOOKS", -1250)],
+    });
+
+    expect(merchants(screen)).toEqual([
+      { rank: "1", name: "SAMPLE BOOKS", visits: "2", total: "$13.50" },
+    ]);
+  });
+
+  it("leaves out a merchant whose refunds outweigh its Spending, as the donut does", () => {
+    const screen = ready({
+      rows: [at("SAMPLE GROCER", 1000), at("SAMPLE BOOKS", -1250)],
+    });
+
+    expect(merchants(screen).map(({ name }) => name)).toEqual(["SAMPLE GROCER"]);
+  });
+
+  it("says why there are no merchants when the period has no Spending", () => {
+    const screen = ready({ rows: [waiting(), personal()] });
+
+    expect(screen.merchants).toEqual({
+      hint: null,
+      lines: [],
+      empty: "No merchants to show, because there's no Spending in this period.",
+    });
+  });
+
+  it("shows a German account's merchants in EUR", () => {
+    const screen = ready({
+      accounts: [GIROKONTO],
+      accountId: GIROKONTO.id,
+      rows: [at("Muster Markt", 2800, { account_id: GIROKONTO.id, currency: "EUR" })],
+    });
+
+    expect(screen.merchants.lines[0].total).toBe("€28.00");
   });
 });

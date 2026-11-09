@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { pairTransfers } from "@/features/categorize/pairTransfers";
+import { merchantKey } from "@/features/categorize/pastCategories";
 import { passThroughHash } from "@/features/import/__fixtures__/load";
 import { parseStatement } from "@/features/import/parseStatement";
 import { REDACTED } from "@/features/import/redact";
@@ -9,6 +10,7 @@ import {
   ACCOUNT_WITH_NO_ROWS,
   type DataSize,
   generateStatements,
+  PERSONAL_CARD_MERCHANT,
   SANDBOX_ACCOUNTS,
   sandboxMonths,
   SORTED_CARD_MERCHANTS,
@@ -52,15 +54,16 @@ function digestOf(files: unknown): string {
 }
 
 // First taken from the generator before it had sizes, then again when #158 added
-// the sorted card rows. The sandbox's flows and screenshots rely on this output,
-// so a change here must be on purpose.
+// the sorted card rows, and when #159 added the Personal and No Merchant card
+// rows. The sandbox's flows and screenshots rely on this output, so a change here
+// must be on purpose.
 const DEFAULT_DIGESTS: Record<string, string> = {
   "2026-11-03":
-    "60d871e334803b6267f555eb9cc84395ff129b7767aa6ee98cc40bbc11f8a090",
+    "a3cc00fc28a551b3fd9d1f833e3f0a94e4de7a04cd35b43e9f809bb5faa86d51",
   "2026-11-15":
-    "b0072982ee0a135e2d41a71f6e3f8e22c05c46f4520fc079977309cb31f4995f",
+    "289250bd2179ddebc7bf59867c8c57713532f57b571b7d008c3a3cb4f72fc388",
   "2027-02-15":
-    "4f3ad7bf9c2db92af19e9d0f4e6d716aaffd2c523d4df6bb0b7e11ff247e3ad8",
+    "274823d7ea6fb93273bddef8291f0c9dc1bcda25f5b583f220e15ad3eb400aaf",
 };
 
 describe("generateStatements at the default size", () => {
@@ -315,6 +318,35 @@ describe("generateStatements", () => {
       expect([...coffeeMonths].sort()).toEqual(monthsOf(rows));
     },
   );
+
+  // The seed's rule makes it Personal, so the Account page has a Personal total.
+  it.each(["2026-11-15", "2027-01-15"])(
+    "writes a %s card row for Personal in every month with rows",
+    async (today) => {
+      const rows = await parsedRows(today);
+      const giftMonths = rows
+        .filter(({ accountId, description }) =>
+          accountId === "account-2222" && description === PERSONAL_CARD_MERCHANT,
+        )
+        .map(({ postedOn }) => postedOn.slice(0, 7));
+
+      expect(giftMonths.sort()).toEqual(monthsOf(rows));
+    },
+  );
+
+  // Its text is only a card number, so it has no merchant key, and the seed
+  // decides it, so the Account page lists No Merchant among the card's merchants.
+  it("writes a card row with no merchant key in every month with rows", async () => {
+    const rows = await parsedRows();
+    const noKey = rows.filter(
+      (row) => row.accountId === "account-2222" && merchantKey(row) === undefined,
+    );
+
+    expect(noKey.every(({ description }) => description === REDACTED)).toBe(true);
+    expect(noKey.map(({ postedOn }) => postedOn.slice(0, 7)).sort()).toEqual(
+      monthsOf(rows),
+    );
+  });
 
   it("keeps working across a new year", async () => {
     expect(monthsOf(await parsedRows("2027-02-15"))).toEqual([
