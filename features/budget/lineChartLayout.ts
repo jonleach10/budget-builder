@@ -44,7 +44,7 @@ export type ChartDot = {
   highlighted: boolean;
 };
 
-/** A figure or label floating above a dot: the highlighted month's, or a missing one's. */
+/** The highlighted month's figure, or its label when it has none, above its dot. */
 export type ChartTag = {
   key: string;
   left: number;
@@ -187,25 +187,27 @@ export function layoutLineChart({
       .some((other) => Math.abs(end.top - other.top) < MIN_LABEL_GAP),
   );
 
-  const tags: ChartTag[] = series.flatMap(({ key, values: line }) =>
-    line.flatMap((value, index) => {
-      if (isFigure(value) && index !== highlight) return [];
-      const left = leftOf(index);
-      const text = shown(value);
-      const { short } = columns[index];
-      return [
-        {
-          key: `${key}-${index}`,
-          left,
-          top: plotted(value),
-          text,
-          phoneText: isFigure(value) ? `${short} ${text}` : `${short} · ${text}`,
-          missing: !isFigure(value),
-          flipped: left > 50,
-        },
-      ];
-    }),
-  );
+  // Only the highlighted month is tagged, so tags on neighbouring months can't
+  // crowd each other. Any other month with no figure shows it by its hollow dot,
+  // its button's name and the table.
+  const tags: ChartTag[] =
+    highlight === undefined
+      ? []
+      : series.map(({ key, values: line }) => {
+          const value = line[highlight];
+          const left = leftOf(highlight);
+          const text = shown(value);
+          const { short } = columns[highlight];
+          return {
+            key: `${key}-${highlight}`,
+            left,
+            top: plotted(value),
+            text,
+            phoneText: isFigure(value) ? `${short} ${text}` : `${short} · ${text}`,
+            missing: !isFigure(value),
+            flipped: left > 50,
+          };
+        });
 
   return {
     ticks,

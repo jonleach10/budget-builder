@@ -712,7 +712,8 @@ test("ACC-28: a month whose rows all need review is a hollow point, not $0", asy
     );
   }
   await expect(card.locator('[data-dot="missing"]')).toHaveCount(2);
-  await expect(card.locator('[data-tag="missing"]')).toHaveText(["Needs Review", "Needs Review"]);
+  // Only a highlighted month is tagged, and Last 3 Months highlights none.
+  await expect(card.locator("[data-tag]")).toHaveCount(0);
   // No line runs to them: the one month with a figure is a point on its own.
   for (const points of await card.locator("polyline").evaluateAll((lines) =>
     lines.map((line) => line.getAttribute("points") ?? ""),
@@ -730,11 +731,20 @@ test("ACC-28: a month whose rows all need review is a hollow point, not $0", asy
   );
   await expect(card.locator("[data-band]")).toBeVisible();
   await expect(card.locator('[data-dot="highlighted"]')).toHaveCount(0);
+  // Earlier months need review too, but only the highlighted one is tagged.
+  expect(await card.locator('[data-dot="missing"]').count()).toBeGreaterThan(1);
+  await expect(card.locator("[data-tag]")).toHaveCount(1);
+  await expect(card.locator('[data-tag="missing"]')).toHaveText("Needs Review");
+  const tagged = await card.locator("[data-tag]").getAttribute("style");
+  const highlightedDot = await card.locator('[data-dot="missing"]').last().getAttribute("style");
+  expect(tagged).toBe(highlightedDot);
   await picture(page, "accounts-trend-needs-review-desktop", { full: true });
 
   await page.setViewportSize(PHONE);
-  const short = monthAt(0).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
-  await expect(card.getByText(`${short} · Needs Review`, { exact: true })).toBeVisible();
+  const short = (offset: number) =>
+    monthAt(offset).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  await expect(card.getByText(`${short(0)} · Needs Review`, { exact: true })).toBeVisible();
+  await expect(card.getByText(`${short(-1)} · Needs Review`, { exact: true })).toHaveCount(0);
   expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
   await picture(page, "accounts-trend-needs-review-phone", { full: true });
 

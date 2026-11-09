@@ -181,6 +181,21 @@ const NEEDS_REVIEW: SpendingTrend = {
   hint: null,
 };
 
+/** September and November need review, and November is the highlighted month. */
+const HIGHLIGHTED_REVIEW: SpendingTrend = {
+  layout: layoutLineChart({
+    columns: [
+      { name: "September 2026", short: "Sep" },
+      { name: "October 2026", short: "Oct" },
+      { name: "November 2026", short: "Nov" },
+    ],
+    series: spendingLine([{ missing: "Needs Review" }, 90000, { missing: "Needs Review" }]),
+    currency: "USD",
+    highlight: 2,
+  }),
+  hint: "One month has one point, so the chart shows the 12 months up to November 2026.",
+};
+
 function render(screen: AccountScreenData | null): string {
   return renderToStaticMarkup(createElement(AccountScreen, { screen }));
 }
@@ -477,15 +492,25 @@ describe("AccountScreen", () => {
     expect(html).not.toMatch(/>Feb<span/);
   });
 
-  it("draws a month whose rows all need review as a hollow point, tagged", () => {
+  it("draws a month whose rows all need review as a hollow point, untagged unless highlighted", () => {
     const html = render({ ...READY, trend: NEEDS_REVIEW });
 
     expect(html).toContain('data-dot="missing"');
-    expect(html).toMatch(/data-tag="missing"[^>]*>Needs Review</);
-    expect(html).toContain(">Sep · Needs Review<");
+    expect(html).not.toContain("data-tag");
+    expect(html).not.toContain(">Needs Review<");
     expect(html).toContain('aria-label="September 2026: spending needs review"');
     // Two lines, one each side of it.
     expect(html.match(/<polyline/g)).toHaveLength(2);
+  });
+
+  it("tags the highlighted month Needs Review when its rows all need review", () => {
+    const html = render({ ...READY, trend: HIGHLIGHTED_REVIEW });
+
+    expect(html.match(/data-dot="missing"/g)).toHaveLength(2);
+    expect(html.match(/data-tag=/g)).toHaveLength(1);
+    expect(html).toMatch(/data-tag="missing"[^>]*>Needs Review</);
+    expect(html).toContain(">Nov · Needs Review<");
+    expect(html).not.toContain(">Sep · Needs Review<");
   });
 
   it("says when the page can't be loaded", () => {

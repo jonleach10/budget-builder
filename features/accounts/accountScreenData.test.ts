@@ -1609,6 +1609,8 @@ describe("buildAccountScreen: a trend month whose rows all need review", () => {
     expect(dots.map(({ missing }) => missing)).toEqual([false, true, false]);
     // The line stops before it and starts again after it.
     expect(segments).toHaveLength(2);
+    // Only a highlighted month is tagged, and several months highlight none.
+    expect(trendOf(screen).layout.tags).toEqual([]);
   });
 
   it("leaves hidden rows out of whether every row needs review", () => {
@@ -1639,6 +1641,8 @@ describe("buildAccountScreen: a trend month whose rows all need review", () => {
     const screen = ready({
       period: shortcutPeriod("this-month", TODAY),
       rows: [
+        // September needs review too, but isn't highlighted, so it has no tag.
+        row({ posted_on: "2026-09-02", type: null, category_id: null }),
         spent("cat-groceries", "2026-10", 5000),
         row({ posted_on: "2026-11-02", type: null, category_id: null }),
       ],

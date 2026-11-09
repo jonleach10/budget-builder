@@ -200,20 +200,11 @@ describe("layoutLineChart: a point with no figure", () => {
     expect(layout.columns[1].description).toBe("Sep 2026: spending needs review");
   });
 
-  it("tags it with its label, and its month for a phone", () => {
-    const layout = layoutLineChart(spending([300000, REVIEW, 300000]));
+  it("has no tag unless it's the highlighted month, so neighbouring tags can't crowd", () => {
+    const layout = layoutLineChart(spending([300000, REVIEW, REVIEW, 300000]));
 
-    expect(layout.tags).toEqual([
-      {
-        key: "spending-1",
-        left: 50,
-        top: 100,
-        text: "Needs Review",
-        phoneText: "Sep · Needs Review",
-        missing: true,
-        flipped: false,
-      },
-    ]);
+    expect(layout.tags).toEqual([]);
+    expect(layout.series[0].dots.filter(({ missing }) => missing)).toHaveLength(2);
   });
 
   it("puts the end label at the last month with a figure", () => {
@@ -263,13 +254,31 @@ describe("layoutLineChart: a highlighted month", () => {
     ]);
   });
 
-  it("tags a highlighted month with no figure once, with its label", () => {
+  it("tags a highlighted month with no figure with its label, and its month for a phone", () => {
     const layout = layoutLineChart(spending([100000, REVIEW], { highlight: 1 }));
 
     expect(layout.tags).toEqual([
-      expect.objectContaining({ text: "Needs Review", missing: true }),
+      {
+        key: "spending-1",
+        left: 75,
+        top: 100,
+        text: "Needs Review",
+        phoneText: "Sep · Needs Review",
+        missing: true,
+        flipped: true,
+      },
     ]);
     expect(layout.series[0].dots[1]).toMatchObject({ missing: true, highlighted: true });
+  });
+
+  it("tags only the highlighted month when other months have no figure too", () => {
+    const layout = layoutLineChart(
+      spending([REVIEW, REVIEW, 100000, REVIEW], { highlight: 3 }),
+    );
+
+    expect(layout.tags.map(({ key, text }) => ({ key, text }))).toEqual([
+      { key: "spending-3", text: "Needs Review" },
+    ]);
   });
 
   it("has no band or tag when no month is highlighted", () => {
