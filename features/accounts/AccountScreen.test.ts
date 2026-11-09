@@ -538,6 +538,15 @@ describe("AccountScreen", () => {
     expect(trend).toBeLessThan(html.indexOf(">Top Merchants</h2>"));
   });
 
+  it("puts Open in Transactions last, after Monthly Spending and Top Merchants", () => {
+    const html = render({ ...READY, trend: THREE_MONTHS });
+    const open = html.indexOf(">Open in Transactions<");
+
+    expect(open).toBeGreaterThan(html.indexOf(">Monthly Spending</h2>"));
+    expect(open).toBeGreaterThan(html.indexOf(">Top Merchants</h2>"));
+    expect(open).toBeGreaterThan(html.lastIndexOf("SAMPLE CAFE"));
+  });
+
   it("highlights the month of a one-month period, and says why there are 12", () => {
     const html = render({ ...READY, trend: ONE_MONTH });
 
