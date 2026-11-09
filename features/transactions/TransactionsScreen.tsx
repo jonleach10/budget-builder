@@ -416,13 +416,23 @@ function ReadyTransactions({
   // The account, type and category live in the URL, so a reload or a link keeps
   // them, and the month links carry them over. The rest stay on the screen, which
   // isn't keyed by month, so they carry over too.
+  //
+  // The screen holds them, because useSearchParams can lag a replaceState (it does
+  // in development), and takes them from the URL again only when the URL changes
+  // another way: a link, Back or a reload.
   const fromUrl = readTransactionFilters(paramsOf(useSearchParams()), screen);
-  const [onScreen, setOnScreen] = useState(NO_FILTERS);
-  const filters: TransactionFilters = { ...onScreen, ...fromUrl };
+  const urlKey = transactionsHref(month, fromUrl);
+  const [held, setHeld] = useState({
+    urlKey,
+    filters: { ...NO_FILTERS, ...fromUrl },
+  });
+  const filters: TransactionFilters =
+    held.urlKey === urlKey ? held.filters : { ...held.filters, ...fromUrl };
+  if (held.urlKey !== urlKey) setHeld({ urlKey, filters });
   const [editingId, setEditingId] = useState<string | null>(null);
 
   function setFilters(next: TransactionFilters) {
-    setOnScreen(next);
+    setHeld((current) => ({ ...current, filters: next }));
     const href = transactionsHref(month, next);
     // Replaced, not pushed, so Back leaves Transactions rather than undoing a filter.
     if (href !== transactionsHref(month, filters)) {
