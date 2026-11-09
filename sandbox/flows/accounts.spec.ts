@@ -77,7 +77,11 @@ function monthSelect(page: Page, name: "From" | "To") {
 }
 
 /** The no-rows state only shows after picking its account, so sandbox:shot can't reach it. */
-async function picture(page: Page, name: string, fullPage = false): Promise<void> {
+async function picture(
+  page: Page,
+  name: string,
+  { full = false }: { full?: boolean } = {},
+): Promise<void> {
   const folder = process.env.SANDBOX_SHOT_DIR ?? "sandbox/.shots";
   mkdirSync(folder, { recursive: true });
   // Next's dev badge floats over the page, and it isn't part of the app.
@@ -85,7 +89,8 @@ async function picture(page: Page, name: string, fullPage = false): Promise<void
   await page.screenshot({
     path: join(folder, `${name}.png`),
     animations: "disabled",
-    fullPage,
+    // The trend and Top Merchants sit below the fold, so their pictures take the whole page.
+    fullPage: full,
   });
 }
 
@@ -543,7 +548,7 @@ test("ACC-20: Last 3 Months has a point for each month, an empty one at $0", asy
   await expect(card.locator("[data-band]")).toHaveCount(0);
   // One line, so no legend: the label beside its end names it.
   await expect(card.getByText("Spending", { exact: true })).toHaveCount(1);
-  await picture(page, "accounts-trend-last-3-months-desktop");
+  await picture(page, "accounts-trend-last-3-months-desktop", { full: true });
 });
 
 test("ACC-21: a one-month period shows the 12 months up to it, highlighted", async ({ page }) => {
@@ -568,7 +573,7 @@ test("ACC-21: a one-month period shows the 12 months up to it, highlighted", asy
   await expect(categoryTable(page).getByRole("row").last()).toContainText(`Total${figure}`);
   // The year sits under the first month and under January.
   await expect(card.getByText(String(monthAt(-12).getUTCFullYear()), { exact: true })).toBeVisible();
-  await picture(page, "accounts-trend-one-month-desktop");
+  await picture(page, "accounts-trend-one-month-desktop", { full: true });
 
   await page.setViewportSize(PHONE);
   const short = monthAt(-1).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
@@ -576,7 +581,7 @@ test("ACC-21: a one-month period shows the 12 months up to it, highlighted", asy
   await expect(card.getByText(longMonth(-12), { exact: true })).toBeVisible();
   await expect(card.getByText(longMonth(-1), { exact: true })).toBeVisible();
   expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
-  await picture(page, "accounts-trend-one-month-phone");
+  await picture(page, "accounts-trend-one-month-phone", { full: true });
 });
 
 test("ACC-22: This Month shows the 12 months up to the month in progress", async ({ page }) => {
@@ -621,13 +626,13 @@ test("ACC-24: All Months runs from the first month with rows to the last", async
   const lastOffset = last === monthKey(0) ? 0 : -1;
   expect(await trendMonthNames(page)).toEqual(monthNames(-4, lastOffset));
   await expect(card.locator("[data-band]")).toHaveCount(0);
-  await picture(page, "accounts-trend-all-months-desktop");
+  await picture(page, "accounts-trend-all-months-desktop", { full: true });
 
   await page.setViewportSize(PHONE);
   await expect(card.getByText(longMonth(-4), { exact: true })).toBeVisible();
   await expect(card.getByText(longMonth(lastOffset), { exact: true })).toBeVisible();
   expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
-  await picture(page, "accounts-trend-all-months-phone");
+  await picture(page, "accounts-trend-all-months-phone", { full: true });
 });
 
 test("ACC-25: the trend stays when the period has no Spending but other months do", async ({
@@ -645,7 +650,7 @@ test("ACC-25: the trend stays when the period has no Spending but other months d
     "aria-label",
     /: spending \$[\d,]+\.\d{2}$/,
   );
-  await picture(page, "accounts-trend-no-spending-desktop");
+  await picture(page, "accounts-trend-no-spending-desktop", { full: true });
 });
 
 test("ACC-26: an account where every month is $0 has no trend", async ({ page }) => {
@@ -686,6 +691,60 @@ test("ACC-27: Show Table lists the trend's months and figures", async ({ page })
   await page.setViewportSize(PHONE);
   await card.getByRole("button", { name: "Show Table" }).click();
   expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+});
+
+test("ACC-28: a month whose rows all need review is a hollow point, not $0", async ({ page }) => {
+  // Every row the seed gives Sandbox Girokonto needs review.
+  await page.goto("/accounts");
+  await picker(page).selectOption({ label: GIROKONTO });
+  await expect(page.getByText(`Amounts are in EUR, ${lastThreeMonths()}.`)).toBeVisible();
+  const card = trendCard(page);
+
+  // Last 3 Months: the seed's empty month is €0.00, the two after it need review.
+  await expect(trendMonth(page, -3)).toHaveAttribute(
+    "aria-label",
+    `${longMonth(-3)}: spending €0.00`,
+  );
+  for (const offset of [-2, -1]) {
+    await expect(trendMonth(page, offset)).toHaveAttribute(
+      "aria-label",
+      `${longMonth(offset)}: spending needs review`,
+    );
+  }
+  await expect(card.locator('[data-dot="missing"]')).toHaveCount(2);
+  await expect(card.locator('[data-tag="missing"]')).toHaveText(["Needs Review", "Needs Review"]);
+  // No line runs to them: the one month with a figure is a point on its own.
+  for (const points of await card.locator("polyline").evaluateAll((lines) =>
+    lines.map((line) => line.getAttribute("points") ?? ""),
+  )) {
+    expect(points.split(" ")).toHaveLength(1);
+  }
+
+  // This Month: the month in progress is highlighted, and still a hollow point.
+  await shortcut(page, "This Month").click();
+  await expect(shortcut(page, "This Month")).toHaveAttribute("aria-current", "page");
+  await expect(card.getByText(oneMonthHint(0))).toBeVisible();
+  await expect(trendMonth(page, 0)).toHaveAttribute(
+    "aria-label",
+    `${longMonth(0)}: spending needs review`,
+  );
+  await expect(card.locator("[data-band]")).toBeVisible();
+  await expect(card.locator('[data-dot="highlighted"]')).toHaveCount(0);
+  await picture(page, "accounts-trend-needs-review-desktop", { full: true });
+
+  await page.setViewportSize(PHONE);
+  const short = monthAt(0).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  await expect(card.getByText(`${short} · Needs Review`, { exact: true })).toBeVisible();
+  expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
+  await picture(page, "accounts-trend-needs-review-phone", { full: true });
+
+  // The table says Needs Review, not €0.00.
+  await card.getByRole("button", { name: "Show Table" }).click();
+  await expect(
+    card.getByRole("table", { name: "Spending by month" }).getByRole("row", {
+      name: new RegExp(`^${longMonth(0)} Needs Review$`),
+    }),
+  ).toBeVisible();
 });
 
 test("ACC-09: an account with no Spending shows a plain line instead of the donut", async ({
@@ -777,7 +836,7 @@ test("ACC-11: Top Merchants lists the card's merchants by total, with visits", a
   const card = await categoryTable(page).boundingBox();
   const merchants = await table.boundingBox();
   expect(merchants?.y ?? 0).toBeGreaterThan(card?.y ?? 0);
-  await picture(page, "accounts-merchants-desktop", true);
+  await picture(page, "accounts-merchants-desktop", { full: true });
 });
 
 test("ACC-11: Top Merchants on a phone", async ({ page }) => {
@@ -792,7 +851,7 @@ test("ACC-11: Top Merchants on a phone", async ({ page }) => {
   await expect(items.filter({ hasText: /^No Merchant/ })).toHaveCount(1);
 
   expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
-  await picture(page, "accounts-merchants-phone", true);
+  await picture(page, "accounts-merchants-phone", { full: true });
 });
 
 test("ACC-12: Personal and the needs-review line, which opens the Review Inbox", async ({
@@ -857,13 +916,13 @@ test("ACC-13: a period where every row needs review explains the empty donut", a
   await expect(
     page.getByText("No merchants to show, because there's no Spending in this period."),
   ).toBeVisible();
-  await picture(page, "accounts-all-need-review-desktop", true);
+  await picture(page, "accounts-all-need-review-desktop", { full: true });
 
   await page.setViewportSize(PHONE);
   await expect(page.getByRole("heading", { name: ALL_NEED_REVIEW })).toBeVisible();
   await expect(sideLine(page, "Personal")).toBeVisible();
   expect(await overflow(page), "the page scrolls sideways").toBeLessThanOrEqual(0);
-  await picture(page, "accounts-all-need-review-phone", true);
+  await picture(page, "accounts-all-need-review-phone", { full: true });
 
   await page.getByRole("link", { name: "Go to Review Inbox" }).click();
   await expect(page).toHaveURL(/\/review$/);

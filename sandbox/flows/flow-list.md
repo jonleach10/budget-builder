@@ -591,15 +591,18 @@ The sandbox has five accounts: Sandbox Checking, Sandbox Savings, Sandbox Card a
 
 ### ACC-28 A month whose rows all need review
 
-- **Session**: Fake owner, after an import of a statement whose rows all need review, for a month with no other rows on that account.
+- **Session**: Fake owner.
 - **Release**: Go-live.
-- **Changes**: Nothing beyond the import.
-- **Start**: `/accounts`, on that account, with a period that covers the month.
+- **Changes**: Nothing.
+- **Start**: `/accounts`.
+- **Automated in**: `accounts.spec.ts`.
 
-1. Look at Monthly Spending.
-2. Click Show Table.
+1. Select Sandbox Girokonto · Ending 3333 in the Account picker. Every row the seed gives it needs review.
+2. Look at Monthly Spending for Last 3 Months.
+3. Click This Month.
+4. Click Show Table.
 
-**Result**: the month isn't plotted as $0, which would look like spending stopped. It's a hollow point on the $0 line with a "Needs Review" tag, and the line stops before it and starts again after it; it isn't drawn to the point. A screen reader reads it as, for example, "November 2026: spending needs review". If it's the highlighted month of a one-month period, the highlight stays. "Spending" sits beside the last month that has a figure. A hidden row doesn't count, but any decided row in the month does, even income, so then the month shows its Spending, which may be $0. On a phone, the tag names the month, such as "Nov · Needs Review". In step 2, the table says Needs Review for the month, not $0.00. The default seed has no such month, so this flow isn't automated yet.
+**Result**: a month whose rows all need review isn't plotted as $0, which would look like spending stopped. It's a hollow point on the $0 line with a "Needs Review" tag, and no line is drawn to it. In step 2, the seed's empty month is a point at €0.00, and the two months after it are hollow points. A screen reader reads each as, for example, "October 2026: spending needs review". In step 3, the month in progress is highlighted with the band, and its point stays hollow. "Spending" sits beside the last month that has a figure. A hidden row doesn't count, but any decided row in the month does, even income, so then the month shows its Spending, which may be $0. On a phone, the tag names the month, such as "Nov · Needs Review", and nothing scrolls sideways. In step 4, the table says Needs Review for the month, not €0.00.
 
 ## Transactions
 
