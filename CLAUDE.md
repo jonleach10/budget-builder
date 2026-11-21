@@ -39,7 +39,7 @@ A budget for joint money across Chase accounts in the US and Commerzbank account
 
 ## One-way doors
 
-These are hard or impossible to undo. Each needs the owner's go on the plan before building, runs in the main session rather than a background agent, and gets a line in the PR's Merge Danger section.
+These are hard or impossible to undo. Each needs the owner's go on the plan before building, runs in the main session rather than a background agent, and gets a block in the PR's Doors section.
 
 - Schema migrations and anything run against the hosted database.
 - Row-level security policies.
@@ -57,7 +57,8 @@ The rules above, plus:
 - No secrets.
 - No `any` without a reason.
 - The change matches its issue's acceptance criteria.
-- A change that touches a one-way door names it under Merge Danger.
+- A change that touches a one-way door has a block in the Doors section: what changes, the code to read, the tests that pin it, why it's safe and how to undo it.
+- The PR's At a glance, Differs from the spec and Calls the spec left open sections are complete. A difference or a decision the issue left open never appears only in the folded sections.
 - A UI-facing PR has a sandbox screenshot in its Proof section that shows the change itself.
 - A PR that adds a screen, a route or a new way through a screen adds its flows to `sandbox/flows/flow-list.md`. A PR that changes what a flow does or shows updates that flow.
 - A PR that adds a domain term, or settles a decision that's hard to reverse, surprising and a real trade-off, updates `GLOSSARY.md` or `docs/adr/` in the same PR.
